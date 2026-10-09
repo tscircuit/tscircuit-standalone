@@ -3,7 +3,7 @@
 This audit records the original upstream snapshots below. The standalone path
 now supplies local catalog/build/dev commands and composes ordinary RunFrame
 source execution with a bundled browser worker, dynamic imports, and local
-viewer services. The open patches are described in
+platform providers. The open patches are described in
 [bundled RunFrame](offline-runframe.md). Findings and source links below refer
 to the original snapshots, not the current bundle. Revised compiled-browser
 qualification is recorded in the linked RunFrame document; wider reusable policy work remains in the
@@ -37,19 +37,36 @@ viewing already-rendered geometry requires no part lookup. Native CLI build
 continues to use its separate embedded worker. Browser execution has no deadline
 yet; a generic execution-timeout API remains follow-up work.
 
-The current UI injects a real ten-package lazy dependency manifest through
-internal-dynamic-import, local schematic services (unknown availability, SVG
-thumbnails, and bundled style analysis 0.0.46), and explicit telemetry/feedback
-hooks. Manifold/fonts and converter WASM assets are bundled. External
-hyperlinks remain available; automatic application requests cannot require
-external access. Controlled JSON is retained as an independent RunFrame API.
+The current UI injects a twelve-package lazy dependency manifest through
+internal-dynamic-import: Altium, ten RunFrame converter packages, and schematic
+placement analysis 0.0.46. RunFrame's local `RunFramePlatformConfig` extends the
+shared platform with only `telemetryDisabled`, `evalCdnLoadingDisabled`,
+`evalVersionSelectionDisabled`, and `pcbRenderer`. The existing platform prop
+carries those options. The schematic viewer uses the existing parts-engine
+availability method, generates thumbnails locally, and loads analysis through
+the generic importer. Manifold/fonts and converter WASM assets are bundled.
+External hyperlinks and the existing autorouting-report callback retain normal
+navigation; automatic application requests cannot require external access.
+Host graph errors stay in the editor while RunFrame remains mounted; worker
+errors follow its normal error path.
 
 [RunFrame #5618](https://github.com/tscircuit/runframe/pull/5618),
 [schematic-viewer #285](https://github.com/tscircuit/schematic-viewer/pull/285),
 and [internal-dynamic-import #35](https://github.com/tscircuit/internal-dynamic-import/pull/35)
-remain open with exact source pins. None may be merged automatically. These
+remain open with exact source pins. RunFrame #5618 covers the four-field platform
+extension and its viewer/source packaging. [Worker lifecycle #5632](https://github.com/tscircuit/runframe/pull/5632) and
+[solver/styles #5631](https://github.com/tscircuit/runframe/pull/5631) stay in
+separate PRs. Standalone uses a pinned composite of cherry-picked changes while
+each PR remains under review; using that branch does not merge a PR.
+None may be merged automatically. These
 changes address selected integration gaps; asset/provider completeness and
 compiled-browser qualification still need current evidence.
+
+The PRs keep package boundaries: RunFrame owns the local platform extension and
+viewer forwarding, with worker lifecycle reviewed separately; schematic-viewer owns availability and local
+thumbnails; internal-dynamic-import owns generic module resolution. Standalone
+owns catalog providers, literal manifests, and packaging. No new fields are
+added to the shared `@tscircuit/props` interfaces.
 
 ## Gaps recorded in the original snapshots
 
@@ -87,7 +104,7 @@ RunFrame's [`get-run-frame-project-config.ts`](https://github.com/tscircuit/runf
 2. Generalize provider-default selection and request/import boundaries in
    props/eval/core while preserving ordinary online defaults. Keep project
    configuration from restoring unsupported network providers.
-3. Qualify the normal RunFrame browser worker, injected viewer services, real
+3. Qualify the normal RunFrame browser worker, platform-backed viewers, real
    bundled converter manifests, and all required WASM/font/model assets. Fresh
    browser/storage and worker-level request recording are required.
 4. Expose reusable upstream CLI composition for local catalog imports and

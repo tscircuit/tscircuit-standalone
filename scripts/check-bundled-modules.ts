@@ -26,6 +26,7 @@ export async function checkBundledModules(
     if (!resolver) throw new Error("The compiled UI did not configure its bundled module resolver")
 
     const required: Record<string, string[]> = {
+      "@tscircuit/circuit-json-schematic-placement-analysis": ["analyzeSchematicPlacement"],
       "circuit-json-to-altium": ["convertCircuitJsonToAltiumZip"],
       "circuit-json-to-bom-csv": ["convertCircuitJsonToBomRows", "convertBomRowsToCsv"],
       "circuit-json-to-fdm-component-box": ["createFdmComponentBox", "renderFdmComponentBoxPng"],
@@ -59,6 +60,10 @@ export async function checkBundledModules(
       modules[name] = namespace
       report.namespaces[name] = exports
     }
+    const analyzerAlias = await resolver("@tscircuit/circuit-json-schematic-placement-analysis@0.0.46", forbidFallback) as Record<string, any>
+    if (analyzerAlias.analyzeSchematicPlacement !== modules["@tscircuit/circuit-json-schematic-placement-analysis"]!.analyzeSchematicPlacement) {
+      throw new Error("The bundled schematic analyzer version alias resolved a different implementation")
+    }
     try {
       await resolver("circuit-json-to-gltf@latest", forbidFallback)
     } catch {
@@ -73,6 +78,12 @@ export async function checkBundledModules(
     const filtered = circuitJson.filter((element) => !("error_type" in element) && !("warning_type" in element))
     let stepText: string | undefined
     const operations: Record<string, () => unknown | Promise<unknown>> = {
+      schematicPlacement: async () => {
+        const analysis = await modules["@tscircuit/circuit-json-schematic-placement-analysis"]!.analyzeSchematicPlacement(circuitJson)
+        const issues = analysis.getIssues()
+        if (!Array.isArray(issues)) throw new Error("Schematic placement analysis did not return issues")
+        return { issues: issues.length }
+      },
       bom: async () => {
         const converter = modules["circuit-json-to-bom-csv"]!
         const rows = await converter.convertCircuitJsonToBomRows({ circuitJson })

@@ -39,6 +39,10 @@ describe("standalone platform", () => {
       supplierPartNumber: "C2040",
     })
     expect(supplierFootprint).toHaveLength(65)
+    expect(await platform.partsEngine!.fetchPartAvailability!({
+      supplierName: "jlcpcb",
+      supplierPartNumber: "C2040",
+    })).toBeUndefined()
     expect(network).not.toHaveBeenCalled()
   })
 

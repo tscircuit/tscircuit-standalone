@@ -9,15 +9,16 @@ PCB and schematic SVG previews, and a diagnostic report. The initial catalog
 contains one verified part: RP2040/C2040. `tsci dev` serves a bundled RunFrame
 with local editing, rebuilding, catalog imports, PCB/schematic/procedural 3D,
 BOM, and Circuit JSON views. The dev app runs the ordinary RunFrame browser
-worker with bundled dependencies and local service providers. Compiled browser
-checks cover this flow. Simulation, additional exports, catalog expansion, and
+worker with bundled dependencies and the existing platform providers. Browser
+qualification is recorded in the [RunFrame notes](docs/offline-runframe.md).
+Simulation, additional exports, catalog expansion, and
 release qualification remain in the [implementation plan](docs/implementation-plan.md).
 No official release has been published.
 
 ## Try the foundation
 
 ```sh
-bun install --frozen-lockfile
+bun install --frozen-lockfile --ignore-scripts
 bun run check
 ./dist/tsci import C2040
 ./dist/tsci catalog C2040
@@ -27,6 +28,9 @@ bun run check
 ./dist/tsci build examples/supplier-footprint.circuit.tsx --timeout-ms 60000
 ./dist/tsci dev examples/rp2040-breakout.circuit.tsx --port 3020
 ```
+
+The browser build uses packaged WASM and local adapters. Installation skips
+unused native dependency installers with `--ignore-scripts`.
 
 The default import creates `imports/C2040.tsx`, exporting `RP2040`. Existing
 files are preserved. The emitted component includes its footprint, all 57 pin
@@ -86,8 +90,11 @@ standalone platform. A Circuit JSON entry uses RunFrame's existing file-viewing
 path after array/element and asset validation; its part identity metadata need not be in
 the catalog because no part lookup is performed. Dependency imports, CAD/WASM/fonts, schematic thumbnails,
 and style analysis use bundled implementations. Supplier availability is
-unknown; no snapshot stock or price is invented. Telemetry is disabled through
-its explicit setting. Supplier and feedback hyperlinks remain available for
+unknown through the existing parts engine; no snapshot stock or price is
+invented. RunFrame's local `RunFramePlatformConfig` carries
+`telemetryDisabled`, `evalCdnLoadingDisabled`, `evalVersionSelectionDisabled`,
+and `pcbRenderer` through its existing platform prop. Supplier hyperlinks and
+the existing autorouting-report callback remain available for
 user navigation; application fetches and automatic CDN loads cannot depend on
 external access. See [bundled RunFrame](docs/offline-runframe.md) for the open
 upstream PRs, qualification status, and current limits. Browser execution
@@ -111,7 +118,9 @@ local or rejecting providers and treats swallowed request/effect failures as
 build failures. Catalog metadata/source/footprints are available through the local
 `standalone://parts/C2040/...` resolver. The standalone dev command combines it
 with ordinary RunFrame source execution, an embedded browser worker, a bundled
-dynamic-module manifest, and viewer service providers. The worker constructs
+dynamic-module manifest, and parts-engine availability. The schematic viewer
+generates footprint SVGs locally and loads style analysis through the generic
+importer. The worker constructs
 the platform locally; native Response objects are not sent through Comlink.
 Reusable upstream CLI composition and provider-policy work remain in the plan.
 
@@ -133,9 +142,10 @@ in a clean project without project dependencies or Bun/Node on PATH.
 passed import/build tests, socket tracing, network-namespace execution, and all
 five compilation targets on the initial foundation. Those results do not
 qualify the revised RunFrame browser worker or its expanded dependency graph.
-The current compiled browser harness verifies source and cached JSON flows,
-eleven bundled namespaces, and twelve converter operations without external
-request attempts; CI repeats it with only loopback networking. Native execution beyond
+The current compiled Linux x64 browser proof covers source and cached JSON
+flows, twelve bundled namespaces, the analyzer's exact version alias, and
+thirteen operations with zero external request attempts or CSP violations.
+CI runs the harness with only loopback networking. Native execution beyond
 Linux x64, checksums, signing, notices, and per-feature runtime checks remain
 release gates. Cross-compilation alone does not establish native support.
 

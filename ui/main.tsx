@@ -1,17 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createRoot } from "react-dom/client"
-import { RunFrame } from "@tscircuit/runframe/source"
+import { RunFrame, type RunFramePlatformConfig } from "@tscircuit/runframe/source"
 import { convertCircuitJsonToPcbSvg, convertCircuitJsonToSchematicSvg } from "circuit-to-svg"
 import type { StandaloneDevState as DevState } from "../lib/dev-types"
 import { configureBundledCad } from "./bundled-cad"
 import { configureBundledModules } from "./bundled-modules"
-import { bundledSchematicServices } from "./bundled-schematic-services"
 import { createStandalonePlatformConfig } from "../lib/platform"
 import { inspectCircuitJson, type CircuitBuildReport } from "../lib/circuit-report"
 import type { CircuitJson } from "circuit-json"
 import "./app.css"
 
-const platformConfig = createStandalonePlatformConfig()
+const platformConfig: RunFramePlatformConfig = {
+  ...createStandalonePlatformConfig(),
+  telemetryDisabled: true,
+  evalCdnLoadingDisabled: true,
+  evalVersionSelectionDisabled: true,
+  pcbRenderer: "canvas",
+}
 // Response objects are not transferable through Comlink. Worker request policy
 // handles fetch, while plain part/footprint provider results are proxied normally.
 delete platformConfig.platformFetch
@@ -59,7 +64,7 @@ function App() {
   const sourceLoadVersion = useRef(0)
 
   const fsMap = useMemo(() => {
-    if (!state?.fsMap || !state.mainComponentPath) return undefined
+    if (!state?.fsMap || !state.mainComponentPath) return {}
     return {
       ...state.fsMap,
       [state.mainComponentPath]: state.mainComponentPath.endsWith(".json")
@@ -208,20 +213,14 @@ function App() {
       </section>
       <section className="preview-pane" aria-label="Circuit preview">
         <div className="preview-exports"><span>Live preview</span><div><button disabled={!circuitJson || buildStatus !== "ready"} onClick={() => exportFile("json")}>Download Circuit JSON</button><button disabled={!circuitJson || buildStatus !== "ready"} onClick={() => exportFile("pcb")}>Download PCB SVG</button><button disabled={!circuitJson || buildStatus !== "ready"} onClick={() => exportFile("schematic")}>Download Schematic SVG</button></div></div>
-        <div className="runframe"><RunFrame
+        <div className={`runframe${state?.status === "error" ? " graph-error" : ""}`} aria-hidden={state?.status === "error"}><RunFrame
           fsMap={fsMap}
           mainComponentPath={state?.mainComponentPath}
           isLoadingFiles={state?.status !== "ready"}
-          errorMessage={state?.error ?? null}
           evalVersion="0.0.1569"
           evalWebWorkerBlobUrl="/assets/eval-worker.js"
-          disableCdnLoading
           platformConfig={platformConfig}
-          allowSelectingVersion={false}
-          schematicViewerServices={bundledSchematicServices}
-          telemetryEnabled={false}
-          onReportAutoroutingLog={null}
-          onFeedbackRequested={() => window.open("https://github.com/tscircuit/tscircuit-standalone/issues/new", "_blank", "noopener,noreferrer")}
+          onReportAutoroutingLog={() => { window.open("https://github.com/tscircuit/tscircuit-standalone/issues/new", "_blank", "noopener,noreferrer") }}
           onRenderStarted={() => { setRenderStatus("building"); setRenderError(""); setCircuitJson(null); setReport(null) }}
           onCircuitJsonChange={(json: CircuitJson) => { setCircuitJson(json); setReport(inspectCircuitJson(json, state?.entryPath ?? "circuit")) }}
           onRunCompleted={(result) => {
@@ -233,7 +232,6 @@ function App() {
               setRenderError(result.errors?.map((error: { message?: string }) => error.message ?? String(error)).join("\n") ?? "Circuit evaluation failed")
             }
           }}
-          pcbRenderer="canvas"
           availableTabs={["pcb", "schematic", "cad", "bom", "errors", "circuit_json"]}
           defaultActiveTab="pcb"
           showRunButton={false}

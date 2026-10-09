@@ -10,7 +10,7 @@ small test fixtures rather than production electronics designs.
 From the repository root:
 
 ```sh
-bun install --frozen-lockfile
+bun install --frozen-lockfile --ignore-scripts
 bun run check
 ./dist/tsci build examples/led-resistor.circuit.tsx --output-dir build/led
 ./dist/tsci build examples/rp2040-breakout.circuit.tsx --output-dir build/rp2040

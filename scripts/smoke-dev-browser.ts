@@ -28,6 +28,7 @@ type DevState = {
 type BrowserCircuitState = DevState & {
   circuitJson?: CircuitElement[]
   report?: { errors: CircuitElement[] }
+  errorOrigin?: "source-graph" | "worker"
 }
 
 type BrowserEvidence = {
@@ -308,6 +309,7 @@ async function waitForState(
       if ("circuitJson" in graph || "report" in graph) {
         throw new Error("The dev server rendered circuit output instead of delivering source to RunFrame")
       }
+      if (graph.status === "error") return { ...graph, errorOrigin: "source-graph" as const }
       if (graph.status !== "ready") return graph
       if (!graph.fsMap || !graph.mainComponentPath || !(graph.mainComponentPath in graph.fsMap)) {
         throw new Error("The ready dev state did not include the browser worker's source graph")
@@ -319,6 +321,7 @@ async function waitForState(
       const message = status.textContent ?? ""
       if (message.includes("Build failed")) {
         return { ...graph, status: "error" as const,
+          errorOrigin: "worker" as const,
           error: document.querySelector('[data-testid="build-error"]')?.textContent ?? "Browser render failed" }
       }
       if (!message.startsWith("Built")) return { ...graph, status: "building" as const }
@@ -562,11 +565,13 @@ async function qualifyStaticCircuit(
     state = await saveSource(page, invalidAssetSource, state.generation)
     assert(state.status === "error" && state.error?.includes(remoteBuffer),
       "An embedded GLTF with a remote buffer did not report a local graph error")
+    assert(state.errorOrigin === "source-graph", "The cached remote asset was not rejected by the source graph")
     assert(!state.fsMap && !state.mainComponentPath && !state.circuitJson,
       "The rejected embedded GLTF graph reached the viewer")
     await page.getByTestId("build-error").waitFor({ state: "visible" })
     await page.waitForFunction((remoteBuffer) =>
       document.querySelector('[data-testid="build-error"]')?.textContent?.includes(remoteBuffer), remoteBuffer)
+    await page.locator(".runframe.graph-error").waitFor({ state: "visible" })
     assert(await page.getByRole("button", { name: "Download Circuit JSON", exact: true }).isDisabled(),
       "A rejected cached asset left stale JSON available to download")
     state = await saveSource(page, updated, state.generation)
@@ -666,7 +671,7 @@ async function main() {
     assert(state.report?.errors.length === 0, "Initial LED circuit reported errors")
     assert(state.circuitJson, "The initial browser render did not publish circuit JSON")
     bundledModuleReport = await checkBundledModules(page, state.circuitJson as CircuitJson)
-    console.log(`Qualified ${Object.keys(bundledModuleReport.namespaces).length} bundled module namespaces and ${Object.keys(bundledModuleReport.operations).length} actual conversions under request and CSP monitoring.`)
+    console.log(`Qualified ${Object.keys(bundledModuleReport.namespaces).length} bundled module namespaces and ${Object.keys(bundledModuleReport.operations).length} module operations under request and CSP monitoring.`)
     await page.getByTestId("build-status").waitFor({ state: "visible" })
     await openView(page, "PCB", "led", state)
     await openView(page, "Schematic", "led", state)
@@ -743,20 +748,28 @@ async function main() {
     console.log("Qualified enabled style analysis with bundled issue SVGs and preserved supplier links.")
 
     const rejectedSources = [
-      ["unknown part", 'export default () => <board width="10mm" height="10mm"><chip name="U1" footprint="qfn8" supplierPartNumbers={{jlcpcb:["C999999999"]}}/></board>', /C999999999.*not bundled|not bundled.*C999999999/i],
-      ["unknown module", 'import Missing from "unbundled-example-package"; export default Missing', /unbundled-example-package.*not bundled|not bundled.*unbundled-example-package/i],
-      ["remote footprint", 'export default () => <board width="10mm" height="10mm"><chip name="U1" footprint="https://example.invalid/footprint.json"/></board>', /example\.invalid\/footprint\.json|footprint.*(?:not bundled|not supported|unavailable)/i],
+      ["unknown part", 'export default () => <board width="10mm" height="10mm"><chip name="U1" footprint="qfn8" supplierPartNumbers={{jlcpcb:["C999999999"]}}/></board>', /C999999999.*not bundled|not bundled.*C999999999/i, "worker"],
+      ["unknown module", 'import Missing from "unbundled-example-package"; export default Missing', /unbundled-example-package.*not bundled|not bundled.*unbundled-example-package/i, "source-graph"],
+      ["remote footprint", 'export default () => <board width="10mm" height="10mm"><chip name="U1" footprint="https://example.invalid/footprint.json"/></board>', /example\.invalid\/footprint\.json|footprint.*(?:not bundled|not supported|unavailable)/i, "worker"],
     ] as const
-    for (const [name, source, expected] of rejectedSources) {
+    for (const [name, source, expected, errorOrigin] of rejectedSources) {
       expectedAuthoredErrors.push(expected)
       state = await saveSource(page, source, state.generation)
       assert(state.status === "error" && expected.test(state.error ?? ""), `${name} did not fail with a useful local error: ${JSON.stringify(state)}`)
+      assert(state.errorOrigin === errorOrigin, `${name} failed at the wrong boundary: ${state.errorOrigin}`)
       await page.getByTestId("build-error").waitFor({ state: "visible" })
       await page.waitForFunction(([pattern, flags]) =>
         new RegExp(pattern, flags).test(document.querySelector('[data-testid="build-error"]')?.textContent ?? ""),
       [expected.source, expected.flags])
-      const diagnostics = await openMoreView(page, "Errors")
-      assert(expected.test(await diagnostics.innerText()), `${name} error was not visible in the RunFrame Errors view`)
+      if (errorOrigin === "source-graph") {
+        // The host never supplied rejected source to the evaluator. Its editor
+        // reports this error while RunFrame remains mounted with a hidden preview.
+        assert(!state.fsMap && !state.mainComponentPath, "A rejected source graph reached RunFrame")
+        await page.locator(".runframe.graph-error").waitFor({ state: "visible" })
+      } else {
+        const diagnostics = await openMoreView(page, "Errors")
+        assert(expected.test(await diagnostics.innerText()), `${name} error was not visible in the RunFrame Errors view`)
+      }
     }
     state = await saveSource(page, rp2040Source, state.generation)
     assert(state.status === "ready", "The editor did not recover after rejected offline content")

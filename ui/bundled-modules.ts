@@ -6,6 +6,7 @@ import {
 
 /** Converter code is bundled; model files and WASM still use local providers. */
 export const bundledModuleVersions = {
+  "@tscircuit/circuit-json-schematic-placement-analysis": "0.0.46",
   "circuit-json-to-altium": "0.0.1",
   "circuit-json-to-bom-csv": "0.0.19",
   "circuit-json-to-fdm-component-box": "0.0.4",
@@ -26,6 +27,8 @@ const register = async <TModule>(name: string, module: Promise<TModule>) =>
 // resolver. Register loaded namespaces for converters such as STEP that also
 // consult the shared module registry when resolving nested converter imports.
 export const bundledModuleLoaders = {
+  "@tscircuit/circuit-json-schematic-placement-analysis": () =>
+    register("@tscircuit/circuit-json-schematic-placement-analysis", import("@tscircuit/circuit-json-schematic-placement-analysis")),
   // RunFrame also imports this converter directly; expose the same pinned
   // namespace through the generic bundled resolver for other local consumers.
   "circuit-json-to-altium": () =>

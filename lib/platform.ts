@@ -85,6 +85,7 @@ export const createStandaloneFetch = (
 }
 
 const createStandalonePartsEngine = (catalog: BundledCatalog): PartsEngine => ({
+  fetchPartAvailability: () => undefined,
   findPart: ({ sourceComponent }) => {
     if (sourceComponent.type !== "source_component") return {}
     const supplierNumbers = sourceComponent.supplier_part_numbers?.jlcpcb
