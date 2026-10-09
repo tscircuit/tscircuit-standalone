@@ -1,0 +1,46 @@
+{
+  "sourceFile": "led-resistor.circuit.tsx",
+  "elementCounts": {
+    "source_project_metadata": 1,
+    "schematic_sheet": 1,
+    "schematic_sheet_styling_warning": 1,
+    "source_group": 1,
+    "source_net": 2,
+    "source_port": 6,
+    "source_component": 4,
+    "source_board": 1,
+    "source_trace": 5,
+    "schematic_component": 4,
+    "schematic_group": 1,
+    "schematic_port": 6,
+    "schematic_trace": 3,
+    "schematic_net_label": 4,
+    "pcb_component": 4,
+    "pcb_board": 1,
+    "pcb_smtpad": 6,
+    "pcb_solder_paste": 6,
+    "pcb_silkscreen_path": 3,
+    "pcb_silkscreen_text": 4,
+    "pcb_courtyard_rect": 4,
+    "pcb_port": 6,
+    "pcb_fabrication_note_path": 4,
+    "cad_component": 2,
+    "source_missing_manufacturer_part_number_warning": 2,
+    "pcb_trace": 3
+  },
+  "errors": [],
+  "warnings": [
+    {
+      "type": "schematic_sheet_styling_warning",
+      "message": "Schematic sheet \"LED\" uses a non-default size (75 × 70 mm). Prefer the default A4 sheet size (297 × 210 mm) for consistent schematic styling."
+    },
+    {
+      "type": "source_missing_manufacturer_part_number_warning",
+      "message": "R1 is missing a manufacturer part number and could not be resolved to a supplier part. Specify mpn, manufacturerPartNumber, or mfn, provide supplierPartNumbers, or configure a parts engine to select a part. If this part will not be assembled, mark it doNotPlace."
+    },
+    {
+      "type": "source_missing_manufacturer_part_number_warning",
+      "message": "D1 is missing a manufacturer part number and could not be resolved to a supplier part. Specify mpn, manufacturerPartNumber, or mfn, provide supplierPartNumbers, or configure a parts engine to select a part. If this part will not be assembled, mark it doNotPlace."
+    }
+  ]
+}

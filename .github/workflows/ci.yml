@@ -16,30 +16,57 @@ jobs:
           bun-version: 1.3.12
       - run: bun install --frozen-lockfile
       - run: bun run check
-      - name: Verify imports make no native network attempts
+      - name: Verify imports and circuit builds make no native network attempts
         run: |
           if ! command -v strace >/dev/null; then
             sudo apt-get update
             sudo apt-get install -y strace
           fi
           binary="$PWD/dist/tsci"
+          examples="$PWD/examples"
           project_dir="$(mktemp -d)"
+          cp -R "$examples" "$project_dir/examples"
           cd "$project_dir"
           strace -f -e trace=network -o import.trace "$binary" import C2040
           if strace -f -e trace=network -o missing.trace "$binary" import C999999999; then
             exit 1
           fi
-          if grep -E 'socket\(AF_INET6?|connect\(|sendto\(|sendmsg\(' import.trace missing.trace; then
+          mkdir src
+          sed -e 's|"./helpers/pad-testpoint"|"../examples/helpers/pad-testpoint"|' -e 's|"./imports/C2040"|"../imports/C2040"|' examples/rp2040-breakout.circuit.tsx > src/imported-rp2040.circuit.tsx
+          strace -f -e trace=network -o generated-import.trace "$binary" build src/imported-rp2040.circuit.tsx
+          for circuit in led-resistor rp2040-breakout supplier-footprint; do
+            strace -f -e trace=network -o "$circuit.trace" "$binary" build "examples/$circuit.circuit.tsx"
+          done
+          printf '%s\n' 'import Missing from "unbundled-example-package"; export default Missing' > missing-module.tsx
+          printf '%s\n' 'export default () => <board width="10mm" height="10mm"><chip name="U1" footprint="https://example.invalid/footprint.json"/></board>' > remote-footprint.tsx
+          for circuit in missing-module remote-footprint; do
+            if strace -f -e trace=network -o "$circuit.trace" "$binary" build "$circuit.tsx" --output-dir "$circuit-output"; then
+              exit 1
+            fi
+            test ! -e "$circuit-output"
+          done
+          if grep -E 'socket\(AF_INET6?|connect\(|sendto\(|sendmsg\(' ./*.trace; then
             echo "Unexpected native network attempt"
             exit 1
           fi
       - name: Verify the binary in a network namespace
         run: |
           binary="$PWD/dist/tsci"
+          examples="$PWD/examples"
           project_dir="$(mktemp -d)"
+          cp -R "$examples" "$project_dir/examples"
           cd "$project_dir"
           sudo unshare --net env PATH=/nonexistent BUN_INSTALL_AUTO=disable "$binary" import C2040
           test -s imports/C2040.tsx
+          mkdir src
+          sed -e 's|"./helpers/pad-testpoint"|"../examples/helpers/pad-testpoint"|' -e 's|"./imports/C2040"|"../imports/C2040"|' examples/rp2040-breakout.circuit.tsx > src/imported-rp2040.circuit.tsx
+          sudo unshare --net env -i PATH=/nonexistent BUN_INSTALL_AUTO=disable "$binary" build src/imported-rp2040.circuit.tsx
+          test -s build/imported-rp2040.circuit.json
+          for circuit in led-resistor rp2040-breakout supplier-footprint; do
+            sudo unshare --net env -i PATH=/nonexistent BUN_INSTALL_AUTO=disable "$binary" build "examples/$circuit.circuit.tsx"
+            test -s "build/$circuit.circuit.json"
+            grep -q 'data-schematic-component-id' "build/$circuit.circuit.schematic.svg"
+          done
   build-targets:
     needs: check
     runs-on: ubuntu-latest
@@ -58,4 +85,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: tscircuit-standalone-${{ matrix.target }}
-          path: dist/tsci*
+          path: |
+            dist/tsci*
+            dist/licenses.json
+            dist/THIRD_PARTY_NOTICES.txt
+            LICENSE
+            THIRD_PARTY_NOTICES
