@@ -102,10 +102,10 @@ Set `BUN_BUILD_TARGET` to one of `bun-linux-x64`, `bun-linux-arm64`,
 The local compiled-binary smoke builds all three examples and a circuit using a
 freshly generated `imports/C2040.tsx` from `src/`, in a clean project with no
 Bun/Node runtime on PATH or project `node_modules`. Native execution has
-been checked on Linux only. CI is configured to trace native network calls and
-run imports/builds in a network namespace, then prepare artifacts for all five
-targets; those CI checks still need to run for this milestone. Cross-compilation
-does not establish native support. Native smoke tests on every advertised target,
+been checked on Linux x64. [CI qualification](https://github.com/tscircuit/tscircuit-standalone/actions/runs/37892852019)
+passed all 63 tests, native socket tracing with zero network attempts on the
+exercised paths, network-namespace imports/builds, and compilation for all five
+targets. Cross-compilation does not establish native support. Native smoke tests on every advertised target,
 checksums, signing, license inventory, and further runtime qualification remain
 release gates; no production release is automated yet.
 

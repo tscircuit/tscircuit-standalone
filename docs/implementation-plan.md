@@ -60,9 +60,11 @@ contract must state the supported commands and project features it covers.
   117 package roots, with 46 follow-up flags. Full license certification,
   including native Bun/WASM dependencies and applicable LGPL obligations,
   remains a release gate.
-- CI configured for native socket tracing, network-namespace builds, and five
-  cross-compilation targets. Those CI runs are pending for this milestone;
-  native execution has been checked on Linux only.
+- [CI qualification](https://github.com/tscircuit/tscircuit-standalone/actions/runs/37892852019)
+  passed all 63 tests, native socket tracing with zero network attempts on the
+  exercised import/build success and failure paths, network-namespace builds,
+  and all five cross-compilation targets. Native execution has been checked on
+  Linux x64 only.
 
 This remains preparation for an official release. Dev/RunFrame, simulation,
 additional exports, catalog growth, and native qualification for the remaining
@@ -195,9 +197,9 @@ Build reproducibly from pinned versions and the qualified catalog. Produce
 Linux x64/arm64, macOS x64/arm64, and Windows x64 artifacts. Cross-compilation is
 preparation; execute native smoke tests on each target before announcing support.
 Verify OS/libc baselines, CPU requirements, WASM/native modules and worker paths.
-Run the configured Linux socket-trace and network-namespace CI checks after
-publishing this milestone; local worker tests and an invalid proxy setting do
-not by themselves prove the absence of native network attempts.
+Retain the passing Linux socket-trace and network-namespace CI checks and extend
+them for each new capability. Local worker tests and an invalid proxy setting
+do not by themselves prove the absence of native network attempts.
 
 Generate SHA-256 checksums, dependency/license inventory, embedded version/catalog
 metadata, feature list, and artifact size reports. Add signed/macOS-notarized

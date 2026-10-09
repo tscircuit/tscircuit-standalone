@@ -167,7 +167,7 @@ components. Missing notices, prebuilt WASM/native dependencies, and applicable
 source/relinking requirements still need a release audit; this inventory does
 not certify the binary for redistribution.
 
-## Qualification still pending
+## Qualification and remaining work
 
 The supported loader reads up to 100 reachable local
 TS/TSX/JS/JSX/MTS/CTS/MJS/CJS/JSON files, with a combined limit of 2 MiB. Its
@@ -183,10 +183,12 @@ sandbox for arbitrary adversarial TypeScript.
 The local compiled smoke uses an empty project without project `node_modules`,
 tokens, or Bun/Node on PATH. It also generates `imports/C2040.tsx` with the binary
 and builds a `src/` circuit importing it through `../imports/C2040`, exercising
-the normal project boundary and sibling-import workflow. CI is configured to
-trace native network calls on successful builds and missing-part/module or remote-footprint paths, and to run
-successful imports/builds in a network namespace; its run for this milestone is
-pending. Native qualification is currently limited to Linux. The five
-cross-compilation targets still require native tests
+the normal project boundary and sibling-import workflow.
+[CI run 37892852019](https://github.com/tscircuit/tscircuit-standalone/actions/runs/37892852019)
+passed the 63-test suite and compiled smoke, recorded zero native network attempts
+on exercised import/build success and missing-part/module or remote-footprint
+paths, and ran successful imports/builds in a network namespace. Compilation and
+artifact upload also passed for all five targets. Native qualification is
+currently limited to Linux x64. The other targets still require native tests
 before support is announced. RunFrame/dev, simulation, additional exports,
 catalog expansion, and an official binary release remain planned.
