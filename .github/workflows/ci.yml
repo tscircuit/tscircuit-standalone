@@ -1,0 +1,61 @@
+name: Check standalone preparation
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.12
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - name: Verify imports make no native network attempts
+        run: |
+          if ! command -v strace >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y strace
+          fi
+          binary="$PWD/dist/tsci"
+          project_dir="$(mktemp -d)"
+          cd "$project_dir"
+          strace -f -e trace=network -o import.trace "$binary" import C2040
+          if strace -f -e trace=network -o missing.trace "$binary" import C999999999; then
+            exit 1
+          fi
+          if grep -E 'socket\(AF_INET6?|connect\(|sendto\(|sendmsg\(' import.trace missing.trace; then
+            echo "Unexpected native network attempt"
+            exit 1
+          fi
+      - name: Verify the binary in a network namespace
+        run: |
+          binary="$PWD/dist/tsci"
+          project_dir="$(mktemp -d)"
+          cd "$project_dir"
+          sudo unshare --net env PATH=/nonexistent BUN_INSTALL_AUTO=disable "$binary" import C2040
+          test -s imports/C2040.tsx
+  build-targets:
+    needs: check
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [bun-linux-x64, bun-linux-arm64, bun-darwin-x64, bun-darwin-arm64, bun-windows-x64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.12
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+        env:
+          BUN_BUILD_TARGET: ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tscircuit-standalone-${{ matrix.target }}
+          path: dist/tsci*
