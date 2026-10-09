@@ -594,6 +594,17 @@ async function main() {
     }
     console.log(`Compiled offline RunFrame passed: LED and RP2040 PCB/schematic/3D, editor/rebuild/watch, catalog import, local failure recovery and JSON/SVG downloads; ${new Set(evidence.requests).size} same-origin resources, ${new Set(evidence.workerUrls).size} observed browser workers, zero external request attempts or CSP violations.`)
   } catch (error) {
+    const panel = page?.locator('[role="tabpanel"][data-state="active"]')
+    const diagnostics = {
+      browserVersion: browser?.version(),
+      activePanelText: await panel?.innerText({ timeout: 1000 }).then((text) => text.slice(0, 2000)).catch(() => undefined),
+      canvases: await panel?.locator("canvas").evaluateAll((canvases) => canvases.map((canvas) => {
+        const bounds = canvas.getBoundingClientRect()
+        return { width: bounds.width, height: bounds.height }
+      })).catch(() => undefined),
+      ...Object.fromEntries(Object.entries(evidence).filter(([name]) => name !== "requests" && name !== "workerUrls")),
+    }
+    console.error(`Offline browser qualification failed: ${JSON.stringify(diagnostics)}`)
     if (process.env.SMOKE_ARTIFACT_DIR) {
       const directory = resolve(process.env.SMOKE_ARTIFACT_DIR)
       await mkdir(directory, { recursive: true })

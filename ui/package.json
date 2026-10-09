@@ -19,7 +19,7 @@
     "@tscircuit/create-snippet-url": "0.0.9",
     "@tscircuit/internal-dynamic-import": "0.0.15",
     "@tscircuit/pcb-viewer": "1.11.424",
-    "@tscircuit/runframe": "github:tscircuit/runframe#b889e79042c92289e3a99d1d7d6724db3c97a044",
+    "@tscircuit/runframe": "github:tscircuit/runframe#4d60d55af3649e6ce742c8792898a5026f0d3493",
     "@tscircuit/schematic-viewer": "github:tscircuit/schematic-viewer#a5ae37351922c5fb6edd8febc6bf3939baf1a14b",
     "@tscircuit/solver-utils": "0.0.16",
     "circuit-json": "0.0.525",
