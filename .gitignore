@@ -1,4 +1,7 @@
 node_modules/
 dist/
+build/
 imports/
+!examples/imports/
+!examples/imports/C2040.tsx
 *.tgz

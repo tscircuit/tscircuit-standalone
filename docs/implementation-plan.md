@@ -19,7 +19,7 @@ unavailable. Arbitrary user TypeScript can directly invoke networking APIs, so
 containment of arbitrary code needs a separate process/OS sandbox. The release
 contract must state the supported commands and project features it covers.
 
-## Current preparation
+## Current milestone
 
 - Public repository provisioned through `tscircuit/create-repo` PR #91, with
   maintainers/staff access.
@@ -30,13 +30,65 @@ contract must state the supported commands and project features it covers.
 - Custom platform factory using existing `PlatformConfig`/`PartsEngine` APIs.
   Local footprint lookup, disabled online services, and fail-closed request
   resolution. No new chip-specific API is needed in core.
-- Scoped `tsci import`/`catalog` commands, compiled binary build, frozen
-  dependencies, tests, clean-directory binary smoke, and CI cross-build targets.
+- `tsci import`/`catalog` and `tsci build <entry>` commands. Builds evaluate a
+  bounded local source graph in a fresh embedded worker, route locally, and
+  write Circuit JSON, PCB/schematic SVG, and a diagnostic report. The CLI accepts
+  `--output-dir`, `--project-dir`, and `--timeout-ms`.
+- Pinned eval/core/renderers and explicit runtime dependencies, checked against
+  a fresh frozen install. A compiled-binary smoke builds the three examples and
+  a `src/` circuit importing freshly generated `imports/C2040.tsx`, in a clean
+  project without project `node_modules` or Bun/Node on PATH.
+- Loader guards for reachable static source imports, an exact embedded module
+  allowlist, project/symlink boundaries, and limits of 100 files/2 MiB. Dynamic
+  imports, top-level await, CommonJS `require`, project configuration imports, and
+  unbundled modules are rejected.
+- Worker-owned offline platform, rejecting eval provider defaults, captured
+  request/effect failures, and checks for remote assets, cloud routing, custom
+  parts engines, and unknown supplier/MPN declarations.
+- Circuit regressions with populated schematics: LED/resistor (6 pads, 3 routes),
+  RP2040 (72 total pads, 26 routes, 8 vias), and direct `jlcpcb:C2040`
+  resolution (59 pads, 2 routes, 2 vias). All have no Circuit JSON error diagnostics. The RP2040
+  test verifies all 57 U1 pads and routed 3.1 mm thermal-ground connectivity.
+- Generated PCB/schematic PNG/SVG previews, Circuit JSON, reports, and a
+  self-contained inspection gallery are checked in as review evidence, outside
+  the embedded compact runtime catalog. Schematic geometry regression checks
+  seven capacitor/testpoint paths against their intended rail labels.
+- DRC errors such as PCB footprint overlap return exit code 1 while preserving
+  inspectable build artifacts. Unsupported offline requests fail before new
+  artifacts are published.
+- Builds generate a compiler metafile and package notice inventory: currently
+  117 package roots, with 46 follow-up flags. Full license certification,
+  including native Bun/WASM dependencies and applicable LGPL obligations,
+  remains a release gate.
+- [CI qualification](https://github.com/tscircuit/tscircuit-standalone/actions/runs/37892852019)
+  passed all 63 tests, native socket tracing with zero network attempts on the
+  exercised import/build success and failure paths, network-namespace builds,
+  and all five cross-compilation targets. Native execution has been checked on
+  Linux x64 only.
 
-This is a foundation, not a full offline release. Rendering, dev/RunFrame, and
-exports are unavailable in the preparation CLI. The runtime audits record
-specific upstream files and commit permalinks, rather than assuming a platform
-fetch hook intercepts every request.
+This remains preparation for an official release. Dev/RunFrame, simulation,
+additional exports, catalog growth, and native qualification for the remaining
+targets are pending. The circuits retain documented warnings and are runtime
+fixtures; the RP2040 example omits flash, crystal, USB implementation, and full
+per-pin decoupling. See [circuit inspection](circuit-inspection.md) for measured
+results and limitations. Worker guards cover supported evaluator paths, rather
+than providing an OS sandbox for arbitrary adversarial TypeScript.
+
+The standalone path addresses blank schematic previews through explicit sheet
+membership, embeds the compiled worker, assigns unique virtual IDs to avoid
+eval relative-import cache collisions, surfaces swallowed async errors, and
+overrides online provider defaults. Source regressions also cover runtime
+extension substitution, MTS/CTS/MJS/CJS source formats, and Unicode import
+bindings that eval's own preload scanner misses. These repository adaptations
+do not mean the general upstream CLI or RunFrame is offline. The source audits
+below pin the inspected upstream commits and identify the remaining integration work.
+
+The RP2040 fixture uses explicit relative schematic placement to work around
+an upstream auto-layout issue: the source netlist correctly connected C1/C2 to
+GND, but automatic layout drew their separate wire cluster without a GND label.
+`schDisplayLabel` did not restore it, and an authored netlabel was anchored at
+the component's pre-layout position. The manual fixture and seven label-path
+regressions qualify this example; they do not fix general core auto-layout.
 
 ## Work sequence
 
@@ -62,16 +114,23 @@ pad regressions before growing the catalog. Add local search and common request
 aliases only for verified response shapes; do not carry the EasyEDA acquisition
 API into the runtime to make imports work.
 
-### 2. Offline runtime policy — props, eval, core
+### 2. Generalize the offline runtime policy — props, eval, core
+
+The current standalone worker selects the platform before evaluator loading,
+disables CDN resolution, supplies rejecting KiCad/simulation providers, and
+captures offline misses. Its loader accepts only explicit embedded modules and
+local static source files. Keep these protections and regressions while moving
+the policy into reusable upstream interfaces.
 
 Define an explicit host-owned offline profile alongside `PlatformConfig`, with
 local module/asset/import resolution and an offline miss contract. Ensure the
 policy survives project configuration overrides and normal CLI/eval defaults.
 Keep ordinary placement/layout/DRC options configurable.
 
-In eval, add provider-default selection so a custom offline platform does not
-silently regain JLC/KiCad/ngspice network providers. Gate `@tsci/*` registry
-imports as well as CDN module loading; `disableCdnLoading` alone is insufficient.
+In eval, add provider-default selection so callers do not need to replace every
+online provider with a rejecting implementation. Gate `@tsci/*` registry
+imports as well as CDN module loading; `disableCdnLoading` alone is insufficient
+outside the standalone loader's exact allowlist.
 Eliminate simulation CDN fallback, initially disabling simulation until its
 engine/WASM can be embedded and tested. Require an embedded worker in offline
 mode. Instantiate the catalog adapter in each worker and pass serializable
@@ -84,26 +143,35 @@ reject unsupported remote models, images, named assembly assets and dependencies
 before dispatch. Retain procedural footprinter CAD. Test failure paths and
 project attempts to restore online providers.
 
-### 3. Public CLI composition and binary integration — cli, standalone
+### 3. Public CLI composition and wider binary integration — cli, standalone
+
+The repository already composes a narrow import/catalog/build CLI and embeds
+the build worker, React/eval/core, local router, and SVG converters. Extend this
+working path deliberately; do not reintroduce dynamic dependency downloads or
+filesystem worker assumptions when adding commands.
 
 Expose a configurable CLI factory or public command registration interface with
 injected platform factory, component import resolver, module resolver, worker
 entrypoints, UI assets, and enabled command capabilities. Avoid importing the
 legacy `cli/main.ts`, which eagerly registers online commands and parses argv.
-Connect `import` to the local catalog before search/conversion; it currently
-bypasses runtime platform config and fetches JLC/EasyEDA/datasheets directly.
+Connect the upstream CLI's `import` to the local catalog before search/conversion;
+that command currently bypasses runtime platform config and fetches
+JLC/EasyEDA/datasheets directly.
 
-Provide embedded React/tscircuit and supported dependencies to the evaluator.
-Disable Bun auto-install; reject missing modules instead of dynamically importing
-unresolved packages. Reload the standalone profile inside build/snapshot workers
-and replace sibling-file path assumptions with explicit embedded entries.
+Preserve embedded React/tscircuit dependencies, disabled Bun auto-install, and
+local errors for missing modules. Expand the module allowlist only when the
+new dependency and its assets are bundled and tested. Load the profile inside
+any added snapshot/export workers and give each an explicit embedded entry.
 
-First enable circuit JSON builds, local routing, schematic/PCB output, and
-exports whose converters are fully bundled. Keep auth, cloud publishing,
-ordering, update/install and unqualified dynamic exports unavailable. Measure
-binary size after each feature addition.
+Circuit JSON builds, local routing, and schematic/PCB SVG output are now enabled.
+Next qualify any additional exports with fully bundled converters. Keep auth,
+cloud publishing, ordering, update/install and unqualified dynamic exports
+unavailable. Measure binary size after each feature addition.
 
 ### 4. Offline RunFrame and local dev — runframe, eval, cli
+
+Resolve the upstream schematic auto-layout label/anchor issue above and retain
+geometric rail-label regressions before relying on automatic layouts in RunFrame.
 
 Embed a pinned RunFrame bundle, eval worker/version, CSS, favicon and required
 assets. Skip eval-version lookup when using embedded workers; current RunFrame
@@ -129,6 +197,9 @@ Build reproducibly from pinned versions and the qualified catalog. Produce
 Linux x64/arm64, macOS x64/arm64, and Windows x64 artifacts. Cross-compilation is
 preparation; execute native smoke tests on each target before announcing support.
 Verify OS/libc baselines, CPU requirements, WASM/native modules and worker paths.
+Retain the passing Linux socket-trace and network-namespace CI checks and extend
+them for each new capability. Local worker tests and an invalid proxy setting
+do not by themselves prove the absence of native network attempts.
 
 Generate SHA-256 checksums, dependency/license inventory, embedded version/catalog
 metadata, feature list, and artifact size reports. Add signed/macOS-notarized

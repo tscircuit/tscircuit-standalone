@@ -25,7 +25,31 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-The compiled preparation binary also embeds Bun and @tscircuit/footprinter
-with its dependencies. Their installed license files must accompany any future
-public release artifact; a complete binary dependency/license inventory is a
-release gate documented in docs/implementation-plan.md.
+Artifact dependency notices
+
+The prototype binary embeds Bun, core/eval, footprinter, circuit rendering
+packages, and their bundled dependencies. Each build produces a compiler
+metafile and scripts/license-inventory.ts collects installed package license
+files and preserved license comments into dist/THIRD_PARTY_NOTICES.txt and
+dist/licenses.json. Keep those generated notices beside the binary. They
+include this RP2040 notice and exact installed package versions. Reproduce the
+collection offline with: bun scripts/license-inventory.ts
+
+The @tscircuit/krt-wasm package at 0.1.6 declares MIT and its installed LICENSE
+credits Copyright (c) 2026 drandyhaas. That package's notice is collected from
+the installed compiled graph; this declaration does not inventory every Rust
+dependency compiled into its WASM.
+
+Bun 1.3.12 is pinned to upstream commit
+700fc117a2fd01ac0201deaa6fa69c5557acb04f. The upstream LICENSE.md is preserved
+in vendor-notices/bun-1.3.12-LICENSE.md and included in generated notices.
+It says Bun itself is MIT-licensed and describes statically linked
+JavaScriptCore/WebKit under LGPL-2 and other native library licenses. Before
+public release, collect exact target runtime native notices and determine the
+applicable source/relinking requirements described by that upstream overview.
+
+This is a prototype notice collection, not a complete license certification.
+Packages without installed license text and dependencies hidden inside
+prebuilt bundles are listed for follow-up. Native runtime/WASM dependencies
+and redistribution compatibility still require a full release audit, as
+tracked in docs/implementation-plan.md.

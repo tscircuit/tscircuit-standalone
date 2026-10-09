@@ -12,9 +12,13 @@ await mkdir("dist", { recursive: true })
 const windows = target?.includes("windows") ?? process.platform === "win32"
 const outfile = windows ? "dist/tsci.exe" : "dist/tsci"
 const result = Bun.spawnSync([
-  process.execPath, "build", "--compile", "--minify",
+  process.execPath, "build", "--compile", "--minify", "--metafile=dist/build-metafile.json",
   ...(target ? [`--target=${target}`] : []),
-  `--outfile=${outfile}`, "cli/main.ts",
+  `--outfile=${outfile}`, "cli/main.ts", "lib/build-worker.ts",
 ], { stdout: "inherit", stderr: "inherit" })
 if (result.exitCode !== 0) process.exit(result.exitCode)
+const notices = Bun.spawnSync([process.execPath, "scripts/license-inventory.ts"], {
+  stdout: "inherit", stderr: "inherit",
+})
+if (notices.exitCode !== 0) process.exit(notices.exitCode)
 console.log(`Built preparation binary: ${outfile}`)

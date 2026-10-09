@@ -17,3 +17,5 @@ export {
   createStandalonePlatformConfig,
   OfflineRequestError,
 } from "./platform"
+export { buildCircuitFile, inspectCircuitJson, renderCircuitFile } from "./build"
+export type { CircuitBuildReport } from "./build"

@@ -1,0 +1,53 @@
+{
+  "sourceFile": "supplier-footprint.circuit.tsx",
+  "elementCounts": {
+    "source_project_metadata": 1,
+    "schematic_sheet": 1,
+    "schematic_sheet_styling_warning": 1,
+    "source_group": 1,
+    "source_port": 59,
+    "source_component": 3,
+    "source_board": 1,
+    "pcb_component": 3,
+    "pcb_board": 1,
+    "pcb_smtpad": 59,
+    "pcb_solder_paste": 59,
+    "pcb_silkscreen_text": 3,
+    "pcb_courtyard_rect": 2,
+    "pcb_port": 59,
+    "source_trace": 2,
+    "source_no_power_pin_defined_warning": 1,
+    "source_no_ground_pin_defined_warning": 1,
+    "source_component_pins_underspecified_warning": 1,
+    "schematic_component": 3,
+    "schematic_text": 3,
+    "schematic_group": 1,
+    "schematic_port": 59,
+    "schematic_trace": 2,
+    "schematic_net_label": 1,
+    "pcb_silkscreen_path": 6,
+    "pcb_courtyard_outline": 1,
+    "cad_component": 1,
+    "pcb_trace": 2,
+    "pcb_via": 2
+  },
+  "errors": [],
+  "warnings": [
+    {
+      "type": "schematic_sheet_styling_warning",
+      "message": "Schematic sheet \"Supplier footprint fixture\" uses a non-default size (100 × 110 mm). Prefer the default A4 sheet size (297 × 210 mm) for consistent schematic styling."
+    },
+    {
+      "type": "source_no_power_pin_defined_warning",
+      "message": "U1 has no pin with requires_power=true"
+    },
+    {
+      "type": "source_no_ground_pin_defined_warning",
+      "message": "U1 has no pin with requires_ground=true"
+    },
+    {
+      "type": "source_component_pins_underspecified_warning",
+      "message": "All pins on U1 are underspecified (no pinAttributes set)"
+    }
+  ]
+}

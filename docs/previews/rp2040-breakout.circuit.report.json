@@ -1,0 +1,56 @@
+{
+  "sourceFile": "rp2040-breakout.circuit.tsx",
+  "elementCounts": {
+    "source_project_metadata": 1,
+    "schematic_sheet": 1,
+    "schematic_sheet_styling_warning": 1,
+    "source_group": 1,
+    "source_net": 3,
+    "source_port": 72,
+    "source_component": 12,
+    "source_board": 1,
+    "source_trace": 29,
+    "schematic_component": 12,
+    "schematic_text": 8,
+    "schematic_group": 1,
+    "schematic_port": 72,
+    "schematic_trace": 25,
+    "schematic_net_label": 4,
+    "pcb_component": 12,
+    "pcb_board": 1,
+    "pcb_smtpad": 72,
+    "pcb_solder_paste": 72,
+    "pcb_silkscreen_path": 11,
+    "pcb_silkscreen_text": 12,
+    "pcb_courtyard_outline": 1,
+    "pcb_courtyard_rect": 11,
+    "pcb_port": 72,
+    "cad_component": 5,
+    "source_missing_manufacturer_part_number_warning": 4,
+    "pcb_trace": 26,
+    "pcb_via": 8
+  },
+  "errors": [],
+  "warnings": [
+    {
+      "type": "schematic_sheet_styling_warning",
+      "message": "Schematic sheet \"RP2040 runtime fixture\" uses a non-default size (180 × 160 mm). Prefer the default A4 sheet size (297 × 210 mm) for consistent schematic styling."
+    },
+    {
+      "type": "source_missing_manufacturer_part_number_warning",
+      "message": "C1 is missing a manufacturer part number and could not be resolved to a supplier part. Specify mpn, manufacturerPartNumber, or mfn, provide supplierPartNumbers, or configure a parts engine to select a part. If this part will not be assembled, mark it doNotPlace."
+    },
+    {
+      "type": "source_missing_manufacturer_part_number_warning",
+      "message": "C2 is missing a manufacturer part number and could not be resolved to a supplier part. Specify mpn, manufacturerPartNumber, or mfn, provide supplierPartNumbers, or configure a parts engine to select a part. If this part will not be assembled, mark it doNotPlace."
+    },
+    {
+      "type": "source_missing_manufacturer_part_number_warning",
+      "message": "C3 is missing a manufacturer part number and could not be resolved to a supplier part. Specify mpn, manufacturerPartNumber, or mfn, provide supplierPartNumbers, or configure a parts engine to select a part. If this part will not be assembled, mark it doNotPlace."
+    },
+    {
+      "type": "source_missing_manufacturer_part_number_warning",
+      "message": "R_RUN is missing a manufacturer part number and could not be resolved to a supplier part. Specify mpn, manufacturerPartNumber, or mfn, provide supplierPartNumbers, or configure a parts engine to select a part. If this part will not be assembled, mark it doNotPlace."
+    }
+  ]
+}

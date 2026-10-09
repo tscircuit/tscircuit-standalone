@@ -1,0 +1,18 @@
+{
+  "name": "bun",
+  "version": "1.3.12",
+  "revision": "700fc117a2fd01ac0201deaa6fa69c5557acb04f",
+  "repository": "https://github.com/oven-sh/bun",
+  "declaredLicense": "MIT",
+  "files": [
+    {
+      "path": "bun-1.3.12-LICENSE.md",
+      "source": "https://github.com/oven-sh/bun/blob/700fc117a2fd01ac0201deaa6fa69c5557acb04f/LICENSE.md",
+      "sourceBlobSha": "170bc19e1aab7b6d1f4721f98b19bf3bc9879d53"
+    }
+  ],
+  "reviewReasons": [
+    "Bun's upstream LICENSE.md declares static JavaScriptCore/WebKit LGPL-2 linking and other native library licenses. Collect the exact target runtime's native notices and determine source/relinking requirements before public release.",
+    "The upstream LICENSE.md is a license overview, not the full text of each linked library's license; the npm package's MIT metadata is not a complete native-runtime inventory."
+  ]
+}
