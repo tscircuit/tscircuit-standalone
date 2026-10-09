@@ -1,13 +1,10 @@
-import type { AnyCircuitElement } from "circuit-json"
-import type { CircuitBuildReport } from "./build"
-
 export interface StandaloneDevState {
   entryPath: string
   sourceRevision: string
   status: "building" | "ready" | "error"
   generation: number
-  circuitJson?: AnyCircuitElement[]
-  report?: CircuitBuildReport
+  fsMap?: Record<string, string>
+  mainComponentPath?: string
   error?: string
 }
 
@@ -30,6 +27,5 @@ export interface StandaloneDevAsset {
 export interface StandaloneDevOptions {
   projectDir?: string
   port?: number
-  timeoutMs?: number
   assets: Record<string, StandaloneDevAsset>
 }

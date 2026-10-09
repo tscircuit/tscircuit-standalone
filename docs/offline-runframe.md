@@ -1,10 +1,11 @@
-# Offline RunFrame
+# Bundled RunFrame and local dev
 
-`tsci dev <entry>` serves the embedded RunFrame application at a bound
-`http://127.0.0.1:<port>` origin. The browser is a local viewer and editor; the
-binary evaluates circuits in its existing offline worker and supplies Circuit
-JSON to RunFrame. No browser eval-version discovery or evaluator download is
-needed. Dependency installation happens when building the binary.
+`tsci dev <entry>` serves RunFrame, the evaluator worker, source files, and
+runtime assets at a bound `http://127.0.0.1:<port>` origin. RunFrame executes the
+source through its normal browser-worker protocol. The server prepares the
+bounded local source graph and transfers it as `fsMap`; it does not evaluate
+the circuit or serve rendered Circuit JSON. Dependency installation happens
+when building the binary.
 
 ```sh
 bun install --frozen-lockfile
@@ -12,99 +13,142 @@ bun run build
 ./dist/tsci dev examples/rp2040-breakout.circuit.tsx --port 3020
 ```
 
-Open the printed URL in a browser. The application provides PCB, schematic,
-procedural 3D, BOM, errors, and Circuit JSON views; entry-source editing and
-save/rebuild; dependency watching; embedded catalog search/import; and local
-Circuit JSON/PCB SVG/schematic SVG downloads. `--project-dir` sets the source
-boundary, `--timeout-ms` sets the render deadline, and `--port 0` chooses a free
-loopback port. Ctrl+C stops the server.
+Open the printed URL for PCB, schematic, procedural 3D, BOM, errors, and Circuit
+JSON views. The entry editor saves with revision checks; dependency files can
+be edited externally and watched. Rebuild uses saved files. The embedded
+catalog imports RP2040/C2040 into `imports/C2040.tsx` without replacing existing
+files. Add that local import to the circuit to use it. Syntax errors and
+unsupported imports remain editable. `--project-dir` sets the source boundary,
+`--port 0` chooses a free loopback port, and Ctrl+C stops the server.
 
-The initial catalog remains RP2040/C2040. Importing from the UI creates
-`imports/C2040.tsx` and preserves existing files. Add a local import to the
-circuit to use it. The editor supports the entry file; dependency files can be
-edited with an external editor. Syntax errors and unsupported imports remain
-editable. Save requests carry a source revision so an external edit produces a
-conflict instead of silently being overwritten. Rebuild uses saved files.
+## Worker and dependency composition
 
-## Viewer assets and policy
+The app supplies RunFrame with `fsMap`, `mainComponentPath`, eval version
+`0.0.1569`, `/assets/eval-worker.js`, `disableCdnLoading`, and the custom platform.
+The local worker exposes a normal `CircuitRunner` through Comlink. Its wrapper
+installs the request policy before evaluator initialization, constructs the
+catalog platform inside the worker, and validates authored circuits and JSON
+snapshots with the same policy used by native CLI builds. Rejected requests and
+asynchronous failures become render errors rather than incomplete previews.
+Native Response objects are not transported through Comlink.
 
-The binary embeds the application JavaScript, CSS, HTML, favicon, Manifold
-JavaScript/WASM, and a local Troika font. Browser builds use one React instance
-isolated from the evaluator's React version. CAD initialization happens before
-the viewer mounts so its ordinary CDN loaders never run. Unsupported Unicode
-uses the font's missing-glyph outline locally.
-The PCB view uses the canvas renderer so a WebGPU adapter is not required.
-The current minified application JavaScript is 19,633,632 bytes. Trimming unused
-viewer/exporter code is a follow-up before release; this does not change the
-compact-footprint catalog admission policy.
+A Circuit JSON entry uses RunFrame's existing file-viewing branch. The source
+loader validates its array/element structure and embedded-asset URLs before
+viewing; unknown part identity metadata is allowed because this branch already
+contains geometry and makes no part requests. Source evaluation continues to
+apply full part, asset, authored-provider, and asynchronous-effect validation.
 
-The server binds only to IPv4 loopback. Every request must use the bound host,
-and mutations additionally require that browser origin and a bounded JSON
-body. It serves a fixed asset map and fixed source/catalog APIs, without a
-general filesystem endpoint. Source/import paths must stay inside the project.
-Its CSP restricts connections to the same origin. Script evaluation is enabled
-for Manifold's generated JavaScript wrappers and WASM; this does not allow
-external script origins.
+RunFrame also has a controlled Circuit JSON API for static or host-managed
+consumers. Standalone uses the source/worker path. Pinned version metadata and
+the supplied worker URL remove the need for eval-version discovery or worker
+CDN downloads. Project configuration cannot restore unsupported providers.
 
-RunFrame's offline mode omits cloud/file actions, feedback, telemetry, version
-selection, issue reporting, and supplier links. Schematic inspection also
-skips stock queries and remote footprint thumbnails and disables remote style
-analysis. Unsupported exporters, simulation execution, remote CAD/image assets,
-and solver downloads remain unavailable. Ordinary CAD is generated from local
-footprints. Existing source-graph and evaluator guards still apply; this is
-not an OS sandbox for arbitrary adversarial TypeScript.
+The real `@tscircuit/internal-dynamic-import` package receives a lazy manifest
+through `setDynamicImportResolver(createDynamicImporter(loaders))`. Literal
+imports bundle the ten converter package names currently requested by
+RunFrame, plus its statically imported Altium converter, with exact version aliases. A missing package/version rejects locally;
+loader errors do not trigger a CDN fallback. Ordinary web consumers retain the
+package's default resolver or can delegate selected requests to it. See the
+[manifest](../ui/bundled-modules.ts) for the pinned converters.
 
-## Upstream work
+The build includes local Manifold JavaScript/WASM, OCCT and Resvg WASM adapters,
+and a Troika font. Browser UI imports share one React instance; the evaluator
+worker has its own consistent dependency graph. Manifold and the font initialize
+before viewers mount, and unsupported Unicode uses the local missing-glyph
+outline. PCB uses the canvas renderer and does not require a WebGPU adapter.
 
-The UI pins the reviewed commits in these open PRs:
+Bundling converters is preparation for per-format qualification. The current
+app exposes Circuit JSON, PCB SVG, and schematic SVG downloads. Simulation,
+remote KiCad libraries/models, EasyEDA acquisition, and additional exporter
+controls still need qualified local providers or explicit local errors. A
+bundled converter can itself request model files or other assets, so its package
+being present is insufficient evidence that an export has correct geometry.
+Inline GLTF/GLB and SVG payloads are checked for nested resources before viewer
+handoff. Self-contained GLTF 2.0/GLB v2 and static SVG references are supported;
+remote references, unbundled compression/image decoders, and inline WRL/3MF
+fail locally. Parsed inline assets have an 8 MiB decoded limit and bounded
+structure/recursion checks.
 
-- [RunFrame #5618](https://github.com/tscircuit/runframe/pull/5618): controlled
-  Circuit JSON/loading/errors, offline capabilities, lazy telemetry, static
-  BOM conversion, and a source export.
+## Viewer services and request policy
+
+Schematic services are injected through ordinary viewer APIs: supplier stock
+and price return `null` (unknown), footprint thumbnails are locally generated
+SVG data URLs, and style analysis uses bundled
+`@tscircuit/circuit-json-schematic-placement-analysis@0.0.46`. Supplier links
+remain normal hyperlinks. `telemetryEnabled={false}` prevents analytics
+initialization/capture; a custom feedback action opens the repository issue
+page through user navigation.
+
+User navigation to external pages is allowed. Automatic application requests,
+CDN imports, telemetry, and remote asset loading cannot rely on escaping the
+local request policy. The worker permits only its supported same-origin asset
+requests and rejects other transports before dispatch. Unsupported external
+footprints, models, images, supplier declarations, and modules fail locally.
+
+The server binds to IPv4 loopback, validates the bound host and mutation origin,
+and serves a fixed asset/source/catalog API surface. Imports and symlinks must
+stay inside the project; saves use source revisions to preserve external edits.
+Its CSP restricts connections and asset/script origins to local resources.
+Manifold's generated wrappers and WASM require script evaluation permission.
+These supported-flow guards are not an OS sandbox for arbitrary adversarial
+TypeScript.
+
+Browser execution currently has no deadline. An accidental infinite authored
+loop can require a page reload; a generic RunFrame execution-timeout API is
+follow-up work. `--timeout-ms` applies only to native `tsci build`.
+
+## Upstream changes
+
+These PRs remain open and must never be merged automatically:
+
+- [RunFrame #5618](https://github.com/tscircuit/runframe/pull/5618): worker/version
+  composition, viewer service forwarding, telemetry and feedback hooks,
+  controlled JSON support, and source exports.
 - [schematic-viewer #285](https://github.com/tscircuit/schematic-viewer/pull/285):
-  offline tooltips/context actions and a source export.
+  injectable availability, footprint-preview, and style-analysis services,
+  retaining ordinary controls and links, plus source exports.
+- [internal-dynamic-import #35](https://github.com/tscircuit/internal-dynamic-import/pull/35):
+  configurable resolvers, typed lazy manifests, exact-version matching, and
+  source exports.
 
-They are intentionally open for review. Replace the commit pins with qualified
-published package versions after the upstream changes are reviewed and released.
-The host bundler resolves RunFrame's existing `lib/*` aliases and replaces
-unavailable optional features with local failures. Moving those capabilities
-into explicit upstream dependency injection is follow-up work.
+The UI uses exact GitHub commit pins while those changes are under review.
+Replace them with qualified published versions after upstream review/release.
+The native `tsci build` command continues to use its embedded build worker.
 
-## Qualification
+## Qualification status
 
-`tests/dev-server.test.ts` covers rendering, invalid-source recovery, saves,
-revision conflicts, watches, imports, request validation, symlink boundaries,
-and cancellation. Bun 1.3.12 can crash when terminating a worker while its trusted
-eval dependency graph initializes; a readiness handshake defers that teardown
-and cancels obsolete circuit execution safely.
-Timeouts are reported promptly while initialization cleanup waits for readiness.
-A native Bun initializer that permanently hangs cannot safely be force-killed
-from this JavaScript API.
+An isolated browser converter proof imported all eleven manifest namespaces and
+ran twelve converter/parser operations without external requests or CSP
+violations. This includes local WASM loading. Converter checks establish API
+availability and basic artifact structure; they do not establish full export
+fidelity. In particular, the KiCad check covers 2D document generation, not
+symbol completeness or acquisition of referenced 3D models.
 
-`scripts/smoke-dev-browser.ts` runs the compiled executable in a clean temporary
-project, with no project dependencies or Bun/Node on the child's PATH. It records
-browser requests, window CSP violations, dedicated-worker Chromium security
-logs, console errors, and missing local assets. An attempted external request
-fails qualification even when CSP blocks it. CI additionally runs this harness
-in a network namespace with only loopback enabled. Browser evidence is uploaded
-as a CI artifact.
-A separate synthetic worker fixture first verifies that the monitor detects a
-deliberate CSP-blocked request; that calibration is separate from product evidence.
+The compiled Linux x64 binary passes the real browser-worker and cached JSON
+flows in a clean project. Checks cover all six enabled views, local thumbnail
+and style-analysis artifacts, supplier links, source saves/watches, catalog
+imports, error recovery, and JSON/SVG downloads. Eleven bundled namespaces and
+twelve converter/parser operations run with the same request monitors active.
+No external request attempts, CSP violations, browser/console errors, or failed
+local requests were observed. CI repeats this with only loopback networking.
+Earlier host-rendered prototype screenshots are historical, separate evidence.
 
-Local Linux x64 qualification passed all 76 standalone tests and both typechecks.
-The compiled browser run passed with 12 distinct same-origin URLs, zero external
-request attempts, zero CSP violations, and no browser/console/local-asset errors.
-It additionally checks Unicode CAD labels, offline supplier inspection and
-style-analysis controls, all enabled views, import conflicts, and failure
-recovery. The compiled import/build smoke also passed.
+`tests/dev-server.test.ts` covers source-graph preparation, invalid-source
+recovery, revision-safe saves, watches, imports, request validation, and project
+boundaries. Browser qualification must exercise the real local worker and all
+enabled views/actions in a clean project without project dependencies or
+Bun/Node on the child process PATH.
 
-Captured RP2040 views from that browser run:
+`scripts/smoke-dev-browser.ts` records browser requests, window CSP violations,
+dedicated-worker security logs, console errors, and missing local assets.
+Attempted forbidden requests count as failures even when CSP blocks them.
+CI runs this harness in a network namespace with only loopback available;
+explicit external navigation is separate from automatic resource requests.
+The monitor's synthetic forbidden-request fixture calibrates detection and is
+separate from product evidence.
 
-| PCB | Schematic | Procedural 3D |
-| --- | --- | --- |
-| ![RP2040 PCB](previews/runframe/rp2040-pcb.png) | ![RP2040 schematic](previews/runframe/rp2040-schematic.png) | ![RP2040 procedural 3D](previews/runframe/rp2040-3d.png) |
-
-Official release, native qualification beyond Linux x64, and full redistribution
-license review remain pending. The general schematic auto-layout issue recorded
-in [circuit inspection](circuit-inspection.md) also remains; the RP2040 fixture
-retains its explicit-placement workaround.
+Refresh binary notices and browser evidence after final dependency pins. Native
+qualification on each advertised target, catalog expansion, full license review,
+and an official release remain pending. The RP2040 example retains the explicit
+schematic-placement workaround documented in
+[circuit inspection](circuit-inspection.md).

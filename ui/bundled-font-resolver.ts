@@ -3,7 +3,7 @@
  * the bundled font's missing-glyph outline; no Unicode font service is queried.
  * Keep the factory self-contained because Troika can serialize it for workers.
  */
-export default function createOfflineUnicodeFontResolver() {
+export default function createBundledUnicodeFontResolver() {
   return {
     getFontsForString(text: string) {
       return Promise.resolve({

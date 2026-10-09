@@ -13,7 +13,7 @@ Usage:
   tsci import <supplier-part-number> [--output <file|->]
   tsci catalog [supplier-part-number]
   tsci build <circuit.tsx> [--output-dir <directory>] [--project-dir <directory>] [--timeout-ms <number>]
-  tsci dev <circuit.tsx> [--port <number>] [--project-dir <directory>] [--timeout-ms <number>]
+  tsci dev <circuit.tsx> [--port <number>] [--project-dir <directory>]
   tsci --version
 
 Imports use the embedded footprinter catalog. Unknown parts fail locally.
@@ -47,20 +47,18 @@ export async function runCli(
     if (command === "dev") {
       const [filePath, ...options] = rest
       if (!filePath || filePath.startsWith("-")) {
-        throw new Error("Usage: tsci dev <circuit.tsx> [--port <number>] [--project-dir <directory>] [--timeout-ms <number>]")
+        throw new Error("Usage: tsci dev <circuit.tsx> [--port <number>] [--project-dir <directory>]")
       }
       let port: number | undefined
       let projectDir: string | undefined
-      let timeoutMs: number | undefined
       for (let index = 0; index < options.length; index += 2) {
         const value = options[index + 1]
         if (!value || value.startsWith("--")) throw new Error("Dev option requires a value")
         if (options[index] === "--port" && port === undefined) port = Number(value)
         else if (options[index] === "--project-dir" && projectDir === undefined) projectDir = value
-        else if (options[index] === "--timeout-ms" && timeoutMs === undefined) timeoutMs = Number(value)
         else throw new Error(`Unsupported or duplicate dev option: ${options[index]}`)
       }
-      const dev = await startStandaloneDevServer(filePath, { port, projectDir, timeoutMs, assets: uiAssets })
+      const dev = await startStandaloneDevServer(filePath, { port, projectDir, assets: uiAssets })
       io.stdout(`RunFrame: ${dev.url}\n`)
       io.stdout(`Watching ${filePath}. Press Ctrl+C to stop.\n`)
       const stop = () => { void dev.stop().catch((error) => io.stderr(`${String(error)}\n`)) }

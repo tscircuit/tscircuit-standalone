@@ -41,5 +41,9 @@
   },
   "workspaces": [
     "ui"
-  ]
+  ],
+  "overrides": {
+    "altiumts": "0.0.59"
+  },
+  "trustedDependencies": []
 }

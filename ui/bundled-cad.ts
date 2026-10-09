@@ -3,7 +3,7 @@ import { configureTextBuilder } from "troika-three-text"
 let configured: Promise<void> | undefined
 
 /** Initialize the bundled CAD engine and font before any viewer mounts. */
-export function configureOfflineCad(): Promise<void> {
+export function configureBundledCad(): Promise<void> {
   configured ??= (async () => {
     configureTextBuilder({
       defaultFontURL: "/assets/font.ttf",

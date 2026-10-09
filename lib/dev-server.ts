@@ -2,8 +2,9 @@ import { createHash, randomUUID } from "node:crypto"
 import { watch, type FSWatcher } from "node:fs"
 import { mkdir, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
-import { inspectCircuitJson, renderCircuitFile, waitForCircuitWorkerTeardown } from "./build"
+import type { AnyCircuitElement } from "circuit-json"
 import { bundledCatalog, generateBundledComponentTsx, getBundledPart } from "./catalog"
+import { validateEmbeddedAssets } from "./circuit-policy"
 import type {
   StandaloneDevImport,
   StandaloneDevOptions,
@@ -103,10 +104,6 @@ export async function startStandaloneDevServer(
   if (!Number.isInteger(port) || port < 0 || port > 65535) {
     throw new Error("Dev server port must be an integer between 0 and 65535")
   }
-  if (options.timeoutMs !== undefined &&
-    (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0)) {
-    throw new Error("Render timeout must be a positive number of milliseconds")
-  }
   const requestedEntryPath = path.resolve(entryFile)
   const entryDirectory = await realpath(path.dirname(requestedEntryPath))
   const entryPath = path.join(entryDirectory, path.basename(requestedEntryPath))
@@ -159,9 +156,8 @@ export async function startStandaloneDevServer(
   let watcher: FSWatcher | undefined
   let pollingTimer: ReturnType<typeof setInterval> | undefined
   let debounceTimer: ReturnType<typeof setTimeout> | undefined
-  let renderQueue: Promise<void> = Promise.resolve()
+  let projectQueue: Promise<void> = Promise.resolve()
   let mutationQueue: Promise<void> = Promise.resolve()
-  let activeRender: AbortController | undefined
 
   const queueMutation = <T>(mutate: () => Promise<T>): Promise<T> => {
     const mutation = mutationQueue.then(() => {
@@ -172,33 +168,36 @@ export async function startStandaloneDevServer(
     return mutation
   }
 
-  const renderGeneration = async (generation: number) => {
+  const prepareGeneration = async (generation: number) => {
     if (stopped || state.generation !== generation) return
-    const controller = new AbortController()
-    activeRender = controller
     try {
       const source = await readSource()
       if (stopped || state.generation !== generation) return
       state = { ...state, sourceRevision: source.revision }
-      const circuitJson = await renderCircuitFile(entryPath, {
-        projectDir,
-        timeoutMs: options.timeoutMs,
-        signal: controller.signal,
-      })
+      const project = await readCircuitProject(entryPath, { projectDir })
       if (stopped || state.generation !== generation) return
+      // RunFrame displays authored .circuit.json files directly, without the
+      // evaluator worker that normally validates snapshots before publishing.
+      if (project.mainComponentPath.endsWith(".circuit.json")) {
+        const circuitJson: unknown = JSON.parse(project.fsMap[project.mainComponentPath]!)
+        if (!Array.isArray(circuitJson) || circuitJson.some((element) =>
+          !element || typeof element !== "object" || typeof element.type !== "string")) {
+          throw new Error("Circuit JSON must be an array of circuit elements with a type")
+        }
+        // Existing source metadata and diagnostics do not initiate lookups.
+        validateEmbeddedAssets(circuitJson as AnyCircuitElement[])
+      }
       const currentSource = await readSource()
       if (currentSource.revision !== source.revision) {
-        queueRender(currentSource.revision)
+        queueProject(currentSource.revision)
         return
       }
-      const report = inspectCircuitJson(circuitJson, relativeEntryPath)
       state = {
         entryPath: relativeEntryPath,
         sourceRevision: source.revision,
         status: "ready",
         generation,
-        circuitJson,
-        report,
+        ...project,
       }
     } catch (error) {
       if (stopped || state.generation !== generation) return
@@ -209,14 +208,11 @@ export async function startStandaloneDevServer(
         generation,
         error: error instanceof Error ? error.message : String(error),
       }
-    } finally {
-      if (activeRender === controller) activeRender = undefined
     }
   }
 
-  const queueRender = (revision = state.sourceRevision, debounceMs = 50) => {
+  const queueProject = (revision = state.sourceRevision, debounceMs = 50) => {
     if (stopped) return
-    activeRender?.abort(new Error("A newer circuit revision superseded this render"))
     clearTimeout(debounceTimer)
     const generation = state.generation + 1
     state = {
@@ -227,7 +223,7 @@ export async function startStandaloneDevServer(
     }
     debounceTimer = setTimeout(() => {
       debounceTimer = undefined
-      renderQueue = renderQueue.then(() => renderGeneration(generation))
+      projectQueue = projectQueue.then(() => prepareGeneration(generation))
     }, debounceMs)
   }
 
@@ -260,7 +256,7 @@ export async function startStandaloneDevServer(
         await rm(temporaryPath, { force: true })
       }
       const result = { path: relativeEntryPath, source, revision: sourceRevision(source) }
-      queueRender(result.revision)
+      queueProject(result.revision)
       return result
     })
   }
@@ -293,7 +289,7 @@ export async function startStandaloneDevServer(
         }
         throw error
       }
-      queueRender()
+      queueProject()
       return { path: `imports/${part.supplierPartNumber}.tsx`, source }
     })
   }
@@ -302,6 +298,7 @@ export async function startStandaloneDevServer(
     "content-type": contentType,
     "cache-control": "no-store",
     "x-content-type-options": "nosniff",
+    "x-dns-prefetch-control": "off",
     "content-security-policy": CSP,
   })
   const json = (body: unknown, status = 200, isHead = false) =>
@@ -329,7 +326,7 @@ export async function startStandaloneDevServer(
           if (url.pathname === "/api/import") return json(await importPart(body), 201)
           if (url.pathname === "/api/render") {
             requireFields(body, [])
-            queueRender(undefined, 0)
+            queueProject(undefined, 0)
             return json(state, 202)
           }
           return json({ error: "Endpoint was not found" }, 404)
@@ -359,7 +356,7 @@ export async function startStandaloneDevServer(
     const relativePath = filename?.toString()
     if (relativePath && relativePath.split(/[\\/]/).some((segment) => IGNORED_DIRECTORIES.has(segment))) return
     if (!relativePath || !path.extname(relativePath) || SOURCE_EXTENSIONS.has(path.extname(relativePath))) {
-      queueRender()
+      queueProject()
     }
   }
   // Native directory watching handles atomic saves and previously missing files.
@@ -378,7 +375,7 @@ export async function startStandaloneDevServer(
           const source = await readSource().catch(() => undefined)
           fingerprint = `${source?.revision ?? "missing"}:${error instanceof Error ? error.message : String(error)}`
         }
-        if (previousFingerprint !== fingerprint) queueRender()
+        if (previousFingerprint !== fingerprint) queueProject()
         previousFingerprint = fingerprint
       } finally {
         polling = false
@@ -395,7 +392,7 @@ export async function startStandaloneDevServer(
   } catch {
     startPolling()
   }
-  queueRender(initialSource.revision, 0)
+  queueProject(initialSource.revision, 0)
 
   return {
     url: `http://127.0.0.1:${server.port}`,
@@ -406,9 +403,7 @@ export async function startStandaloneDevServer(
       clearTimeout(debounceTimer)
       clearInterval(pollingTimer)
       watcher?.close()
-      activeRender?.abort(new Error("Dev server stopped"))
-      await Promise.all([renderQueue, mutationQueue])
-      await waitForCircuitWorkerTeardown()
+      await Promise.all([projectQueue, mutationQueue])
       await server.stop(true)
     },
   }

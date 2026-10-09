@@ -3,6 +3,8 @@ import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/pr
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { inflateSync } from "node:zlib"
+import type { CircuitJson } from "circuit-json"
+import { checkBundledModules, type BundledModuleCheckReport } from "./check-bundled-modules"
 
 type CircuitElement = {
   type: string
@@ -19,9 +21,13 @@ type DevState = {
   status: "building" | "ready" | "error"
   generation: number
   sourceRevision: string
-  circuitJson?: CircuitElement[]
-  report?: { errors: unknown[] }
+  fsMap?: Record<string, string>
+  mainComponentPath?: string
   error?: string
+}
+type BrowserCircuitState = DevState & {
+  circuitJson?: CircuitElement[]
+  report?: { errors: CircuitElement[] }
 }
 
 type BrowserEvidence = {
@@ -30,6 +36,7 @@ type BrowserEvidence = {
   cspViolations: string[]
   browserErrors: string[]
   consoleErrors: string[]
+  expectedDiagnostics: string[]
   failedRequests: string[]
   workerUrls: string[]
   monitorErrors: string[]
@@ -38,15 +45,24 @@ type BrowserEvidence = {
 const emptyEvidence = (): BrowserEvidence => ({
   requests: [], forbiddenRequests: [], cspViolations: [], browserErrors: [],
   consoleErrors: [], failedRequests: [], workerUrls: [], monitorErrors: [],
+  expectedDiagnostics: [],
 })
+
+const expectedAuthoredErrors: RegExp[] = []
+const recordConsoleError = (message: string, evidence: BrowserEvidence) => {
+  // RunFrame logs caught circuit failures as well as showing them in Errors.
+  // Keep those exact negative-fixture diagnostics distinct from app failures.
+  if (expectedAuthoredErrors.some((pattern) => pattern.test(message))) evidence.expectedDiagnostics.push(message)
+  else evidence.consoleErrors.push(message)
+}
 
 const assert: (condition: unknown, message: string) => asserts condition = (condition, message) => {
   if (!condition) throw new Error(message)
 }
 
 const delay = (milliseconds: number) => Bun.sleep(milliseconds)
-const countPads = (state: DevState) => state.circuitJson?.filter((element) => element.type === "pcb_smtpad").length ?? 0
-const resistance = (state: DevState, name: string) =>
+const countPads = (state: BrowserCircuitState) => state.circuitJson?.filter((element) => element.type === "pcb_smtpad").length ?? 0
+const resistance = (state: BrowserCircuitState, name: string) =>
   state.circuitJson?.find((element) => element.type === "source_component" && element.name === name)?.resistance
 
 /** Read browser screenshot pixels without installing a second image toolkit. */
@@ -189,7 +205,7 @@ async function monitorWorkers(
       if (/content security policy|violates.*directive|refused to connect/i.test(entry.text)) {
         evidence.cspViolations.push(`Worker ${entry.url}: ${entry.text}`)
       } else if (entry.level === "error") {
-        evidence.consoleErrors.push(`Worker ${entry.url}: ${entry.text}`)
+        recordConsoleError(`Worker ${entry.url}: ${entry.text}`, evidence)
       }
     } else if (event.method === "Network.requestWillBeSent") {
       observeRequest(params.request.url, page.url(), evidence)
@@ -279,17 +295,48 @@ function assertBrowserEvidence(evidence: BrowserEvidence) {
 
 async function waitForState(
   page: Page,
-  accepts: (state: DevState) => boolean,
+  accepts: (state: BrowserCircuitState) => boolean,
   description: string,
-): Promise<DevState> {
+): Promise<BrowserCircuitState> {
   const deadline = Date.now() + 60_000
-  let latest: DevState | undefined
+  let latest: BrowserCircuitState | undefined
   while (Date.now() < deadline) {
     latest = await page.evaluate(async () => {
       const response = await fetch("/api/state")
       if (!response.ok) throw new Error(`State API returned ${response.status}`)
-      return await response.json()
-    }) as DevState
+      const graph = await response.json() as DevState
+      if ("circuitJson" in graph || "report" in graph) {
+        throw new Error("The dev server rendered circuit output instead of delivering source to RunFrame")
+      }
+      if (graph.status !== "ready") return graph
+      if (!graph.fsMap || !graph.mainComponentPath || !(graph.mainComponentPath in graph.fsMap)) {
+        throw new Error("The ready dev state did not include the browser worker's source graph")
+      }
+      const status = document.querySelector('[data-testid="build-status"]')
+      if (status?.getAttribute("data-generation") !== String(graph.generation)) {
+        return { ...graph, status: "building" as const }
+      }
+      const message = status.textContent ?? ""
+      if (message.includes("Build failed")) {
+        return { ...graph, status: "error" as const,
+          error: document.querySelector('[data-testid="build-error"]')?.textContent ?? "Browser render failed" }
+      }
+      if (!message.startsWith("Built")) return { ...graph, status: "building" as const }
+      if (graph.mainComponentPath.endsWith(".circuit.json")) {
+        // Static JSON uses RunFrame's ordinary static viewer. Downloads below
+        // check its displayed data; it does not need an evaluated circuit.
+        const circuitJson = JSON.parse(graph.fsMap[graph.mainComponentPath]!) as CircuitElement[]
+        return { ...graph, circuitJson,
+          report: { errors: circuitJson.filter((element) => element.type.endsWith("_error")) } }
+      }
+      const worker = (window as unknown as {
+        runFrameWorker?: { getCircuitJson: () => Promise<CircuitElement[]> }
+      }).runFrameWorker
+      if (!worker) return { ...graph, status: "building" as const }
+      const circuitJson = await worker.getCircuitJson()
+      return { ...graph, circuitJson,
+        report: { errors: circuitJson.filter((element) => element.type.endsWith("_error")) } }
+    }) as BrowserCircuitState
     if (accepts(latest)) return latest
     await delay(150)
   }
@@ -306,7 +353,7 @@ async function saveSource(page: Page, source: string, afterGeneration: number) {
   const { revision } = await response.json() as { revision: string }
   return waitForState(page,
     (state) => state.generation > afterGeneration && state.sourceRevision === revision && state.status !== "building",
-    "the edited circuit build")
+    "the edited circuit in RunFrame's browser worker")
 }
 
 async function openMoreView(page: Page, name: "BOM" | "Errors" | "Circuit JSON") {
@@ -317,7 +364,7 @@ async function openMoreView(page: Page, name: "BOM" | "Errors" | "Circuit JSON")
   return panel
 }
 
-async function openView(page: Page, name: "PCB" | "Schematic" | "3D", fixture: string, state: DevState) {
+async function openView(page: Page, name: "PCB" | "Schematic" | "3D", fixture: string, state: BrowserCircuitState, requiresStyleArtifacts = false) {
   await page.getByRole("tab", { name, exact: true }).click()
   const panel = page.locator('[role="tabpanel"][data-state="active"]')
   await panel.waitFor({ state: "visible" })
@@ -339,17 +386,30 @@ async function openView(page: Page, name: "PCB" | "Schematic" | "3D", fixture: s
       const details = page.getByRole("dialog", { name: "U1 component details", exact: true })
       await details.waitFor({ state: "visible" })
       assert((await details.innerText()).includes("C2040"), "RP2040 supplier ID did not appear in its component tooltip")
-      assert(await details.locator('a[href^="http:"], a[href^="https:"]').count() === 0, "Offline component details contain an external supplier link")
-      assert(await details.getByRole("status", { name: /price and stock/i }).count() === 0, "Offline component details still load live stock")
+      assert(await details.locator('a[href^="https://jlcpcb.com/"]').count() > 0, "Component details lost their JLCPCB supplier hyperlink")
+      await details.getByRole("status", { name: /price and stock/i }).waitFor({ state: "visible" })
+      const thumbnail = details.getByRole("img", { name: /PCB footprint/ })
+      await thumbnail.waitFor({ state: "visible" })
+      assert((await thumbnail.getAttribute("src"))?.startsWith("data:image/svg+xml"), "Component footprint thumbnail did not use the bundled renderer")
     }
     await page.keyboard.press("Escape")
-    // The offline context menu must not trigger remote style analysis.
     // Component context menus contain navigation; analysis lives on the background.
     await panel.click({ position: { x: 70, y: 90 }, button: "right", force: true })
     const analysis = page.getByRole("menuitem", { name: "Run Style Analysis", exact: true })
     await analysis.waitFor({ state: "visible" })
-    assert(await analysis.getAttribute("aria-disabled") === "true", "Offline schematic style analysis remains enabled")
-    await page.keyboard.press("Escape")
+    assert(await analysis.getAttribute("aria-disabled") !== "true", "The bundled style analyzer was disabled")
+    await analysis.click()
+    const dialog = page.getByRole("dialog", { name: "Style Analysis", exact: true })
+    await dialog.waitFor({ state: "visible" })
+    await dialog.getByRole("status").filter({ hasText: /No style issues found|[0-9]+ style issues? found/ }).waitFor({ state: "visible" })
+    const artifacts = dialog.locator("img")
+    if (requiresStyleArtifacts) assert(await artifacts.count() > 0, "The overlapping schematic did not produce style-analysis issue SVGs")
+    for (const image of await artifacts.all()) {
+      const source = await image.getAttribute("src")
+      assert(source?.startsWith("data:image/svg+xml") && decodeURIComponent(source.split(",")[1] ?? "").includes("<svg"),
+        "Style analysis did not render a bundled SVG artifact")
+    }
+    await dialog.getByRole("button", { name: "Close", exact: true }).click()
   } else if (name === "PCB") {
     await panel.locator("canvas, [data-pcb-component-id], [data-pcb-smtpad-id]").first().waitFor({ state: "visible" })
     assert(!/rendering failed|error loading.*viewer|no webgpu adapter/i.test(await panel.innerText()), "The PCB renderer displayed a failure instead of the circuit")
@@ -383,17 +443,177 @@ async function downloadArtifact(page: Page, name: RegExp, directory: string) {
   return await readFile(output, "utf8")
 }
 
+async function createMonitoredPage(
+  browser: Browser,
+  origin: string,
+  evidence: BrowserEvidence,
+  isExpectedImportConflict: () => boolean = () => false,
+): Promise<Page> {
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 }, serviceWorkers: "block", acceptDownloads: true,
+  })
+  context.on("request", (request) => observeRequest(request.url(), origin, evidence))
+  context.on("requestfailed", (request) => {
+    if (request.failure()?.errorText !== "net::ERR_ABORTED") {
+      evidence.failedRequests.push(`${request.url()}: ${request.failure()?.errorText}`)
+    }
+  })
+  context.on("response", (response) => {
+    if (isExpectedImportConflict() && response.status() === 409 &&
+      new URL(response.url()).pathname === "/api/import") return
+    if (response.status() >= 400) evidence.failedRequests.push(`${response.status()} ${response.url()}`)
+  })
+  await context.route("**/*", async (route) => {
+    const url = new URL(route.request().url())
+    if (url.origin === origin || ["blob:", "data:"].includes(url.protocol)) await route.continue()
+    else {
+      evidence.forbiddenRequests.push(url.href)
+      await route.abort("blockedbyclient")
+    }
+  })
+  await context.exposeBinding("__standaloneCspViolation", (_source, details: string) => {
+    evidence.cspViolations.push(details)
+  })
+  await context.addInitScript(() => {
+    window.addEventListener("securitypolicyviolation", (event) => {
+      const report = (window as unknown as { __standaloneCspViolation: (message: string) => void }).__standaloneCspViolation
+      report(`${event.violatedDirective}: ${event.blockedURI}`)
+    })
+  })
+  const page = await context.newPage()
+  page.setDefaultTimeout(30_000)
+  page.on("pageerror", (error) => evidence.browserErrors.push(error.message))
+  page.on("console", (message) => {
+    if (isExpectedImportConflict() && /status of 409/.test(message.text()) &&
+      new URL(message.location().url).pathname === "/api/import") return
+    if (message.type() === "error") recordConsoleError(message.text(), evidence)
+  })
+  page.on("worker", (worker) => evidence.workerUrls.push(worker.url()))
+  page.on("websocket", (socket) => observeRequest(socket.url(), origin, evidence))
+  await monitorWorkers(context, page, evidence)
+  return page
+}
+
+async function qualifyStaticCircuit(
+  binary: string,
+  projectDir: string,
+  browser: Browser,
+  circuitJson: CircuitElement[],
+  evidence: BrowserEvidence,
+) {
+  const entry = join(projectDir, "cached.circuit.json")
+  const cached = circuitJson.map((element) => element.type === "source_component"
+    ? { ...element, manufacturer_part_number: "SAVED-UNKNOWN-MPN", supplier_part_numbers: { cachedSupplier: ["SAVED-UNKNOWN-PART"] } }
+    : element)
+  await writeFile(entry, JSON.stringify(cached))
+  const devProcess = Bun.spawn([binary, "dev", entry, "--port", "0", "--project-dir", projectDir], {
+    cwd: projectDir,
+    env: { PATH: projectDir, BUN_INSTALL_AUTO: "disable", HTTP_PROXY: "http://127.0.0.1:1", HTTPS_PROXY: "http://127.0.0.1:1" },
+    stdin: "ignore", stdout: "pipe", stderr: "pipe",
+  })
+  let output = ""
+  let resolveUrl: ((url: string) => void) | undefined
+  let rejectStartup: ((error: Error) => void) | undefined
+  const startup = new Promise<string>((resolve, reject) => { resolveUrl = resolve; rejectStartup = reject })
+  const outputReaders = [devProcess.stdout, devProcess.stderr].map(async (stream) => {
+    const reader = stream.getReader()
+    const decoder = new TextDecoder()
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      output += decoder.decode(value, { stream: true })
+      const match = output.match(/RunFrame:\s*(http:\/\/127\.0\.0\.1:\d+)\/?/)
+      if (match) resolveUrl?.(match[1]!)
+    }
+  })
+  const startupTimer = setTimeout(() => rejectStartup?.(new Error(`Static dev startup timed out:\n${output}`)), 60_000)
+  void devProcess.exited.then((code) => rejectStartup?.(new Error(`Static dev exited ${code}:\n${output}`)))
+  let page: Page | undefined
+  try {
+    const origin = await startup
+    clearTimeout(startupTimer)
+    page = await createMonitoredPage(browser, origin, evidence)
+    const response = await page.goto(origin)
+    assert(response?.ok(), "The static Circuit JSON page did not load")
+    let state = await waitForState(page, (next) => next.status === "ready", "cached Circuit JSON geometry")
+    assert(state.mainComponentPath?.endsWith(".circuit.json"), "Static mode lost its Circuit JSON entry suffix")
+    assert(countPads(state) === 72, "Cached Circuit JSON lost RP2040 pads")
+    await openView(page, "PCB", "cached-json", state)
+    await page.getByRole("button", { name: "Rebuild", exact: true }).click()
+    state = await waitForState(page, (next) => next.generation > state.generation && next.status === "ready", "a static Circuit JSON rebuild")
+    const updated = JSON.stringify(cached).replaceAll("SAVED-UNKNOWN-MPN", "SAVED-EDITED-MPN")
+    state = await saveSource(page, updated, state.generation)
+    assert(state.status === "ready", "Saving cached metadata failed in RunFrame static mode")
+    const downloadDir = join(projectDir, "static-downloads")
+    await mkdir(downloadDir)
+    const downloaded = JSON.parse(await downloadArtifact(page, /Download Circuit JSON/i, downloadDir)) as CircuitElement[]
+    assert(downloaded.filter((element) => element.type === "pcb_smtpad").length === 72, "Static download lost its geometry")
+    assert(downloaded.some((element) => element.type === "source_component" && element.manufacturer_part_number === "SAVED-EDITED-MPN"),
+      "Static download did not preserve edited unknown part metadata")
+    assert(JSON.stringify(downloaded).includes('"cachedSupplier":["SAVED-UNKNOWN-PART"]'),
+      "Static download did not preserve cached supplier metadata")
+    const remoteBuffer = "https://example.invalid/embedded-buffer.bin"
+    const embeddedGltf = `data:model/gltf+json;base64,${Buffer.from(JSON.stringify({
+      asset: { version: "2.0" }, buffers: [{ uri: remoteBuffer, byteLength: 4 }],
+    })).toString("base64")}`
+    const invalidAssetSource = JSON.stringify([...downloaded, {
+      type: "cad_component", cad_component_id: "cached_remote_gltf", model_gltf_url: embeddedGltf,
+    }])
+    state = await saveSource(page, invalidAssetSource, state.generation)
+    assert(state.status === "error" && state.error?.includes(remoteBuffer),
+      "An embedded GLTF with a remote buffer did not report a local graph error")
+    assert(!state.fsMap && !state.mainComponentPath && !state.circuitJson,
+      "The rejected embedded GLTF graph reached the viewer")
+    await page.getByTestId("build-error").waitFor({ state: "visible" })
+    await page.waitForFunction((remoteBuffer) =>
+      document.querySelector('[data-testid="build-error"]')?.textContent?.includes(remoteBuffer), remoteBuffer)
+    assert(await page.getByRole("button", { name: "Download Circuit JSON", exact: true }).isDisabled(),
+      "A rejected cached asset left stale JSON available to download")
+    state = await saveSource(page, updated, state.generation)
+    assert(state.status === "ready" && countPads(state) === 72,
+      "The static viewer did not recover after rejecting the embedded remote buffer")
+    const recoveredDownload = JSON.parse(await downloadArtifact(page, /Download Circuit JSON/i, downloadDir)) as CircuitElement[]
+    assert(recoveredDownload.filter((element) => element.type === "pcb_smtpad").length === 72 &&
+      !JSON.stringify(recoveredDownload).includes(embeddedGltf),
+      "The recovered static download did not contain the valid cached geometry")
+    if (process.env.SMOKE_ARTIFACT_DIR) {
+      const directory = resolve(process.env.SMOKE_ARTIFACT_DIR)
+      await writeFile(join(directory, "static-dev-output.txt"), output)
+      await Promise.all(["static-browser-failure.png", "static-browser-failure.html"].map((file) => rm(join(directory, file), { force: true })))
+    }
+    console.log("Qualified normal RunFrame static Circuit JSON geometry, rebuilding, editing, cached metadata downloads, and embedded remote GLTF rejection/recovery.")
+  } catch (error) {
+    if (process.env.SMOKE_ARTIFACT_DIR) {
+      const directory = resolve(process.env.SMOKE_ARTIFACT_DIR)
+      await mkdir(directory, { recursive: true })
+      await writeFile(join(directory, "static-dev-output.txt"), output)
+      await page?.screenshot({ path: join(directory, "static-browser-failure.png"), fullPage: true }).catch(() => {})
+      if (page) await writeFile(join(directory, "static-browser-failure.html"), await page.content()).catch(() => {})
+    }
+    throw error
+  } finally {
+    clearTimeout(startupTimer)
+    await page?.context().close()
+    devProcess.kill()
+    await Promise.race([devProcess.exited, delay(2000)])
+    if (devProcess.exitCode === null) devProcess.kill("SIGKILL")
+    await devProcess.exited
+    await Promise.all(outputReaders)
+  }
+}
+
 async function main() {
   const binary = resolve(process.env.STANDALONE_BINARY ?? (process.platform === "win32" ? "dist/tsci.exe" : "dist/tsci"))
   const projectDir = await mkdtemp(join(tmpdir(), "standalone-runframe-"))
   let browser: Browser | undefined
   let page: Page | undefined
   const evidence = emptyEvidence()
+  let bundledModuleReport: BundledModuleCheckReport | undefined
   let expectedImportConflict = false
   await cp(resolve(import.meta.dir, "../examples"), join(projectDir, "examples"), { recursive: true })
   const entry = join(projectDir, "examples/led-resistor.circuit.tsx")
   const devProcess = Bun.spawn([
-    binary, "dev", entry, "--port", "0", "--project-dir", projectDir, "--timeout-ms", "35000",
+    binary, "dev", entry, "--port", "0", "--project-dir", projectDir,
   ], {
     cwd: projectDir,
     env: {
@@ -435,55 +655,18 @@ async function main() {
       ],
     })
     await selfCheckWorkerMonitor(browser)
-    const context = await browser.newContext({
-      viewport: { width: 1440, height: 1000 }, serviceWorkers: "block",
-      acceptDownloads: true,
-    })
-    context.on("request", (request) => observeRequest(request.url(), origin, evidence))
-    context.on("requestfailed", (request) => {
-      if (request.failure()?.errorText !== "net::ERR_ABORTED") {
-        evidence.failedRequests.push(`${request.url()}: ${request.failure()?.errorText}`)
-      }
-    })
-    context.on("response", (response) => {
-      if (expectedImportConflict && response.status() === 409 &&
-        new URL(response.url()).pathname === "/api/import") return
-      if (response.status() >= 400) evidence.failedRequests.push(`${response.status()} ${response.url()}`)
-    })
-    await context.route("**/*", async (route) => {
-      const url = new URL(route.request().url())
-      if (url.origin === origin || ["blob:", "data:"].includes(url.protocol)) await route.continue()
-      else {
-        evidence.forbiddenRequests.push(url.href)
-        await route.abort("blockedbyclient")
-      }
-    })
-    await context.exposeBinding("__standaloneCspViolation", (_source, details: string) => {
-      evidence.cspViolations.push(details)
-    })
-    await context.addInitScript(() => {
-      window.addEventListener("securitypolicyviolation", (event) => {
-        const report = (window as unknown as { __standaloneCspViolation: (message: string) => void }).__standaloneCspViolation
-        report(`${event.violatedDirective}: ${event.blockedURI}`)
-      })
-    })
-    page = await context.newPage()
-    page.setDefaultTimeout(30_000)
-    page.on("pageerror", (error) => evidence.browserErrors.push(error.message))
-    page.on("console", (message) => {
-      if (expectedImportConflict && /status of 409/.test(message.text()) &&
-        new URL(message.location().url).pathname === "/api/import") return
-      if (message.type() === "error") evidence.consoleErrors.push(message.text())
-    })
-    page.on("worker", (worker) => evidence.workerUrls.push(worker.url()))
-    page.on("websocket", (socket) => observeRequest(socket.url(), origin, evidence))
-    await monitorWorkers(context, page, evidence)
+    page = await createMonitoredPage(browser, origin, evidence, () => expectedImportConflict)
     const response = await page.goto(origin)
     assert(response && response.ok(), "The embedded RunFrame page did not load")
     assert(response.headers()["content-security-policy"]?.includes("connect-src"), "The local page did not enforce a connection CSP")
     let state = await waitForState(page, (next) => next.status === "ready", "initial LED rendering")
+    assert(evidence.workerUrls.some((url) => new URL(url).pathname === "/assets/eval-worker.js"),
+      "RunFrame did not execute the circuit in the bundled browser eval worker")
     assert(countPads(state) === 6, "Initial circuit did not contain six LED/resistor/testpoint pads")
     assert(state.report?.errors.length === 0, "Initial LED circuit reported errors")
+    assert(state.circuitJson, "The initial browser render did not publish circuit JSON")
+    bundledModuleReport = await checkBundledModules(page, state.circuitJson as CircuitJson)
+    console.log(`Qualified ${Object.keys(bundledModuleReport.namespaces).length} bundled module namespaces and ${Object.keys(bundledModuleReport.operations).length} actual conversions under request and CSP monitoring.`)
     await page.getByTestId("build-status").waitFor({ state: "visible" })
     await openView(page, "PCB", "led", state)
     await openView(page, "Schematic", "led", state)
@@ -546,20 +729,26 @@ async function main() {
     await openView(page, "3D", "rp2040", state)
     const bom = await openMoreView(page, "BOM")
     await bom.getByText("C2040", { exact: true }).first().waitFor({ state: "visible" })
-    assert(await bom.locator('a[href^="http:"], a[href^="https:"]').count() === 0, "Offline BOM contains an external supplier link")
+    assert(await bom.locator('a[href^="https://jlcpcb.com/"]').count() > 0, "The BOM lost its supplier hyperlinks")
     const errors = await openMoreView(page, "Errors")
     assert(/warning|no.*errors/i.test(await errors.innerText()), "The Errors view did not display circuit diagnostics")
-    assert(await errors.locator('a[href^="http:"], a[href^="https:"]').count() === 0, "Offline Errors view contains an external reporting action")
     const json = await openMoreView(page, "Circuit JSON")
     await json.locator("table").waitFor({ state: "visible" })
     console.log("Qualified catalog import/conflict preservation and RP2040 PCB, schematic, 3D, BOM, Errors, and JSON views.")
 
+    const styleSource = `export default () => <board width="20mm" height="12mm"><resistor name="R_STYLE_A" resistance="1k" footprint="0603" pcbX={-3} schX={0} schY={0}/><resistor name="R_STYLE_B" resistance="2k" footprint="0603" pcbX={3} schX={0.1} schY={0}/></board>`
+    state = await saveSource(page, styleSource, state.generation)
+    assert(state.status === "ready" && countPads(state) === 4, "The style-analysis fixture did not render in the browser worker")
+    await openView(page, "Schematic", "style-overlap", state, true)
+    console.log("Qualified enabled style analysis with bundled issue SVGs and preserved supplier links.")
+
     const rejectedSources = [
       ["unknown part", 'export default () => <board width="10mm" height="10mm"><chip name="U1" footprint="qfn8" supplierPartNumbers={{jlcpcb:["C999999999"]}}/></board>', /C999999999.*not bundled|not bundled.*C999999999/i],
       ["unknown module", 'import Missing from "unbundled-example-package"; export default Missing', /unbundled-example-package.*not bundled|not bundled.*unbundled-example-package/i],
-      ["remote footprint", 'export default () => <board width="10mm" height="10mm"><chip name="U1" footprint="https://example.invalid/footprint.json"/></board>', /not bundled|not supported|unavailable/i],
+      ["remote footprint", 'export default () => <board width="10mm" height="10mm"><chip name="U1" footprint="https://example.invalid/footprint.json"/></board>', /example\.invalid\/footprint\.json|footprint.*(?:not bundled|not supported|unavailable)/i],
     ] as const
     for (const [name, source, expected] of rejectedSources) {
+      expectedAuthoredErrors.push(expected)
       state = await saveSource(page, source, state.generation)
       assert(state.status === "error" && expected.test(state.error ?? ""), `${name} did not fail with a useful local error: ${JSON.stringify(state)}`)
       await page.getByTestId("build-error").waitFor({ state: "visible" })
@@ -582,6 +771,8 @@ async function main() {
     const files = await readdir(projectDir)
     assert(!files.includes("node_modules"), "The compiled dev command installed project dependencies")
     assert(evidence.requests.some((url) => url.includes("/api/state")), "Browser did not exercise the same-origin build API")
+    assert(state.circuitJson, "The recovered RP2040 render did not publish circuit JSON")
+    await qualifyStaticCircuit(binary, projectDir, browser, state.circuitJson, evidence)
     // Allow delayed tooltip/font activity to surface before judging the run.
     await delay(1000)
     assertBrowserEvidence(evidence)
@@ -589,10 +780,11 @@ async function main() {
       const directory = resolve(process.env.SMOKE_ARTIFACT_DIR)
       await mkdir(directory, { recursive: true })
       await writeFile(join(directory, "browser-evidence.json"), JSON.stringify(evidence, null, 2))
+      await writeFile(join(directory, "bundled-modules-evidence.json"), JSON.stringify(bundledModuleReport, null, 2))
       await writeFile(join(directory, "dev-output.txt"), output)
       await Promise.all(["browser-failure.png", "browser-failure.html"].map((file) => rm(join(directory, file), { force: true })))
     }
-    console.log(`Compiled offline RunFrame passed: LED and RP2040 PCB/schematic/3D, editor/rebuild/watch, catalog import, local failure recovery and JSON/SVG downloads; ${new Set(evidence.requests).size} same-origin resources, ${new Set(evidence.workerUrls).size} observed browser workers, zero external request attempts or CSP violations.`)
+    console.log(`Compiled offline RunFrame passed: LED and RP2040 PCB/schematic/3D, editor/rebuild/watch, catalog import, local failure recovery, static cached JSON, bundled conversions and JSON/SVG downloads; ${new Set(evidence.requests).size} same-origin resources, ${new Set(evidence.workerUrls).size} observed browser worker URLs, zero external request attempts or CSP violations.`)
   } catch (error) {
     const panel = page?.locator('[role="tabpanel"][data-state="active"]')
     const diagnostics = {
@@ -609,6 +801,7 @@ async function main() {
       const directory = resolve(process.env.SMOKE_ARTIFACT_DIR)
       await mkdir(directory, { recursive: true })
       await writeFile(join(directory, "browser-evidence.json"), JSON.stringify(evidence, null, 2))
+      if (bundledModuleReport) await writeFile(join(directory, "bundled-modules-evidence.json"), JSON.stringify(bundledModuleReport, null, 2))
       await writeFile(join(directory, "dev-output.txt"), output)
       await page?.screenshot({ path: join(directory, "browser-failure.png"), fullPage: true }).catch(() => {})
       if (page) await writeFile(join(directory, "browser-failure.html"), await page.content()).catch(() => {})
