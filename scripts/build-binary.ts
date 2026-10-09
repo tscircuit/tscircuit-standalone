@@ -8,6 +8,10 @@ const target = process.env.BUN_BUILD_TARGET
 if (target && !targets.includes(target)) {
   throw new Error(`Unsupported binary target: ${target}`)
 }
+const uiBuild = Bun.spawnSync([process.execPath, "scripts/build-ui.ts"], {
+  stdout: "inherit", stderr: "inherit",
+})
+if (uiBuild.exitCode !== 0) process.exit(uiBuild.exitCode)
 await mkdir("dist", { recursive: true })
 const windows = target?.includes("windows") ?? process.platform === "win32"
 const outfile = windows ? "dist/tsci.exe" : "dist/tsci"

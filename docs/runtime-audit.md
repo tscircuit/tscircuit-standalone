@@ -1,6 +1,11 @@
 # Standalone runtime audit and upstream integration plan
 
-This audit is read-only. No upstream changes have been made. The new repository can implement a useful catalogue and custom platform now, but shipping a complete offline `tsci dev`/RunFrame experience requires coordinated changes outside that repository.
+This audit records the original upstream snapshots below. The standalone path
+now supplies local catalog/build/dev commands and host-rendered RunFrame using
+the open upstream patches described in [offline RunFrame](offline-runframe.md).
+The findings remain evidence about these original snapshots, rather than the
+current standalone bundle. Wider reusable upstream policy work remains in the
+[implementation plan](implementation-plan.md).
 
 ## Source snapshots
 

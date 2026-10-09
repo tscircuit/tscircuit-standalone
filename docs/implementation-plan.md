@@ -56,8 +56,16 @@ contract must state the supported commands and project features it covers.
 - DRC errors such as PCB footprint overlap return exit code 1 while preserving
   inspectable build artifacts. Unsupported offline requests fail before new
   artifacts are published.
+- `tsci dev` serves an embedded RunFrame application on loopback. It uses the
+  existing offline host evaluator and controlled Circuit JSON, with entry
+  editing, revision-safe saves, dependency watches, embedded catalog imports,
+  local downloads, and PCB/schematic/procedural CAD/BOM/error/JSON views.
+- Bundled Manifold JS/WASM and a local Troika font, isolated browser React,
+  offline RunFrame/schematic controls, and browser/worker request monitoring.
+  The reviewed upstream changes remain open PRs with exact commit pins; see
+  [offline RunFrame](offline-runframe.md).
 - Builds generate a compiler metafile and package notice inventory: currently
-  117 package roots, with 46 follow-up flags. Full license certification,
+  240 package roots, with 73 follow-up flags. Full license certification,
   including native Bun/WASM dependencies and applicable LGPL obligations,
   remains a release gate.
 - [CI qualification](https://github.com/tscircuit/tscircuit-standalone/actions/runs/37892852019)
@@ -66,7 +74,7 @@ contract must state the supported commands and project features it covers.
   and all five cross-compilation targets. Native execution has been checked on
   Linux x64 only.
 
-This remains preparation for an official release. Dev/RunFrame, simulation,
+This remains preparation for an official release. Wider RunFrame capabilities, simulation,
 additional exports, catalog growth, and native qualification for the remaining
 targets are pending. The circuits retain documented warnings and are runtime
 fixtures; the RP2040 example omits flash, crystal, USB implementation, and full
@@ -173,23 +181,33 @@ unavailable. Measure binary size after each feature addition.
 Resolve the upstream schematic auto-layout label/anchor issue above and retain
 geometric rail-label regressions before relying on automatic layouts in RunFrame.
 
-Embed a pinned RunFrame bundle, eval worker/version, CSS, favicon and required
-assets. Skip eval-version lookup when using embedded workers; current RunFrame
-still resolves versions before loading that worker. Forward the offline profile
-and pinned version through `RunFrameForCli` and every wrapper. Recreate workers
-when policy changes; do not reuse a globally cached online worker.
+The standalone dev path now embeds a pinned RunFrame source bundle, CSS, favicon,
+and required assets. It renders in the existing fresh host worker and passes
+controlled Circuit JSON/loading/errors to RunFrame. Controlled/static modes
+skip eval-version lookup and browser evaluator startup entirely. Browser worker
+creation is unavailable in this build. Upstream RunFrame and schematic-viewer
+changes remain open for review; qualify published versions before replacing
+their exact GitHub commit pins.
 
-Remove or disable PostHog before its import-time initialization. Supply local
-catalog search/import controls. Omit remote-only support/Crisp, login, cloud,
-registry and eval-version controls. Audit every optional exporter and 3D/image
-loader; bundle enabled code/WASM assets with static resolution. Hide unavailable
-capabilities with clear product-facing labels.
+RunFrame's offline capabilities suppress PostHog, support/Crisp, cloud/file and
+eval-version controls, remote reporting and supplier links. Local catalog
+search/import and JSON/SVG downloads are supplied by the host. Schematic
+tooltips skip stock and remote footprint services, and style analysis is
+disabled. Manifold and Troika initialize from embedded JS/WASM/font assets before
+the viewer mounts. All imports use one isolated browser React instance.
 
-CLI dev must load the runtime profile, serve embedded UI/worker assets locally,
-remove Tailwind CDN/favicon requests, and fail locally on missing bundles rather
-than redirecting to jsDelivr. Apply a same-origin CSP permitting only required
-local/blob/data resources. Test real browser and worker request attempts; CSP
-blocking an attempted request is still a test failure.
+The loopback server validates host/origin, fixes the source/catalog API surface,
+retains project/symlink boundaries and source revision conflicts, and rejects
+missing assets locally. Its CSP limits connections to the bound origin. A
+compiled-browser harness covers real preview/edit/import/download success and
+failure paths and records dedicated-worker CSP errors as attempted requests.
+CI executes it in a network namespace with only loopback enabled.
+
+Next move the host's optional-feature bundler replacements and source-alias
+handling into explicit upstream injection points, qualify additional views and
+exporters, and trim the browser bundle. If browser-side evaluation is added,
+require an embedded version/worker and recreate it when the profile changes.
+Keep simulation execution disabled until its engine/WASM is bundled and tested.
 
 ### 5. Release qualification — standalone repository
 
@@ -215,7 +233,7 @@ the `tsci` invocation users expect.
 | No runtime downloads | Clean project, empty caches, no node_modules, no Bun/Node/npm on PATH; import, build, routing and every enabled export succeed. |
 | No outbound attempts | OS network-denied CLI harness plus browser/worker request recording; exercise successful paths, missing parts/modules/assets, errors and UI actions. Observe attempted connections, not only successful requests. |
 | Configuration invariants | Project config cannot restore remote providers, cloud routing, registry imports, telemetry or package installation. |
-| RunFrame | Fresh browser/storage; embedded worker/version/assets; schematic, PCB, procedural 3D and all enabled controls work using only the bound loopback origin. |
+| RunFrame | Fresh browser/storage; embedded host evaluator and viewer assets; schematic, PCB, procedural 3D and all enabled controls work using only the bound loopback origin. |
 | Binary portability | Native smoke on each advertised OS/architecture; no hidden filesystem worker or dynamic module dependencies. |
 | Release artifacts | Checksums, version/catalog manifest, notices, size/features inventory and documented unsupported features. |
 

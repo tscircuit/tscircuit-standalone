@@ -6,7 +6,7 @@ import {
   convertCircuitJsonToPcbSvg,
   convertCircuitJsonToSchematicSvg,
 } from "circuit-to-svg"
-import type { StandaloneBuildResult } from "./build-types"
+import type { StandaloneBuildWorkerMessage } from "./build-types"
 import { readCircuitProject } from "./read-circuit-project"
 
 export interface CircuitBuildReport {
@@ -15,6 +15,33 @@ export interface CircuitBuildReport {
   errors: { type: string; message: string }[]
   warnings: { type: string; message: string }[]
 }
+
+let pendingWorkerTeardown: Promise<void> | undefined
+
+/** Await deferred bootstrap cleanup when closing a long-lived dev server. */
+export async function waitForCircuitWorkerTeardown() {
+  await pendingWorkerTeardown
+}
+
+const awaitWorkerTeardown = (
+  pending: Promise<void>,
+  timeoutMs: number,
+  signal?: AbortSignal,
+) => new Promise<void>((resolveReady, reject) => {
+  const complete = (error?: unknown) => {
+    clearTimeout(timer)
+    signal?.removeEventListener("abort", aborted)
+    if (error !== undefined) reject(error)
+    else resolveReady()
+  }
+  const aborted = () => complete(signal?.reason ?? new Error("Circuit render was stopped"))
+  const timer = setTimeout(() => {
+    complete(new Error(`Circuit build exceeded ${timeoutMs} ms waiting for the previous worker to finish initializing`))
+  }, timeoutMs)
+  signal?.addEventListener("abort", aborted, { once: true })
+  if (signal?.aborted) aborted()
+  pending.then(() => complete(), complete)
+})
 
 export function inspectCircuitJson(
   circuitJson: AnyCircuitElement[],
@@ -46,36 +73,78 @@ export function inspectCircuitJson(
 /** Evaluate in a fresh embedded worker so network guards and globals are isolated. */
 export async function renderCircuitFile(
   filePath: string,
-  options: { timeoutMs?: number; projectDir?: string } = {},
+  options: { timeoutMs?: number; projectDir?: string; signal?: AbortSignal } = {},
 ): Promise<AnyCircuitElement[]> {
+  options.signal?.throwIfAborted()
   const project = await readCircuitProject(filePath, { projectDir: options.projectDir })
+  options.signal?.throwIfAborted()
   const timeoutMs = options.timeoutMs ?? 60_000
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     throw new Error("Build timeout must be a positive number of milliseconds")
   }
+  const deadline = Date.now() + timeoutMs
+  if (pendingWorkerTeardown) {
+    await awaitWorkerTeardown(pendingWorkerTeardown, timeoutMs, options.signal)
+  }
+  options.signal?.throwIfAborted()
+  const remainingTimeoutMs = deadline - Date.now()
+  if (remainingTimeoutMs <= 0) throw new Error(`Circuit build exceeded ${timeoutMs} ms`)
   // Compile the worker as a second entrypoint. Bun embeds it with a .js path;
   // source execution resolves this URL to the corresponding .ts module.
   const workerPath = import.meta.url === pathToFileURL(Bun.main).href
     ? "./lib/build-worker.js" : "./build-worker.js"
   const worker = new Worker(new URL(workerPath, import.meta.url).href)
+  let workerIsReady = false
+  let markWorkerReady!: () => void
+  const workerReady = new Promise<void>((resolveReady) => {
+    markWorkerReady = () => {
+      workerIsReady = true
+      resolveReady()
+    }
+  })
+  let abortListener: (() => void) | undefined
   try {
     return await new Promise<AnyCircuitElement[]>((resolveResult, reject) => {
       const timer = setTimeout(() => {
-        reject(new Error(`Circuit build exceeded ${timeoutMs} ms and was stopped`))
-      }, timeoutMs)
-      worker.onmessage = (event: MessageEvent<StandaloneBuildResult>) => {
+        reject(new Error(`Circuit build exceeded ${timeoutMs} ms`))
+      }, remainingTimeoutMs)
+      abortListener = () => {
+        clearTimeout(timer)
+        reject(options.signal?.reason ?? new Error("Circuit render was stopped"))
+      }
+      options.signal?.addEventListener("abort", abortListener, { once: true })
+      worker.onmessage = (event: MessageEvent<StandaloneBuildWorkerMessage>) => {
+        if ("type" in event.data) {
+          markWorkerReady()
+          return
+        }
+        // A failed eval import can finish before the readiness notification.
+        markWorkerReady()
         clearTimeout(timer)
         if (event.data.ok) resolveResult(event.data.circuitJson)
         else reject(new Error(event.data.error))
       }
       worker.onerror = (event: ErrorEvent) => {
+        markWorkerReady()
         clearTimeout(timer)
         reject(new Error(event.message || "Circuit build worker failed"))
       }
       worker.postMessage(project)
     })
   } finally {
-    worker.terminate()
+    if (abortListener) options.signal?.removeEventListener("abort", abortListener)
+    if (workerIsReady) worker.terminate()
+    else {
+      // Timeout/abort is reported promptly. Bun 1.3.12 can crash when a worker
+      // is killed during dependency initialization, so cleanup waits for its
+      // ready/error notification and the next render waits on that cleanup.
+      // A native Bun bootstrap hang cannot be safely terminated from this API.
+      const cleanup = workerReady.then(() => worker.terminate())
+      pendingWorkerTeardown = cleanup
+      void cleanup.then(() => {
+        if (pendingWorkerTeardown === cleanup) pendingWorkerTeardown = undefined
+      })
+    }
   }
 }
 

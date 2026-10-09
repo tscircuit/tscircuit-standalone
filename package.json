@@ -10,10 +10,12 @@
   "scripts": {
     "dev": "bun cli/main.ts",
     "test": "bun test",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && bun run typecheck:ui",
     "build": "bun scripts/build-binary.ts",
     "smoke:binary": "bun scripts/smoke-binary.ts",
-    "check": "bun run typecheck && bun test && bun run build && bun run smoke:binary"
+    "check": "bun run build:ui && bun run typecheck && bun test && bun run build && bun run smoke:binary",
+    "build:ui": "bun scripts/build-ui.ts",
+    "typecheck:ui": "tsc --noEmit -p ui/tsconfig.json"
   },
   "dependencies": {
     "@flatten-js/core": "1.6.12",
@@ -33,6 +35,11 @@
     "typescript": "5.9.3"
   },
   "devDependencies": {
-    "@types/bun": "1.3.12"
-  }
+    "@types/bun": "1.3.12",
+    "playwright": "1.61.1",
+    "@types/node": "22.20.5"
+  },
+  "workspaces": [
+    "ui"
+  ]
 }

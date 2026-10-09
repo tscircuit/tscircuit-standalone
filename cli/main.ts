@@ -2,6 +2,8 @@ import { mkdir, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { bundledCatalog, generateBundledComponentTsx, getBundledPart } from "../lib/catalog"
 import { buildCircuitFile } from "../lib/build"
+import { startStandaloneDevServer } from "../lib/dev-server"
+import { uiAssets } from "../lib/ui-assets"
 import packageMetadata from "../package.json"
 
 const version = packageMetadata.version
@@ -11,14 +13,15 @@ Usage:
   tsci import <supplier-part-number> [--output <file|->]
   tsci catalog [supplier-part-number]
   tsci build <circuit.tsx> [--output-dir <directory>] [--project-dir <directory>] [--timeout-ms <number>]
+  tsci dev <circuit.tsx> [--port <number>] [--project-dir <directory>] [--timeout-ms <number>]
   tsci --version
 
 Imports use the embedded footprinter catalog. Unknown parts fail locally.
 Default output: imports/<supplier-part-number>.tsx
 
 Builds use an embedded evaluator and local routing, and produce Circuit JSON,
-PCB/schematic SVG previews, and a diagnostic report. Dev/RunFrame and additional
-exports remain planned; see docs/implementation-plan.md.
+PCB/schematic SVG previews, and a diagnostic report. Dev serves the embedded
+RunFrame on loopback, with local editing, rebuilding, and bundled part imports.
 `
 
 export async function runCli(
@@ -39,6 +42,30 @@ export async function runCli(
       if (rest.length > 1) throw new Error("Usage: tsci catalog [supplier-part-number]")
       const result = rest[0] ? getBundledPart(rest[0]) : bundledCatalog.parts
       io.stdout(`${JSON.stringify(result, null, 2)}\n`)
+      return 0
+    }
+    if (command === "dev") {
+      const [filePath, ...options] = rest
+      if (!filePath || filePath.startsWith("-")) {
+        throw new Error("Usage: tsci dev <circuit.tsx> [--port <number>] [--project-dir <directory>] [--timeout-ms <number>]")
+      }
+      let port: number | undefined
+      let projectDir: string | undefined
+      let timeoutMs: number | undefined
+      for (let index = 0; index < options.length; index += 2) {
+        const value = options[index + 1]
+        if (!value || value.startsWith("--")) throw new Error("Dev option requires a value")
+        if (options[index] === "--port" && port === undefined) port = Number(value)
+        else if (options[index] === "--project-dir" && projectDir === undefined) projectDir = value
+        else if (options[index] === "--timeout-ms" && timeoutMs === undefined) timeoutMs = Number(value)
+        else throw new Error(`Unsupported or duplicate dev option: ${options[index]}`)
+      }
+      const dev = await startStandaloneDevServer(filePath, { port, projectDir, timeoutMs, assets: uiAssets })
+      io.stdout(`RunFrame: ${dev.url}\n`)
+      io.stdout(`Watching ${filePath}. Press Ctrl+C to stop.\n`)
+      const stop = () => { void dev.stop().catch((error) => io.stderr(`${String(error)}\n`)) }
+      process.once("SIGINT", stop)
+      process.once("SIGTERM", stop)
       return 0
     }
     if (command === "build") {

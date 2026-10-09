@@ -178,6 +178,10 @@ const validateAssetsAndPartMisses = (circuitJson: AnyCircuitElement[]) => {
 
 const executeBuild = async (job: StandaloneBuildJob): Promise<AnyCircuitElement[]> => {
   const { CircuitRunner } = await import("@tscircuit/eval/eval")
+  // Bun 1.3.12 can crash if a worker is terminated while its bundled eval
+  // dependency graph is still initializing. Let the host defer termination
+  // until this point; user circuit execution has not started yet.
+  self.postMessage({ type: "worker_ready" })
   const runner = new CircuitRunner({
     platform: createBuildPlatform(),
     snippetsApiBaseUrl: "standalone://registry",

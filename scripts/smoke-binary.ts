@@ -28,7 +28,7 @@ try {
   if (missing.exitCode === 0 || !missing.stderr.toString().includes("C999999999")) {
     throw new Error("An unbundled part must fail with a useful local error")
   }
-  const unsupported = run(["dev"])
+  const unsupported = run(["publish"])
   if (unsupported.exitCode === 0) throw new Error("Unimplemented commands must fail")
   await cp(resolve(import.meta.dir, "../examples"), join(projectDir, "examples"), { recursive: true })
   for (const name of ["led-resistor", "rp2040-breakout", "supplier-footprint"]) {

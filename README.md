@@ -6,8 +6,9 @@ compact footprinter strings and distributed in a compiled executable.
 This preparation binary imports bundled components and builds local circuits
 with an embedded evaluator and local routing. Builds produce Circuit JSON,
 PCB and schematic SVG previews, and a diagnostic report. The initial catalog
-contains one verified part: RP2040/C2040. `dev`, RunFrame, simulation, additional
-exports, and catalog expansion remain in the
+contains one verified part: RP2040/C2040. `tsci dev` serves a bundled RunFrame
+with local editing, rebuilding, catalog imports, PCB/schematic/procedural 3D,
+BOM, and Circuit JSON views. Simulation, additional exports, and catalog expansion remain in the
 [implementation plan](docs/implementation-plan.md). No official release has
 been published.
 
@@ -22,6 +23,7 @@ bun run check
 ./dist/tsci build examples/led-resistor.circuit.tsx
 ./dist/tsci build examples/rp2040-breakout.circuit.tsx --output-dir build/rp2040
 ./dist/tsci build examples/supplier-footprint.circuit.tsx --timeout-ms 60000
+./dist/tsci dev examples/rp2040-breakout.circuit.tsx --port 3020
 ```
 
 The default import creates `imports/C2040.tsx`, exporting `RP2040`. Existing
@@ -70,6 +72,18 @@ See [circuit inspection](docs/circuit-inspection.md) for reviewable PCB/schemati
 previews, fixture measurements, thermal-pad connectivity checks, the schematic
 auto-layout workaround, and the meaning of the remaining warnings.
 
+## Preview and edit locally
+
+`./dist/tsci dev <entry>` prints a loopback URL to open in your browser. Save and
+rebuild from the entry-source editor, edit dependencies externally to trigger
+the watcher, import C2040 from the embedded catalog, and download local Circuit
+JSON/PCB SVG/schematic SVG. External edits are preserved through revision checks.
+The binary renders circuits and supplies JSON to RunFrame; all enabled browser
+assets, including the CAD engine and font, are embedded. Cloud controls,
+telemetry, stock lookups, remote thumbnails, and remote style analysis are
+disabled. See [offline RunFrame](docs/offline-runframe.md) for architecture,
+the open upstream PRs, browser qualification, and current limits.
+
 ## Custom platform
 
 ```ts
@@ -85,16 +99,17 @@ stock checks, cloud autorouting, and analog simulation, and rejects unknown
 requests. The build worker also replaces eval's online provider defaults with
 local or rejecting providers and treats swallowed request/effect failures as
 build failures. Catalog metadata/source/footprints are available through the local
-`standalone://parts/C2040/...` resolver. This adapter alone does not make the
-upstream CLI or RunFrame offline: their remaining global-fetch, telemetry, CDN,
-UI, and worker integration gaps are documented in the plan.
+`standalone://parts/C2040/...` resolver. The standalone dev command combines it
+with a host-rendered RunFrame and bundled viewer assets. This adapter alone does
+not make the general upstream CLI or RunFrame offline; reusable integration
+work remains documented in the plan.
 
 ## Binary preparation
 
 `bun run build` produces a host binary at `dist/tsci` (`tsci.exe` on Windows).
 It also generates `dist/licenses.json`, `dist/THIRD_PARTY_NOTICES.txt`, and the
-compiler metafile. Keep the generated notices beside the binary. The current
-inventory covers 117 package roots with 46 follow-up flags; it is not full
+backend/frontend compiler metafiles. Keep the generated notices beside the binary. The current
+inventory covers 240 package roots with 73 follow-up flags; it is not full
 license certification. Bun's linked native libraries and prebuilt WASM require
 further release review, including the LGPL requirements in Bun's license overview.
 Set `BUN_BUILD_TARGET` to one of `bun-linux-x64`, `bun-linux-arm64`,
@@ -103,9 +118,11 @@ The local compiled-binary smoke builds all three examples and a circuit using a
 freshly generated `imports/C2040.tsx` from `src/`, in a clean project with no
 Bun/Node runtime on PATH or project `node_modules`. Native execution has
 been checked on Linux x64. [CI qualification](https://github.com/tscircuit/tscircuit-standalone/actions/runs/37892852019)
-passed all 63 tests, native socket tracing with zero network attempts on the
+passed the initial 63 tests, native socket tracing with zero network attempts on the
 exercised paths, network-namespace imports/builds, and compilation for all five
-targets. Cross-compilation does not establish native support. Native smoke tests on every advertised target,
+targets. The offline RunFrame PR adds dev-server and browser checks, with the
+compiled browser workflow run in a network namespace permitting only loopback.
+Cross-compilation does not establish native support. Native smoke tests on every advertised target,
 checksums, signing, license inventory, and further runtime qualification remain
 release gates; no production release is automated yet.
 
