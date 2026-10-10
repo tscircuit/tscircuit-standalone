@@ -44,6 +44,7 @@ let nativeReport: unknown
 let circuitSummary: unknown
 let nativeConnectivity: unknown
 let browserConnectivity: unknown
+const connectivityMonitorChecks: { name: string; detected: string }[] = []
 const devTrace = join(artifacts, "dev-server.trace")
 let devNetworkAttempts: string[] = []
 
@@ -95,6 +96,37 @@ async function inspectImportedComponent(page: Page, state: BrowserCircuitState, 
   await page.keyboard.press("Escape")
 }
 
+function selfCheckConnectivityMonitor(circuit: CircuitJson) {
+  const rejects = (name: string, edited: CircuitJson, expectedMessage: RegExp) => {
+    let detected = ""
+    try { checkDiscreteWifiCamera(edited, netlist) } catch (error) { detected = String(error) }
+    assert(expectedMessage.test(detected), `Connectivity monitor missed ${name}: ${detected}`)
+    connectivityMonitorChecks.push({ name, detected })
+  }
+  const moved = structuredClone(circuit)
+  const route = moved.find((element) => element.type === "pcb_trace")
+  assert(route?.type === "pcb_trace", "No PCB route available to qualify connectivity monitoring")
+  const endpoint = route.route.find((point) => point.route_type === "wire" && (point.start_pcb_port_id || point.end_pcb_port_id))
+  assert(endpoint?.route_type === "wire", "No route pad endpoint available to qualify connectivity monitoring")
+  endpoint.x += 1
+  rejects("route endpoint displaced from its pad", moved, /ends away from its referenced pad/)
+  const omitted = structuredClone(circuit)
+  const usbPin = omitted.find((element) => element.type === "source_component" && element.name === "U_MCU")
+  assert(usbPin?.type === "source_component", "ESP32-S3 source component is absent")
+  const usbPort = omitted.find((element) => element.type === "source_port" && element.source_component_id === usbPin.source_component_id && element.pin_number === 25)
+  assert(usbPort?.type === "source_port", "ESP32-S3 USB D- pin is absent")
+  usbPort.pin_number = 99
+  rejects("USB D- physical pin omitted", omitted, /intended net endpoint is missing/)
+  const disconnected = structuredClone(circuit)
+  const sourceUsb = disconnected.find((element) => element.type === "source_port" && element.source_component_id === usbPin.source_component_id && element.pin_number === 25)
+  assert(sourceUsb?.type === "source_port", "USB D- has no physical source port")
+  const pcbUsb = disconnected.find((element) => element.type === "pcb_port" && element.source_port_id === sourceUsb.source_port_id)
+  assert(pcbUsb?.type === "pcb_port", "USB D- has no PCB port")
+  const withoutUsbRoute = disconnected.filter((element) => element.type !== "pcb_trace" || !element.route.some((point) =>
+    point.route_type === "wire" && [point.start_pcb_port_id, point.end_pcb_port_id].includes(pcbUsb.pcb_port_id)))
+  rejects("USB D- physical connection unrouted", withoutUsbRoute, /USB_DM has unrouted physical endpoints/)
+}
+
 try {
   // Build from generated CLI imports in a project with no package manager or
   // node_modules. Do not copy pre-generated imports alongside the fixture.
@@ -109,7 +141,9 @@ try {
   }
   await native("camera-build", ["build", entry, "--output-dir", join(artifacts, "native-build"), "--timeout-ms", "240000"], 0)
   nativeReport = JSON.parse(await readFile(join(artifacts, `native-build/${fixtureName}.report.json`), "utf8"))
-  nativeConnectivity = checkDiscreteWifiCamera(JSON.parse(await readFile(join(artifacts, `native-build/${fixtureName}.json`), "utf8")), netlist)
+  const nativeCircuit = JSON.parse(await readFile(join(artifacts, `native-build/${fixtureName}.json`), "utf8")) as CircuitJson
+  nativeConnectivity = checkDiscreteWifiCamera(nativeCircuit, netlist)
+  selfCheckConnectivityMonitor(nativeCircuit)
   assert(!(await readdir(project)).includes("node_modules"), "Native build installed project dependencies")
 
   const devProcess = Bun.spawn([strace, "--kill-on-exit", "-f", "-e", "trace=network", "-o", devTrace,
@@ -200,7 +234,7 @@ try {
   clearTimeout(startupTimer)
   await writeFile(join(artifacts, "browser-evidence.json"), JSON.stringify(evidence, null, 2))
   await writeFile(join(artifacts, "circuit-summary.json"), JSON.stringify(circuitSummary ?? null, null, 2))
-  await writeFile(join(artifacts, "connectivity.json"), JSON.stringify({ nativeConnectivity, browserConnectivity }, null, 2))
+  await writeFile(join(artifacts, "connectivity.json"), JSON.stringify({ nativeConnectivity, browserConnectivity, connectivityMonitorChecks }, null, 2))
   await browser?.close()
   dev?.kill()
   if (dev) {
