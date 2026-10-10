@@ -45,10 +45,27 @@ let circuitSummary: unknown
 let nativeConnectivity: unknown
 let browserConnectivity: unknown
 const connectivityMonitorChecks: { name: string; detected: string }[] = []
+const qualificationFailures: { stage: string; error: string }[] = []
+const completedViews: string[] = []
 const devTrace = join(artifacts, "dev-server.trace")
 let devNetworkAttempts: string[] = []
 
-async function native(name: string, args: string[], expectedExit: number) {
+function qualify<T>(stage: string, check: () => T): T | undefined {
+  try { return check() } catch (error) {
+    qualificationFailures.push({ stage, error: String(error) })
+    console.error(`${stage}: ${error}`)
+  }
+}
+
+async function inspect(stage: string, action: () => Promise<void>) {
+  try { await action(); completedViews.push(stage) } catch (error) {
+    qualificationFailures.push({ stage, error: String(error) })
+    console.error(`${stage}: ${error}`)
+    await page?.keyboard.press("Escape").catch(() => {})
+  }
+}
+
+async function native(name: string, args: string[], expectedExit?: number) {
   const trace = join(artifacts, `${name}.trace`)
   const child = Bun.spawn([strace!, "-f", "-e", "trace=network", "-o", trace, binary, ...args], {
     cwd: project, env: childEnv, stdin: "ignore", stdout: "pipe", stderr: "pipe",
@@ -61,16 +78,17 @@ async function native(name: string, args: string[], expectedExit: number) {
   const output = stdout + stderr
   nativeRuns.push({ name, args, exitCode, output, networkAttempts })
   await writeFile(join(artifacts, `${name}.txt`), output)
-  assert(exitCode === expectedExit, `${name} exited ${exitCode}, expected ${expectedExit}: ${output}`)
+  if (expectedExit !== undefined) assert(exitCode === expectedExit, `${name} exited ${exitCode}, expected ${expectedExit}: ${output}`)
+  else qualify(`${name} exit status`, () => assert(exitCode === 0, `${name} exited ${exitCode}: ${output}`))
   assert(networkAttempts.length === 0, `${name} attempted native networking: ${networkAttempts.join("\n")}`)
   return output
 }
 
-function assertCamera(state: BrowserCircuitState) {
+function assertCamera(state: BrowserCircuitState, stage: string) {
   assert(state.status === "ready" && state.circuitJson, `Bare-chip camera failed: ${state.error}`)
-  assert(state.report?.errors.length === 0, `Bare-chip camera has core errors: ${JSON.stringify(state.report)}`)
+  qualify(`${stage} DRC`, () => assert(state.report?.errors.length === 0, `Bare-chip camera has core errors: ${JSON.stringify(state.report)}`))
   const count = (type: string) => state.circuitJson!.filter((element) => element.type === type).length
-  browserConnectivity = checkDiscreteWifiCamera(state.circuitJson as CircuitJson, netlist)
+  browserConnectivity = qualify(`${stage} connectivity`, () => checkDiscreteWifiCamera(state.circuitJson as CircuitJson, netlist)) ?? { passed: false }
   circuitSummary = { generation: state.generation, elementCounts: Object.fromEntries(
     [...new Set(state.circuitJson.map((element) => element.type))].sort()
       .map((type) => [type, count(type)])),
@@ -139,11 +157,15 @@ try {
     assert(source.includes(part) && source.includes("footprint="), `${part} generated an incomplete component`)
     assert(!/(?:footprint|cadModel)\s*=\s*["']https?:/.test(source), `${part} generated a remote asset dependency`)
   }
-  await native("camera-build", ["build", entry, "--output-dir", join(artifacts, "native-build"), "--timeout-ms", "240000"], 0)
+  // A DRC failure must remain a failed qualification, while the browser audit
+  // still records all ordinary views and downloads for network inspection.
+  await native("camera-build", ["build", entry, "--output-dir", join(artifacts, "native-build"), "--timeout-ms", "240000"])
   nativeReport = JSON.parse(await readFile(join(artifacts, `native-build/${fixtureName}.report.json`), "utf8"))
   const nativeCircuit = JSON.parse(await readFile(join(artifacts, `native-build/${fixtureName}.json`), "utf8")) as CircuitJson
-  nativeConnectivity = checkDiscreteWifiCamera(nativeCircuit, netlist)
-  selfCheckConnectivityMonitor(nativeCircuit)
+  qualify("native DRC", () => assert((nativeReport as { errors: unknown[] }).errors.length === 0, `Bare-chip camera has core errors: ${JSON.stringify(nativeReport)}`))
+  nativeConnectivity = qualify("native connectivity", () => checkDiscreteWifiCamera(nativeCircuit, netlist))
+  if (nativeConnectivity) qualify("connectivity monitor calibration", () => selfCheckConnectivityMonitor(nativeCircuit))
+  else nativeConnectivity = { passed: false }
   assert(!(await readdir(project)).includes("node_modules"), "Native build installed project dependencies")
 
   const devProcess = Bun.spawn([strace, "--kill-on-exit", "-f", "-e", "trace=network", "-o", devTrace,
@@ -181,23 +203,32 @@ try {
   page = await createMonitoredPage(browser, origin, evidence)
   assert((await page.goto(origin))?.ok(), "Bare-chip camera RunFrame page failed to load")
   let state = await waitForState(page, (next) => next.status !== "building", "the bare-chip Wi-Fi camera")
-  assertCamera(state)
+  assertCamera(state, "initial browser build")
   await writeFile(join(artifacts, "browser.circuit.json"), JSON.stringify(state.circuitJson, null, 2))
+  await writeFile(join(artifacts, "browser.report.json"), JSON.stringify(state.report, null, 2))
   for (const view of ["PCB", "Schematic", "3D"] as const) {
-    await openView(page, view, "discrete-wifi-camera", state)
-    if (view === "Schematic") {
-      await inspectImportedComponent(page, state, "U_MCU")
-      await inspectImportedComponent(page, state, "J_USB_C")
-    }
+    await inspect(view, async () => {
+      await openView(page!, view, "discrete-wifi-camera", state)
+      if (view === "Schematic") {
+        await inspectImportedComponent(page!, state, "U_MCU")
+        await inspectImportedComponent(page!, state, "J_USB_C")
+      }
+    })
   }
-  const bom = await openMoreView(page, "BOM")
-  assert((await bom.innerText()).length > 30, "Bare-chip camera BOM is empty")
-  await bom.screenshot({ path: join(artifacts, "discrete-wifi-camera-bom.png") })
-  const errors = await openMoreView(page, "Errors")
-  await errors.screenshot({ path: join(artifacts, "discrete-wifi-camera-errors.png") })
-  const json = await openMoreView(page, "Circuit JSON")
-  await json.locator("table").waitFor({ state: "visible" })
-  await json.screenshot({ path: join(artifacts, "discrete-wifi-camera-json.png") })
+  await inspect("BOM", async () => {
+    const bom = await openMoreView(page!, "BOM")
+    assert((await bom.innerText()).length > 30, "Bare-chip camera BOM is empty")
+    await bom.screenshot({ path: join(artifacts, "discrete-wifi-camera-bom.png") })
+  })
+  await inspect("Errors", async () => {
+    const errors = await openMoreView(page!, "Errors")
+    await errors.screenshot({ path: join(artifacts, "discrete-wifi-camera-errors.png") })
+  })
+  await inspect("Circuit JSON", async () => {
+    const json = await openMoreView(page!, "Circuit JSON")
+    await json.locator("table").waitFor({ state: "visible" })
+    await json.screenshot({ path: join(artifacts, "discrete-wifi-camera-json.png") })
+  })
 
   const original = await readFile(entry, "utf8")
   const missing = /C999999999999.*not bundled|not bundled.*C999999999999/i
@@ -211,20 +242,21 @@ try {
   assert(missing.test(await missingView.innerText()), "Missing catalog part is absent from RunFrame Errors")
   await page.screenshot({ path: join(artifacts, "discrete-wifi-camera-missing-part.png"), fullPage: true })
   state = await saveSource(page, original, state.generation)
-  assertCamera(state)
+  assertCamera(state, "browser recovery")
   await page.getByRole("button", { name: "Rebuild", exact: true }).click()
   state = await waitForState(page, (next) => next.generation > state.generation && next.status !== "building", "bare-chip camera rebuild")
-  assertCamera(state)
+  assertCamera(state, "browser rebuild")
   const downloads = join(artifacts, "downloads")
   await mkdir(downloads, { recursive: true })
   const downloaded = JSON.parse(await downloadArtifact(page, /Download Circuit JSON/i, downloads)) as CircuitJson
-  checkDiscreteWifiCamera(downloaded, netlist)
+  qualify("downloaded connectivity", () => checkDiscreteWifiCamera(downloaded, netlist))
   for (const name of [/Download PCB SVG/i, /Download schematic SVG/i]) {
     const svg = await downloadArtifact(page, name, downloads)
     assert(svg.includes("<svg") && !/(?:href|src)\s*=\s*["']https?:\/\//i.test(svg), "Bare-chip camera SVG requires a remote asset")
   }
   await Bun.sleep(1000)
   assertBrowserEvidence(evidence)
+  assert(qualificationFailures.length === 0, `Bare-chip camera qualification failed after collecting browser/network evidence:\n${JSON.stringify(qualificationFailures, null, 2)}`)
   console.log(`Bare-chip Wi-Fi camera passed ${imports.length} CLI catalog imports, native build, physical net checks, six RunFrame views, local part failure/recovery, rebuild and downloads: ${new Set(evidence.requests).size} local resources; zero native network attempts, external browser attempts, or CSP violations.`)
 } catch (error) {
   await page?.screenshot({ path: join(artifacts, "browser-failure.png"), fullPage: true }).catch(() => {})
@@ -235,6 +267,7 @@ try {
   await writeFile(join(artifacts, "browser-evidence.json"), JSON.stringify(evidence, null, 2))
   await writeFile(join(artifacts, "circuit-summary.json"), JSON.stringify(circuitSummary ?? null, null, 2))
   await writeFile(join(artifacts, "connectivity.json"), JSON.stringify({ nativeConnectivity, browserConnectivity, connectivityMonitorChecks }, null, 2))
+  await writeFile(join(artifacts, "qualification.json"), JSON.stringify({ completedViews, qualificationFailures }, null, 2))
   await browser?.close()
   dev?.kill()
   if (dev) {

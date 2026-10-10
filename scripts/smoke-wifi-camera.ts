@@ -75,8 +75,10 @@ function assertCarrier(state: BrowserCircuitState) {
 }
 
 try {
-  // These are real camera/module/power candidates, not invented part numbers.
-  for (const part of ["C277946", "C82899", "C23380830"]) {
+  const regulator = await native("import-C23380830", ["import", "C23380830"], 0)
+  assert(regulator.includes("Imported C23380830"), "The bundled AP2112 regulator did not import locally")
+  // These real camera modules remain outside the compact standalone catalog.
+  for (const part of ["C277946", "C82899"]) {
     const output = await native(`import-${part}`, ["import", part], 1)
     assert(output.includes(part) && output.includes("not bundled") && output.includes("No network lookup"),
       `${part} did not report a useful local catalog miss`)
