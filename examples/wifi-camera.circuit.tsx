@@ -331,12 +331,12 @@ nets.GND = [
 export const wifiCameraNets = nets
 
 // Keep the short oscillator and RF branches on top copper. Numeric waypoints
-// use the unrotated MCU's frame; selectors resolve each imported pad position.
+// use the first component's local PCB frame; selectors resolve the actual pads.
 const manualPcbPaths: Record<string, (string | { x: number; y: number })[][]> = {
   XTAL_P: [[".U_MCU > .pin54", { x: -1.8, y: 4.4 }, { x: -5, y: 4.4 }, ".L_XTAL > .pin1"]],
   XTAL_P_CRYSTAL: [
-    [".L_XTAL > .pin2", { x: -4.2, y: 5.91 }, { x: -3.96, y: 6.15 }, ".Y_MAIN > .pin1"],
-    [".L_XTAL > .pin2", { x: -5.51, y: 6.42 }, ".C_XTAL_P > .pin1"],
+    [".L_XTAL > .pin2", { x: 0.51, y: -0.8 }, { x: 0.75, y: -1.04 }, ".Y_MAIN > .pin1"],
+    [".L_XTAL > .pin2", { x: 1.02, y: 0.51 }, ".C_XTAL_P > .pin1"],
   ],
   XTAL_N: [
     [
@@ -346,22 +346,22 @@ const manualPcbPaths: Record<string, (string | { x: number; y: number })[][]> = 
       { x: 0.6, y: 7.85 },
       ".Y_MAIN > .pin3",
     ],
-    [".Y_MAIN > .pin3", { x: -0.51, y: 8.24 }, ".C_XTAL_N > .pin1"],
+    [".Y_MAIN > .pin3", { x: 1.49, y: 1.24 }, ".C_XTAL_N > .pin1"],
   ],
   RF_CHIP: [
     [".U_MCU > .pin1", { x: -4.6, y: 2.6 }, ".C_RF_MATCH1 > .pin1"],
-    [".C_RF_MATCH1 > .pin1", { x: -5.41, y: 3 }, ".L_RF > .pin1"],
+    [".C_RF_MATCH1 > .pin1", { x: 0, y: 0.51 }, ".L_RF > .pin1"],
   ],
   RF_ANTENNA: [
-    [".L_RF > .pin2", { x: -8.19, y: 3 }, ".C_RF_MATCH2 > .pin1"],
-    [".C_RF_MATCH2 > .pin1", { x: -9.21, y: 3 }, ".J_RF > .pin2"],
+    [".L_RF > .pin2", { x: 1.39, y: 0 }, ".C_RF_MATCH2 > .pin1"],
+    [".C_RF_MATCH2 > .pin1", { x: 0, y: 0.51 }, ".J_RF > .pin2"],
   ],
   CC1: [
     [
       ".J_USB_C > .pin18",
-      { x: -28.25, y: -24.8 },
-      { x: -31, y: -22.5 },
-      { x: -34, y: -22.5 },
+      { x: -1.25, y: 3.2 },
+      { x: -4, y: 5.5 },
+      { x: -7, y: 5.5 },
       ".R_CC1 > .pin1",
     ],
   ],
@@ -699,7 +699,7 @@ export default function WifiCameraController() {
           name="C_XTAL_N"
           capacitance="14pF"
           footprint="0402"
-          pcbX={0}
+          pcbX={1.25}
           pcbY={9}
           schX={-11.5}
           schY={-9}
@@ -754,7 +754,6 @@ export default function WifiCameraController() {
                   <trace
                     name={`${net}_${branch}`}
                     path={[pcbPath[0] as string, pcbPath.at(-1) as string, `net.${net}`]}
-                    pcbPathRelativeTo=".U_MCU > .pin54"
                     pcbPath={pcbPath}
                     maxViaCount={net.startsWith("XTAL_") ? 0 : undefined}
                     maxLength={net.startsWith("XTAL_") ? "10mm" : undefined}
