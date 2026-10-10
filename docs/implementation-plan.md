@@ -35,30 +35,38 @@ and remote CAD assets are omitted.
 - `tsci dev` now prepares source `fsMap` and serves bundled assets. Ordinary
   RunFrame evaluates that source in its local browser worker with pinned eval
   0.0.1569, Comlink, the catalog platform, and shared circuit/request validation.
-- A typed `RunFramePlatformConfig` extends the shared platform locally with
-  `telemetryDisabled`, `evalCdnLoadingDisabled`, `evalVersionSelectionDisabled`,
-  and `pcbRenderer`. Standalone uses the existing RunFrame `platformConfig`
-  prop, pinned worker/version props, and autorouting-report callback.
+- RunFrame is composed through public `@tscircuit/runframe/runner` exports,
+  shared `@tscircuit/props` `PlatformConfig`, the existing worker/version props,
+  and autorouting-report callback. `host-config.js` executes before app imports
+  and sets the existing telemetry/version globals. The canvas backend uses the
+  existing viewer storage convention, defaulting fresh profiles to canvas
+  while retaining saved preferences; CDN loading is disabled inside the worker.
 - Bundled dynamic-import manifests cover Altium, the ten RunFrame converter
   package names, and schematic placement analysis 0.0.46. Manifold/fonts and
   exporter WASM adapters are local. The existing parts-engine availability
   provider returns unknown stock; the schematic viewer generates SVG thumbnails
   locally and loads style analysis through the generic importer. Telemetry uses
-  the platform's disabled setting; hyperlinks
+  the startup host setting; hyperlinks
   retain normal navigation behavior.
-- Separate open, unmerged upstream PRs provide reusable composition APIs:
+- The user merged reusable composition and lifecycle changes:
   [RunFrame #5618](https://github.com/tscircuit/runframe/pull/5618),
+  [RunFrame #5643](https://github.com/tscircuit/runframe/pull/5643),
   [schematic-viewer #285](https://github.com/tscircuit/schematic-viewer/pull/285),
+  [schematic-viewer #287](https://github.com/tscircuit/schematic-viewer/pull/287),
   [internal-dynamic-import #35](https://github.com/tscircuit/internal-dynamic-import/pull/35),
   [RunFrame worker lifecycle #5632](https://github.com/tscircuit/runframe/pull/5632),
-  and [RunFrame solver/styles #5631](https://github.com/tscircuit/runframe/pull/5631).
-  Worker lifecycle fixes are reviewed separately from RunFrame #5618's platform
-  configuration. The RunFrame dependency uses a pinned composite branch of
-  cherry-picked changes pending separate review and published versions. Using
-  that branch does not merge a PR. Never merge these or future PRs automatically.
-- PR scope follows package ownership: RunFrame owns its local platform extension
-  and viewer forwarding in #5618; worker lifecycle and solver/style changes have
-  separate PRs. Schematic-viewer owns platform-based
+  and [RunFrame static JSON #5637](https://github.com/tscircuit/runframe/pull/5637).
+  [RunFrame solver/styles #5631](https://github.com/tscircuit/runframe/pull/5631)
+  remains open and separate. Never merge PRs automatically.
+- Standalone uses published packages and
+  public entrypoints: RunFrame 0.0.2953, importer 0.0.17, and schematic-viewer
+  2.0.104. The published RunFrame artifact includes the merged changes; exact
+  versions are recorded in the dependency manifest and lockfile.
+  No composite RunFrame branch is needed. Fresh compiled-browser and native
+  qualification has passed with these dependencies and host settings.
+- PR scope follows package ownership: RunFrame owns viewer forwarding and
+  existing host-configuration conventions; worker lifecycle, static JSON, and
+  solver styles have separate PRs. Schematic-viewer owns platform-based
   availability and local thumbnails; internal-dynamic-import owns generic
   module resolution. Standalone owns providers, manifests, packaging, and
   qualification. Shared `@tscircuit/props` interfaces stay unchanged.
@@ -70,11 +78,16 @@ and remote CAD assets are omitted.
 [Earlier foundation CI](https://github.com/tscircuit/tscircuit-standalone/actions/runs/37892852019)
 qualified initial native import/build paths, socket tracing, network-namespace
 execution, and compilation for five targets. Native execution was Linux x64.
-The revised platform-based browser-worker integration passed local compiled
+The published-package browser-worker integration passed fresh local compiled
 Linux x64 qualification: all six views, source/cached JSON, edit/watch/import
 recovery, twelve module namespaces, and thirteen operations produced no
-external request attempts or CSP violations. CI repeats the harness in a
-loopback-only namespace. No official release has been published.
+external request attempts or CSP violations. The proof recorded 31 same-origin
+resources and two worker URLs, with no browser/console errors or local request
+failures. Frozen installation with Bun 1.3.12, backend/UI types, 98 tests with
+647 assertions, binary build/notices, and native clean-project smoke also passed;
+native tracing recorded no external socket, connect, or send attempts.
+CI repeats the browser harness in a loopback-only namespace separately from
+these local results. No official release has been published.
 
 The native CLI build path remains unchanged by the RunFrame composition work.
 Its fixtures are runtime examples rather than complete production designs:
@@ -158,9 +171,13 @@ Viewer stock is unknown (`undefined`) through the existing
 `partsEngine.fetchPartAvailability` provider. The viewer generates SVG
 thumbnails locally; the generic importer resolves the local 0.0.46 analyzer.
 Preserve ordinary supplier links and the existing report callback's user
-navigation. Set telemetry, eval CDN loading, version selection, and the PCB
-renderer through `RunFramePlatformConfig`, rather than new top-level props or a
-standalone-specific viewer service interface.
+navigation. Before app imports, `host-config.js` sets
+`window.TSCIRCUIT_TELEMETRY_DISABLED = true` and
+`window.TSCIRCUIT_ALLOW_SELECTING_EVAL_VERSION = false`; it stores
+`JSON.stringify("canvas")` under `pcb_viewer_rendering_engine` only when the key
+is absent, preserving existing preferences. Keep
+`runner.setDisableCdnLoading(true)` inside the worker.
+The shared `PlatformConfig` carries circuit providers through the existing prop.
 
 Qualify the actual compiled app from fresh browser/storage and a clean project.
 Exercise its local worker, all enabled views, editor saves/watches, catalog
@@ -218,6 +235,6 @@ sandbox; it is not established by the current source allowlist or fetch hooks.
 ## Source evidence
 
 [Runtime audit](runtime-audit.md) and [CLI audit](cli-audit.md) preserve the
-original inspected upstream snapshots. The open PRs and current composition
-address selected findings; they do not mean the general upstream CLI is
-already offline or that all exporters have been qualified.
+original inspected upstream snapshots. The merged changes, remaining style PR,
+and current composition address selected findings; they do not mean the general
+upstream CLI is already offline or that all exporters have been qualified.

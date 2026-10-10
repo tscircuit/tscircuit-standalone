@@ -10,12 +10,6 @@
     "noUncheckedSideEffectImports": true,
     "baseUrl": ".",
     "paths": {
-      "@tscircuit/runframe/source": [
-        "types/runframe-source.ts"
-      ],
-      "lib/*": [
-        "node_modules/@tscircuit/runframe/lib/*"
-      ],
       "/assets/manifold.js": [
         "node_modules/manifold-3d/manifold.d.ts"
       ],

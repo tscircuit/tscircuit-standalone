@@ -23,13 +23,20 @@ unsupported imports remain editable. `--project-dir` sets the source boundary,
 
 ## Worker and dependency composition
 
-The app supplies RunFrame with `fsMap`, `mainComponentPath`, eval version
-`0.0.1569`, `/assets/eval-worker.js`, and a typed `RunFramePlatformConfig`.
-This local RunFrame extension of the shared `PlatformConfig` adds four optional
-fields: `telemetryDisabled`, `evalCdnLoadingDisabled`,
-`evalVersionSelectionDisabled`, and `pcbRenderer`. Standalone sets the three
-disabled flags to `true` and selects the `canvas` renderer. These settings use
-the existing `platformConfig` prop; they do not add top-level RunFrame props.
+The app imports RunFrame 0.0.2953 from the public `@tscircuit/runframe/runner` entry and
+supplies `fsMap`, `mainComponentPath`, eval version `0.0.1569`,
+`/assets/eval-worker.js`, and the shared `@tscircuit/props` `PlatformConfig`.
+The existing `platformConfig` prop carries circuit providers to the evaluator
+and viewers; standalone does not define a RunFrame-specific platform type.
+
+`host-config.js` runs before the app and its module imports. It sets
+`window.TSCIRCUIT_TELEMETRY_DISABLED = true` and
+`window.TSCIRCUIT_ALLOW_SELECTING_EVAL_VERSION = false`, and seeds the existing
+`pcb_viewer_rendering_engine` local-storage key with `JSON.stringify("canvas")`
+when no preference exists. Existing renderer preferences are retained. These
+host and viewer settings prevent analytics startup and version-menu requests
+and default new browser profiles to the canvas PCB renderer. The
+worker wrapper calls `runner.setDisableCdnLoading(true)` before evaluation.
 The local worker exposes a normal `CircuitRunner` through Comlink. Its wrapper
 installs the request policy before evaluator initialization, constructs the
 catalog platform inside the worker, and validates authored circuits and JSON
@@ -50,7 +57,7 @@ errors use RunFrame's normal Errors view. Pinned version metadata and
 the supplied worker URL remove the need for eval-version discovery or worker
 CDN downloads. Project configuration cannot restore unsupported providers.
 
-The real `@tscircuit/internal-dynamic-import` package receives a lazy manifest
+Published `@tscircuit/internal-dynamic-import@0.0.17` receives a lazy manifest
 through `setDynamicImportResolver(createDynamicImporter(loaders))`. Literal
 imports bundle the ten converter package names currently requested by
 RunFrame, its statically imported Altium converter, and schematic placement
@@ -63,7 +70,7 @@ The build includes local Manifold JavaScript/WASM, OCCT and Resvg WASM adapters,
 and a Troika font. Browser UI imports share one React instance; the evaluator
 worker has its own consistent dependency graph. Manifold and the font initialize
 before viewers mount, and unsupported Unicode uses the local missing-glyph
-outline. PCB uses the canvas renderer and does not require a WebGPU adapter.
+outline. The default canvas PCB renderer does not require a WebGPU adapter.
 
 Bundling converters is preparation for per-format qualification. The current
 app exposes Circuit JSON, PCB SVG, and schematic SVG downloads. Simulation,
@@ -84,7 +91,7 @@ The schematic viewer receives the same platform configuration. Its existing
 bundled parts. Footprint thumbnails are SVG data URLs generated inside the
 viewer. Style analysis uses the generic dynamic importer and resolves bundled
 `@tscircuit/circuit-json-schematic-placement-analysis@0.0.46`. Supplier links
-remain normal hyperlinks. `platformConfig.telemetryDisabled` prevents analytics
+remain normal hyperlinks. The startup telemetry global prevents analytics
 initialization/capture. The existing `onReportAutoroutingLog` callback opens the
 repository issue page through user navigation.
 
@@ -108,55 +115,70 @@ follow-up work. `--timeout-ms` applies only to native `tsci build`.
 
 ## Upstream changes
 
-These PRs remain open and must never be merged automatically:
+The user merged the platform, host-configuration, worker, static-JSON, viewer,
+and importer changes:
 
-- [RunFrame #5618](https://github.com/tscircuit/runframe/pull/5618): the local
-  four-field `RunFramePlatformConfig` extension, platform forwarding to viewers,
-  and the source entry/dependency packaging needed for that viewer API.
+- [RunFrame #5618](https://github.com/tscircuit/runframe/pull/5618) and
+  [#5643](https://github.com/tscircuit/runframe/pull/5643): shared platform
+  forwarding and configuration through existing host/viewer conventions.
 - [RunFrame #5632](https://github.com/tscircuit/runframe/pull/5632): worker
-  lifecycle and forwarding fixes, reviewed separately from the platform PR.
+  startup, render-failure recovery, and stale-run handling.
   Existing worker/version props and the autorouting-report callback remain the
   composition boundary; no controlled Circuit JSON or host-error prop is added.
-- [RunFrame #5631](https://github.com/tscircuit/runframe/pull/5631): solver/style
-  composition, kept separate from the platform-config PR.
+- [RunFrame #5637](https://github.com/tscircuit/runframe/pull/5637): static Circuit
+  JSON parsing and lifecycle callbacks, separate from worker execution.
 - [schematic-viewer #285](https://github.com/tscircuit/schematic-viewer/pull/285):
   platform-based availability through the existing parts engine, local SVG
   footprint previews, style analysis through the generic importer, ordinary
-  controls and links, and source exports.
+  controls and links. [#287](https://github.com/tscircuit/schematic-viewer/pull/287)
+  completes viewer packaging.
 - [internal-dynamic-import #35](https://github.com/tscircuit/internal-dynamic-import/pull/35):
-  configurable resolvers, typed lazy manifests, exact-version matching, and
-  source exports.
+  configurable resolvers, typed lazy manifests, and exact-version matching.
+
+[RunFrame #5631](https://github.com/tscircuit/runframe/pull/5631) remains open
+and separate. It removes RunFrame's legacy Tailwind request, but the actual
+debugger in `@tscircuit/solver-utils` also loads a Tailwind CDN script. That
+package must own its bundled styles before Solvers can be enabled. The six
+current standalone views exclude Solvers.
+Never merge PRs automatically.
 
 The shared `@tscircuit/props` platform and parts-engine interfaces stay unchanged.
 The standalone repository owns its catalog providers, literal module manifest,
 asset packaging, and browser verification. Each upstream PR addresses its own
 package; none depends on standalone-specific service interfaces.
 
-The UI uses an exact composite GitHub commit pin assembled from cherry-picked
-upstream changes while their separate PRs remain unmerged and under review.
-Using that composite branch does not merge any PR.
-Replace source pins with qualified published versions after upstream review/release.
+Standalone uses published packages and their public entrypoints,
+including `@tscircuit/runframe@0.0.2953`,
+`@tscircuit/internal-dynamic-import@0.0.17`, and
+`@tscircuit/schematic-viewer@2.0.104`. The RunFrame artifact contains the merged
+changes; exact versions are recorded in the dependency manifest and lockfile.
+The integration no longer requires source subpaths or a composite RunFrame
+branch. The unmerged solver-style work still needs separate qualification.
 The native `tsci build` command continues to use its embedded build worker.
 
 ## Qualification status
 
-The compiled browser proof imports twelve manifest namespaces and runs thirteen
-converter/parser/analysis operations without external requests or CSP
-violations. It also checks the analyzer's exact 0.0.46 alias and local WASM
+The current compiled browser proof imported twelve manifest namespaces and ran
+thirteen converter/parser/analysis operations without external requests or CSP
+violations. It also checked the analyzer's exact 0.0.46 alias and local WASM
 loading. Converter checks establish API
 availability and basic artifact structure; they do not establish full export
 fidelity. In particular, the KiCad check covers 2D document generation, not
 symbol completeness or acquisition of referenced 3D models.
 
-The current compiled Linux x64 binary passed real browser-worker and cached JSON
-flows in a clean project. Checks cover all six enabled views, local thumbnails
-and style-analysis artifacts, supplier links, source saves/watches, catalog
+The compiled Linux x64 binary with the published-package dependencies passed real browser-worker
+and cached JSON flows in a clean project. Checks covered all six enabled views,
+local thumbnails and style-analysis artifacts, supplier links, source saves/watches, catalog
 imports, host and worker error recovery, and JSON/SVG downloads. The same
-request monitors stay active during all module operations. No external request
+request monitors stayed active during all module operations. No external request
 attempts, CSP violations, browser/console errors, or failed local requests were
-observed. The full check also passes 98 tests, backend/UI typechecks, binary
-compilation, and native clean-project import/build smoke. CI runs the browser
-harness with only loopback networking.
+observed. The browser proof recorded 31 same-origin resources and two worker
+URLs. Fresh qualification also passed frozen installation with Bun 1.3.12,
+98 tests with 647 assertions, backend/UI typechecks, binary compilation and
+notice generation, and native clean-project import/build smoke. Native socket
+tracing recorded no external socket, connect, or send attempts. These are local
+results; CI repeats the browser harness in a namespace with only loopback
+networking.
 Earlier host-rendered prototype screenshots are historical, separate evidence.
 
 `tests/dev-server.test.ts` covers source-graph preparation, invalid-source

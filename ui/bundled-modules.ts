@@ -2,7 +2,7 @@ import {
   createDynamicImporter,
   registerDynamicModule,
   setDynamicImportResolver,
-} from "@tscircuit/internal-dynamic-import/source"
+} from "@tscircuit/internal-dynamic-import"
 
 /** Converter code is bundled; model files and WASM still use local providers. */
 export const bundledModuleVersions = {

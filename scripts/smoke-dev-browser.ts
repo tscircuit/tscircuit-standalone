@@ -664,6 +664,13 @@ async function main() {
     const response = await page.goto(origin)
     assert(response && response.ok(), "The embedded RunFrame page did not load")
     assert(response.headers()["content-security-policy"]?.includes("connect-src"), "The local page did not enforce a connection CSP")
+    const hostSettings = await page.evaluate(() => ({
+      telemetryDisabled: Reflect.get(window, "TSCIRCUIT_TELEMETRY_DISABLED"),
+      allowSelectingEvalVersion: Reflect.get(window, "TSCIRCUIT_ALLOW_SELECTING_EVAL_VERSION"),
+      pcbRenderer: JSON.parse(localStorage.getItem("pcb_viewer_rendering_engine") ?? "null"),
+    }))
+    assert(hostSettings.telemetryDisabled === true && hostSettings.allowSelectingEvalVersion === false && hostSettings.pcbRenderer === "canvas",
+      "The embedded startup script did not apply RunFrame host settings and the PCB viewer's existing preference")
     let state = await waitForState(page, (next) => next.status === "ready", "initial LED rendering")
     assert(evidence.workerUrls.some((url) => new URL(url).pathname === "/assets/eval-worker.js"),
       "RunFrame did not execute the circuit in the bundled browser eval worker")

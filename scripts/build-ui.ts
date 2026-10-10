@@ -15,11 +15,7 @@ const findPackageRoot = async (name: string): Promise<string> => {
   }
   throw new Error(`Missing UI dependency ${name}. Run bun install.`)
 }
-const runFrameRoot = await findPackageRoot("@tscircuit/runframe")
-const schematicRoot = await findPackageRoot("@tscircuit/schematic-viewer")
 const circuitJsonRoot = await findPackageRoot("circuit-json")
-const evalRoot = await findPackageRoot("@tscircuit/eval")
-const importerRoot = await findPackageRoot("@tscircuit/internal-dynamic-import")
 const troikaRoot = await findPackageRoot("troika-three-text")
 const manifoldRoot = await findPackageRoot("manifold-3d")
 const threeRoot = await findPackageRoot("three")
@@ -37,28 +33,19 @@ const bundledPlugin: Bun.BunPlugin = {
   name: "standalone-bundled-ui",
   setup(builder) {
     // Every browser import shares the UI React instance, including imports in
-    // GitHub source packages and independently bundled viewer dependencies.
+    // independently bundled viewer dependencies.
     builder.onResolve({ filter: /^zod$/ }, ({ path }) => ({ path: uiRequire.resolve(path) }))
     builder.onResolve({ filter: /^react(?:\/.*)?$/ }, ({ path }) => ({ path: uiRequire.resolve(path) }))
     builder.onResolve({ filter: /^react-dom(?:\/.*)?$/ }, ({ path }) => ({ path: uiRequire.resolve(path) }))
-    builder.onResolve({ filter: /^@tscircuit\/eval\/worker$/ }, () => ({ path: join(evalRoot, "dist/worker.js") }))
     builder.onResolve({ filter: /^circuit-json$/ }, () => ({ path: join(circuitJsonRoot, "dist/index.mjs") }))
-    builder.onResolve({ filter: /^@tscircuit\/runframe\/source$/ }, () => ({ path: join(runFrameRoot, "lib/runner.ts") }))
-    builder.onResolve({ filter: /^@tscircuit\/schematic-viewer(?:\/source)?$/ }, () => ({ path: join(schematicRoot, "lib/index.ts") }))
-    builder.onResolve({ filter: /^lib\// }, ({ path, importer }) => {
-      if (importer.startsWith(runFrameRoot + sep)) return { path: Bun.resolveSync(join(runFrameRoot, path), importer) }
-      if (importer.startsWith(schematicRoot + sep)) return { path: Bun.resolveSync(join(schematicRoot, path), importer) }
-    })
-    builder.onResolve({ filter: /^@tscircuit\/internal-dynamic-import(?:\/source)?$/ }, () => ({ path: join(importerRoot, "lib/index.ts") }))
+    // Troika's bundled distribution inlines its network font resolver. Its
+    // published module:src entry lets us substitute the local glyph resolver.
     builder.onResolve({ filter: /^troika-three-text$/ }, () => ({ path: join(troikaRoot, "src/index.js") }))
     builder.onResolve({ filter: /unicode-font-resolver-client\.factory\.js$/ }, () => ({ path: join(uiRoot, "bundled-font-resolver.ts") }))
     builder.onResolve({ filter: /^\/assets\/manifold\.js$/ }, ({ path }) => ({ path, external: true }))
   },
 }
 
-if (!(await Bun.file(join(schematicRoot, "lib/index.ts")).exists())) {
-  throw new Error("The UI requires the reviewed schematic-viewer source commit. Pin its GitHub dependency before building.")
-}
 await mkdir(outputRoot, { recursive: true })
 const result = await Bun.build({
   entrypoints: [join(uiRoot, "main.tsx")],
@@ -99,6 +86,7 @@ interface EmbeddedAsset { content: string | Buffer; contentType: string; source:
 const assets: Record<string, EmbeddedAsset> = {
   "/": { content: await readFile(join(uiRoot, "index.html"), "utf8"), contentType: "text/html; charset=utf-8", source: "ui/index.html" },
   "/favicon.svg": { content: await readFile(join(uiRoot, "favicon.svg"), "utf8"), contentType: "image/svg+xml", source: "ui/favicon.svg" },
+  "/assets/host-config.js": { content: await readFile(join(uiRoot, "host-config.js"), "utf8"), contentType: "text/javascript; charset=utf-8", source: "ui/host-config.js" },
   "/assets/app.js": { content: await script.text(), contentType: "text/javascript; charset=utf-8", source: relative(projectRoot, script.path) },
   "/assets/eval-worker.js": { content: await workerScript.text(), contentType: "text/javascript; charset=utf-8", source: relative(projectRoot, workerScript.path) },
   "/assets/app.css": { content: await css.text(), contentType: "text/css; charset=utf-8", source: relative(projectRoot, css.path) },

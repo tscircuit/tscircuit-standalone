@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createRoot } from "react-dom/client"
-import { RunFrame, type RunFramePlatformConfig } from "@tscircuit/runframe/source"
+import { RunFrame } from "@tscircuit/runframe/runner"
 import { convertCircuitJsonToPcbSvg, convertCircuitJsonToSchematicSvg } from "circuit-to-svg"
 import type { StandaloneDevState as DevState } from "../lib/dev-types"
 import { configureBundledCad } from "./bundled-cad"
@@ -10,13 +10,7 @@ import { inspectCircuitJson, type CircuitBuildReport } from "../lib/circuit-repo
 import type { CircuitJson } from "circuit-json"
 import "./app.css"
 
-const platformConfig: RunFramePlatformConfig = {
-  ...createStandalonePlatformConfig(),
-  telemetryDisabled: true,
-  evalCdnLoadingDisabled: true,
-  evalVersionSelectionDisabled: true,
-  pcbRenderer: "canvas",
-}
+const platformConfig = createStandalonePlatformConfig()
 // Response objects are not transferable through Comlink. Worker request policy
 // handles fetch, while plain part/footprint provider results are proxied normally.
 delete platformConfig.platformFetch
