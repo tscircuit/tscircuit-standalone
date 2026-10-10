@@ -22,6 +22,7 @@ const strace = process.env.STRACE_EXECUTABLE_PATH ?? Bun.which("strace")
 assert(strace, "Wi-Fi camera qualification requires strace (Linux)")
 await mkdir(artifacts, { recursive: true })
 const fixtureName = "wifi-camera.circuit"
+const renderTimeoutMs = 240_000
 const fixture = resolve(import.meta.dir, `../examples/${fixtureName}.tsx`)
 const netlist = JSON.parse(await readFile(resolve(import.meta.dir, "../examples/wifi-camera.netlist.json"), "utf8")) as WifiCameraNetlist
 await mkdir(join(project, "examples"))
@@ -159,7 +160,7 @@ try {
   }
   // A DRC failure must remain a failed qualification, while the browser audit
   // still records all ordinary views and downloads for network inspection.
-  await native("camera-build", ["build", entry, "--output-dir", join(artifacts, "native-build"), "--timeout-ms", "240000"])
+  await native("camera-build", ["build", entry, "--output-dir", join(artifacts, "native-build"), "--timeout-ms", String(renderTimeoutMs)])
   nativeReport = JSON.parse(await readFile(join(artifacts, `native-build/${fixtureName}.report.json`), "utf8"))
   const nativeCircuit = JSON.parse(await readFile(join(artifacts, `native-build/${fixtureName}.json`), "utf8")) as CircuitJson
   const nativeErrors = (nativeReport as { errors: unknown[] }).errors
@@ -203,7 +204,7 @@ try {
   await selfCheckWorkerMonitor(browser)
   page = await createMonitoredPage(browser, origin, evidence)
   assert((await page.goto(origin))?.ok(), "Bare-chip camera RunFrame page failed to load")
-  let state = await waitForState(page, (next) => next.status !== "building", "the bare-chip Wi-Fi camera")
+  let state = await waitForState(page, (next) => next.status !== "building", "the bare-chip Wi-Fi camera", renderTimeoutMs)
   assertCamera(state, "initial browser build")
   await writeFile(join(artifacts, "browser.circuit.json"), JSON.stringify(state.circuitJson, null, 2))
   await writeFile(join(artifacts, "browser.report.json"), JSON.stringify(state.report, null, 2))
@@ -242,10 +243,10 @@ try {
   const missingView = await openMoreView(page, "Errors")
   assert(missing.test(await missingView.innerText()), "Missing catalog part is absent from RunFrame Errors")
   await page.screenshot({ path: join(artifacts, "discrete-wifi-camera-missing-part.png"), fullPage: true })
-  state = await saveSource(page, original, state.generation)
+  state = await saveSource(page, original, state.generation, renderTimeoutMs)
   assertCamera(state, "browser recovery")
   await page.getByRole("button", { name: "Rebuild", exact: true }).click()
-  state = await waitForState(page, (next) => next.generation > state.generation && next.status !== "building", "bare-chip camera rebuild")
+  state = await waitForState(page, (next) => next.generation > state.generation && next.status !== "building", "bare-chip camera rebuild", renderTimeoutMs)
   assertCamera(state, "browser rebuild")
   const downloads = join(artifacts, "downloads")
   await mkdir(downloads, { recursive: true })

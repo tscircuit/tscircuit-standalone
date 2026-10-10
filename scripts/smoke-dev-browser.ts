@@ -298,8 +298,9 @@ async function waitForState(
   page: Page,
   accepts: (state: BrowserCircuitState) => boolean,
   description: string,
+  timeoutMs = 60_000,
 ): Promise<BrowserCircuitState> {
-  const deadline = Date.now() + 60_000
+  const deadline = Date.now() + timeoutMs
   let latest: BrowserCircuitState | undefined
   while (Date.now() < deadline) {
     latest = await page.evaluate(async () => {
@@ -346,7 +347,7 @@ async function waitForState(
   throw new Error(`Timed out waiting for ${description}: ${JSON.stringify(latest)}`)
 }
 
-async function saveSource(page: Page, source: string, afterGeneration: number) {
+async function saveSource(page: Page, source: string, afterGeneration: number, timeoutMs = 60_000) {
   await page.getByLabel("Circuit source", { exact: true }).fill(source)
   const saved = page.waitForResponse((response) =>
     new URL(response.url()).pathname === "/api/source" && response.request().method() === "POST")
@@ -356,7 +357,7 @@ async function saveSource(page: Page, source: string, afterGeneration: number) {
   const { revision } = await response.json() as { revision: string }
   return waitForState(page,
     (state) => state.generation > afterGeneration && state.sourceRevision === revision && state.status !== "building",
-    "the edited circuit in RunFrame's browser worker")
+    "the edited circuit in RunFrame's browser worker", timeoutMs)
 }
 
 async function openMoreView(page: Page, name: "BOM" | "Errors" | "Circuit JSON") {
