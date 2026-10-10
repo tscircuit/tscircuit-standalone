@@ -25,7 +25,8 @@ are removed. The comparison reference is not included in the runtime bundle.
 Full measurements and source links are in [CLI audit](cli-audit.md).
 
 The camera candidates add a bare ESP32-S3R8, 16 MB SPI flash, USB ESD protection,
-3.3 V and 2.8 V regulators, a 40 MHz crystal, and a JST power connector. A 1.2 V
+3.3 V, 2.8 V and 1.3 V regulators, a 40 MHz crystal, USB-C, camera FFC,
+JST power and U.FL antenna connectors. These are eleven distinct camera imports. A 1.2 V
 regulator is also qualified; it is not suitable for the OV2640's 1.3 V core rail.
 The ESP32-S3R8's 8 MB PSRAM is inside the chip package; this entry is a QFN chip,
 not a radio module. The runtime stores recipes and pin labels in
@@ -55,6 +56,23 @@ and copper/hole IoU at or below 98%. It uses a build-only dependency and never
 fetches acquisition data. Keep expanded references and acquisition payloads out
 of the runtime catalog.
 
-USB-C and camera FFC candidates need explicit shell numbering and reversed
-contact numbering in footprinter before admission; matching geometry alone is
-insufficient. Popularity ranking and broader acquisition automation remain pending.
+The USB-C recipe preserves supplier shell pins 13/14 and contacts 15–26.
+The FFC recipe preserves right-to-left physical contacts 1–24, with mounts 25/26.
+The U.FL recipe retains supplier ground pins 1/3 and signal pin 2. These need the
+additive Footprinter families in [PR #910](https://github.com/tscircuit/footprinter/pull/910)
+and [PR #911](https://github.com/tscircuit/footprinter/pull/911). The temporary,
+locally bundled package is pinned throughout the dependency graph; its exact
+source, archive digest and ISC license are recorded in
+[vendor/footprinter.json](../vendor/footprinter.json). Replace this artifact with
+the approved published version after upstream review.
+
+Core 0.0.2116, currently pinned here, leaves the USB-C shared shell plated holes
+without PCB terminal ownership. The native import test covers USB-C source pins
+and SMT contact ownership, plus FFC/U.FL copper numbering; it does not assert
+that shell ownership is correct on this Core version. Full board qualification
+requires current Core with the thermal-via ownership fix in
+[PR #4487](https://github.com/tscircuit/core/pull/4487), and must verify every shell
+hole and thermal via has its intended electrical owner. These renderer fixes
+are a separate dependency change in the board preparation PR.
+
+Popularity ranking and broader acquisition automation remain pending.

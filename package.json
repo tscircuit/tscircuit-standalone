@@ -21,7 +21,7 @@
     "@flatten-js/core": "1.6.12",
     "@tscircuit/core": "0.0.2116",
     "@tscircuit/eval": "0.0.1569",
-    "@tscircuit/footprinter": "0.0.430",
+    "@tscircuit/footprinter": "file:vendor/footprinter-4ecc56b.tgz",
     "@tscircuit/krt-wasm": "0.1.6",
     "@tscircuit/math-utils": "0.0.36",
     "@tscircuit/props": "0.0.697",
@@ -44,7 +44,8 @@
     "ui"
   ],
   "overrides": {
-    "altiumts": "0.0.59"
+    "altiumts": "0.0.59",
+    "@tscircuit/footprinter": "file:vendor/footprinter-4ecc56b.tgz"
   },
   "trustedDependencies": []
 }

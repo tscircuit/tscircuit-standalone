@@ -40,7 +40,7 @@ describe("compact part catalog", () => {
   })
 
   test("rejects duplicates, remote footprints, raw geometry and unmapped pads", () => {
-    expect(() => createCatalog([...bundledParts, ...bundledParts])).toThrow(
+    expect(() => createCatalog([bundledParts[0], bundledParts[0]])).toThrow(
       "duplicate supplier part C2040",
     )
     expect(() =>

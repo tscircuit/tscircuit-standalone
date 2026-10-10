@@ -10,13 +10,13 @@ import { getBundledFootprintCircuitJson, parseBundledPart } from "../lib/catalog
 
 export const CATALOG_COPPER_IOU_THRESHOLD = 0.98
 
-const installedVersion = (name: string): string => {
+const installedMetadata = (name: string): { version: string; standaloneSource?: unknown } => {
   let directory = dirname(fileURLToPath(import.meta.resolve(name)))
   while (true) {
     const path = join(directory, "package.json")
     if (existsSync(path)) {
       const metadata = JSON.parse(readFileSync(path, "utf8"))
-      if (metadata.name === name && typeof metadata.version === "string") return metadata.version
+      if (metadata.name === name && typeof metadata.version === "string") return metadata
     }
     const parent = dirname(directory)
     if (parent === directory) throw new Error(`Package metadata missing for ${name}`)
@@ -54,6 +54,7 @@ export const qualifyPartReference = (input: unknown, reference: readonly AnyCirc
       `${part.supplierPartNumber}: hole IoU ${metrics.holeIntersectionOverUnion} must exceed 0.98`,
     )
   }
+  const footprinterMetadata = installedMetadata("@tscircuit/footprinter")
   return {
     supplierPartNumber: part.supplierPartNumber,
     footprint: part.footprint,
@@ -63,8 +64,11 @@ export const qualifyPartReference = (input: unknown, reference: readonly AnyCirc
     ...metrics,
     provenance: part.provenance,
     tools: {
-      footprinter: installedVersion("@tscircuit/footprinter"),
-      circuitJsonToFootprinter: installedVersion("circuit-json-to-footprinter"),
+      footprinter: footprinterMetadata.version,
+      ...(footprinterMetadata.standaloneSource
+        ? { footprinterSource: footprinterMetadata.standaloneSource }
+        : {}),
+      circuitJsonToFootprinter: installedMetadata("circuit-json-to-footprinter").version,
     },
   }
 }

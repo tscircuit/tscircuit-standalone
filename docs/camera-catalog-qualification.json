@@ -18,7 +18,15 @@
         "referenceUrl": "https://jlcpcb.com/partdetail/C2913194"
       },
       "tools": {
-        "footprinter": "0.0.430",
+        "footprinter": "0.0.431",
+        "footprinterSource": {
+          "repository": "tscircuit/footprinter",
+          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "pullRequests": [
+            910,
+            911
+          ]
+        },
         "circuitJsonToFootprinter": "0.0.59"
       },
       "referenceSha256": "5c7ed38211cbd87f4595c8131be8a7482a856b258d188e7e35fa03a8575a193f"
@@ -40,7 +48,15 @@
         "referenceUrl": "https://jlcpcb.com/partdetail/C97521"
       },
       "tools": {
-        "footprinter": "0.0.430",
+        "footprinter": "0.0.431",
+        "footprinterSource": {
+          "repository": "tscircuit/footprinter",
+          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "pullRequests": [
+            910,
+            911
+          ]
+        },
         "circuitJsonToFootprinter": "0.0.59"
       },
       "referenceSha256": "c47520e8cdbb34f358e3c0373c2c92fe1441a44678de2ae02136f0a79b9cb2fe"
@@ -62,7 +78,15 @@
         "referenceUrl": "https://jlcpcb.com/partdetail/C2827693"
       },
       "tools": {
-        "footprinter": "0.0.430",
+        "footprinter": "0.0.431",
+        "footprinterSource": {
+          "repository": "tscircuit/footprinter",
+          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "pullRequests": [
+            910,
+            911
+          ]
+        },
         "circuitJsonToFootprinter": "0.0.59"
       },
       "referenceSha256": "24e3c23e0e7fbdf1f1c5ae477f1123f52eead8cbad1c81b8fe393d1a3e454c8c"
@@ -85,7 +109,15 @@
         "license": "MIT"
       },
       "tools": {
-        "footprinter": "0.0.430",
+        "footprinter": "0.0.431",
+        "footprinterSource": {
+          "repository": "tscircuit/footprinter",
+          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "pullRequests": [
+            910,
+            911
+          ]
+        },
         "circuitJsonToFootprinter": "0.0.59"
       },
       "referenceSha256": "53d6c1d6aca8e7fd2bb4b0a656bc603ff7e4c672e39991caacebd1029debba6a"
@@ -108,7 +140,15 @@
         "license": "MIT"
       },
       "tools": {
-        "footprinter": "0.0.430",
+        "footprinter": "0.0.431",
+        "footprinterSource": {
+          "repository": "tscircuit/footprinter",
+          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "pullRequests": [
+            910,
+            911
+          ]
+        },
         "circuitJsonToFootprinter": "0.0.59"
       },
       "referenceSha256": "ecff34a005ac68935934168e938046b90a66aa531e334ebf67c92845c71cb0ef"
@@ -130,7 +170,15 @@
         "referenceUrl": "https://jlcpcb.com/partdetail/C5210647"
       },
       "tools": {
-        "footprinter": "0.0.430",
+        "footprinter": "0.0.431",
+        "footprinterSource": {
+          "repository": "tscircuit/footprinter",
+          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "pullRequests": [
+            910,
+            911
+          ]
+        },
         "circuitJsonToFootprinter": "0.0.59"
       },
       "referenceSha256": "98a6cfae039be7626b0df4679e7d0507b30b1e1cb3d854cc8f2e8841e74ff226"
@@ -152,10 +200,48 @@
         "referenceUrl": "https://jlcpcb.com/partdetail/C53099"
       },
       "tools": {
-        "footprinter": "0.0.430",
+        "footprinter": "0.0.431",
+        "footprinterSource": {
+          "repository": "tscircuit/footprinter",
+          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "pullRequests": [
+            910,
+            911
+          ]
+        },
         "circuitJsonToFootprinter": "0.0.59"
       },
       "referenceSha256": "05f6c178ed0b07891982d5bd3ef5315890f6f6bac531bbcd41899ceedb4672ea"
+    },
+    {
+      "supplierPartNumber": "C2868517",
+      "footprint": "sot25_w2.4mm_pl1mm_pin1location(rightside,bottom)",
+      "sourcePadCount": 5,
+      "compactPadCount": 5,
+      "compactRecordBytes": 435,
+      "copperIntersectionOverUnion": 0.9887674126967623,
+      "holeIntersectionOverUnion": 1,
+      "pinMatchRate": 1,
+      "pinMismatches": [],
+      "pinsMatch": true,
+      "provenance": {
+        "kind": "manufacturer-facts",
+        "datasheetUrl": "https://www.ti.com/lit/ds/symlink/tlv700.pdf",
+        "referenceUrl": "https://jlcpcb.com/partdetail/C2868517"
+      },
+      "tools": {
+        "footprinter": "0.0.431",
+        "footprinterSource": {
+          "repository": "tscircuit/footprinter",
+          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "pullRequests": [
+            910,
+            911
+          ]
+        },
+        "circuitJsonToFootprinter": "0.0.59"
+      },
+      "referenceSha256": "a721f4891628d608b238b4c9defe62ae8e6a5eb88b62d450fee1b622d6c403c8"
     },
     {
       "supplierPartNumber": "C460310",
@@ -174,10 +260,109 @@
         "referenceUrl": "https://jlcpcb.com/partdetail/C460310"
       },
       "tools": {
-        "footprinter": "0.0.430",
+        "footprinter": "0.0.431",
+        "footprinterSource": {
+          "repository": "tscircuit/footprinter",
+          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "pullRequests": [
+            910,
+            911
+          ]
+        },
         "circuitJsonToFootprinter": "0.0.59"
       },
       "referenceSha256": "de7e0a3ff8423663b377a9d712cccf751d919d45b9a8ac3f5c72f25480a9c68f"
+    },
+    {
+      "supplierPartNumber": "C202112",
+      "footprint": "fpc24_righttoleft_mounttop_p0.5mm_pw0.28mm_pl1.4mm_mpx15.59mm_mpy3.18mm_mpw1.6mm_mpl2.3mm",
+      "sourcePadCount": 26,
+      "compactPadCount": 26,
+      "compactRecordBytes": 918,
+      "copperIntersectionOverUnion": 0.9962276266000586,
+      "holeIntersectionOverUnion": 1,
+      "pinMatchRate": 1,
+      "pinMismatches": [],
+      "pinsMatch": true,
+      "provenance": {
+        "kind": "manufacturer-facts",
+        "datasheetUrl": "https://www.lcsc.com/datasheet/lcsc_datasheet_2304140030_HRS-Hirose-FH12-24S-0-5SH-55_C202112.pdf",
+        "referenceUrl": "https://jlcpcb.com/partdetail/C202112"
+      },
+      "tools": {
+        "footprinter": "0.0.431",
+        "footprinterSource": {
+          "repository": "tscircuit/footprinter",
+          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "pullRequests": [
+            910,
+            911
+          ]
+        },
+        "circuitJsonToFootprinter": "0.0.59"
+      },
+      "referenceSha256": "2f2f22ffc643a79981bd4d8be7e65aa760ec329f58c1778acca767f5b10a23a7"
+    },
+    {
+      "supplierPartNumber": "C2765186",
+      "footprint": "usbcmidmount16_sharedshell_pinstart13_tophw0.6mm_bottomhw0.6mm_tophh1.3mm_bottomhh1mm_topring0.25mm_bottomring0.3mm_rowy2.125mm_ph1.1mm_pw0.3mm_powerpw0.55mm_powerx3.2mm_shellx4.325mm_topy1.5751mm_bottomy2.625mm_holex2.89mm_holey1.0549mm_holed0.7mm",
+      "sourcePadCount": 16,
+      "compactPadCount": 16,
+      "compactRecordBytes": 1080,
+      "copperIntersectionOverUnion": 0.9813558348297498,
+      "holeIntersectionOverUnion": 0.9998263090073003,
+      "pinMatchRate": 1,
+      "pinMismatches": [],
+      "pinsMatch": true,
+      "provenance": {
+        "repository": "tscircuit/common",
+        "commit": "a5797da88ec19944442d87392174af0a36fe1a0a",
+        "path": "lib/Microcontroller_RP2040/imports/TYPE_C_16PIN_2MD_073_.tsx",
+        "license": "MIT"
+      },
+      "tools": {
+        "footprinter": "0.0.431",
+        "footprinterSource": {
+          "repository": "tscircuit/footprinter",
+          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "pullRequests": [
+            910,
+            911
+          ]
+        },
+        "circuitJsonToFootprinter": "0.0.59"
+      },
+      "referenceSha256": "c8cc2b3a0d4758f46cafdf9789ebed02ce1e6174b4ccb5b362bd71ca4014b11f"
+    },
+    {
+      "supplierPartNumber": "C88373",
+      "footprint": "ufl",
+      "sourcePadCount": 3,
+      "compactPadCount": 3,
+      "compactRecordBytes": 467,
+      "copperIntersectionOverUnion": 0.9994343623649641,
+      "holeIntersectionOverUnion": 1,
+      "pinMatchRate": 1,
+      "pinMismatches": [],
+      "pinsMatch": true,
+      "provenance": {
+        "kind": "manufacturer-facts",
+        "datasheetUrl": "https://atta.szlcsc.com/upload/public/pdf/source/20260116/2407FA611152E2F7D3D59FECA9EB337E.pdf",
+        "referenceUrl": "https://jlcpcb.com/partdetail/C88373"
+      },
+      "tools": {
+        "footprinter": "0.0.431",
+        "footprinterSource": {
+          "repository": "tscircuit/footprinter",
+          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "pullRequests": [
+            910,
+            911
+          ]
+        },
+        "circuitJsonToFootprinter": "0.0.59"
+      },
+      "referenceSha256": "d796aeedc624e4c5216ab87d0dbc5ed2835a7f7159ff9e6ed8c2694a37aba122"
     }
   ]
 }
