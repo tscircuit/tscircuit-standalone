@@ -1,0 +1,25 @@
+{
+  "package": "@tscircuit/footprinter",
+  "version": "0.0.431",
+  "artifact": "footprinter-791582a.tgz",
+  "sha256": "c01a591604c65867f2ae9f9e3c06ce202c794f920492980b452cccdab985ab33",
+  "bytes": 208985,
+  "license": "ISC",
+  "licenseFile": "footprinter-LICENSE",
+  "source": {
+    "repository": "https://github.com/tscircuit/footprinter",
+    "commit": "791582a27485a04504bf94d103dc65cd17ddf847",
+    "tree": "81e61cf5f02f5912887f32403e7dc34188d5ea08",
+    "pullRequests": [
+      "https://github.com/tscircuit/footprinter/pull/910",
+      "https://github.com/tscircuit/footprinter/pull/911"
+    ]
+  },
+  "build": {
+    "command": "bun run build",
+    "archive": "sorted paths, mtime 0, gzip timestamp 0; package.json, dist and LICENSE only",
+    "distIndexSha256": "2880ec3bd5ebd283dca43f4516ff2dfdb491394978d2a6ce2f10054279393cbe"
+  },
+  "status": "Temporary review dependency. Replace with the approved published version after upstream review; do not merge automatically.",
+  "compatibility": "Core 0.0.2116 does not give shared USB-C shell holes PCB terminal ownership. Complete camera qualification requires Core fixes for repeated physical shell terminals and thermal-via ownership (tscircuit/core PR 4487), plus strict ownership checks for all copper."
+}
