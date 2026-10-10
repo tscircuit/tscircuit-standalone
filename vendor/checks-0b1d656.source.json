@@ -1,0 +1,43 @@
+{
+  "package": "@tscircuit/checks",
+  "version": "0.0.245",
+  "artifact": "tscircuit-checks-0b1d656.tgz",
+  "sha256": "b98f41de71c36243aecb81a8e739848f9ec9fc6fa7c728c453a40aac5d476f64",
+  "sizeBytes": 392934,
+  "sourceRepository": "https://github.com/tscircuit/checks",
+  "sourceCommit": "0b1d656ac4690a1a0a0869bfda258ffa32965f28",
+  "sourceTree": "02135fe08965cede0efce1e321ccc441ef9c5828",
+  "pullRequest": "https://github.com/tscircuit/checks/pull/403",
+  "build": "bun run build (official upstream tsup-node script)",
+  "includedFiles": [
+    {
+      "path": "package/dist/index.d.ts",
+      "sizeBytes": 19694,
+      "sha256": "aa32a2bc5eb32c5888bf170e0241f16f9624cf9cda640e01418478e2c86b8a1d"
+    },
+    {
+      "path": "package/dist/index.js",
+      "sizeBytes": 649947,
+      "sha256": "68f4dfd6b8b2578bfcf14397fb4c91b345e7eb21164d40d21cb469411f1f2bc7"
+    },
+    {
+      "path": "package/dist/index.js.map",
+      "sizeBytes": 1297145,
+      "sha256": "2094fc7417a97e7728388de8e85411ac7d9938b9b366f5e5162fdcd64e66d559"
+    },
+    {
+      "path": "package/package.json",
+      "sizeBytes": 2010,
+      "sha256": "d87bfd2eca794f15f42b4f3857b92abd1f99bf587a42716daf75c4938bc5ec20"
+    }
+  ],
+  "manifestChanges": "Only standaloneSource repository/commit/pullRequests provenance added; upstream dependencies, peers, exports and version preserved.",
+  "license": null,
+  "licenseFiles": [],
+  "licenseNotice": "../vendor-notices/checks-0b1d656-NOTICE.txt",
+  "releaseAuditGap": "Upstream does not declare a package license or provide a license file. Existing dist license comments are preserved; confirm redistribution licensing before release.",
+  "validation": {
+    "officialDistClearsActualOwnedThermalViasWithUndefinedTraceId": true,
+    "officialDistRetainsActualForeignVbusViaContacts": true
+  }
+}

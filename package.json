@@ -43,7 +43,7 @@
     "playwright": "1.61.1",
     "@jscad/modeling": "2.13.0",
     "@types/react": "19.1.10",
-    "@tscircuit/checks": "0.0.243"
+    "@tscircuit/checks": "file:vendor/tscircuit-checks-0b1d656.tgz"
   },
   "workspaces": [
     "ui"
@@ -54,7 +54,8 @@
     "@tscircuit/core": "file:vendor/tscircuit-core-5c896e0.tgz",
     "@tscircuit/props": "0.0.698",
     "jscad-electronics": "file:vendor/jscad-electronics-1d107c3.tgz",
-    "circuit-json-to-connectivity-map": "0.0.33"
+    "circuit-json-to-connectivity-map": "0.0.33",
+    "@tscircuit/checks": "file:vendor/tscircuit-checks-0b1d656.tgz"
   },
   "trustedDependencies": []
 }
