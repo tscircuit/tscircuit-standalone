@@ -19,3 +19,11 @@ export {
 } from "./platform"
 export { buildCircuitFile, inspectCircuitJson, renderCircuitFile } from "./build"
 export type { CircuitBuildReport } from "./build"
+export { startStandaloneDevServer } from "./dev-server"
+export type {
+  StandaloneDevAsset,
+  StandaloneDevImport,
+  StandaloneDevOptions,
+  StandaloneDevSource,
+  StandaloneDevState,
+} from "./dev-types"

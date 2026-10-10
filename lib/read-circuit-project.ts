@@ -324,7 +324,7 @@ export async function readCircuitProject(
         .split(path.sep)
         .join("/"),
       // Eval's local-file branch recognizes these canonical syntax extensions.
-      virtualPath: `module-${String(modules.length).padStart(4, "0")}${VIRTUAL_EXTENSIONS[extension] ?? extension}`,
+      virtualPath: `module-${String(modules.length).padStart(4, "0")}${extension === ".json" && /(?:^|\.)circuit\.json$/i.test(path.basename(resolvedPath)) ? ".circuit.json" : VIRTUAL_EXTENSIONS[extension] ?? extension}`,
       registeredBytes: fileStat.size,
     }
     modules.push(module)

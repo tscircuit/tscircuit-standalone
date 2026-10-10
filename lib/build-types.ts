@@ -8,3 +8,7 @@ export interface StandaloneBuildJob {
 export type StandaloneBuildResult =
   | { ok: true; circuitJson: AnyCircuitElement[] }
   | { ok: false; error: string }
+
+export type StandaloneBuildWorkerMessage =
+  | StandaloneBuildResult
+  | { type: "worker_ready" }

@@ -27,11 +27,12 @@ SOFTWARE.
 
 Artifact dependency notices
 
-The prototype binary embeds Bun, core/eval, footprinter, circuit rendering
-packages, and their bundled dependencies. Each build produces a compiler
-metafile and scripts/license-inventory.ts collects installed package license
-files and preserved license comments into dist/THIRD_PARTY_NOTICES.txt and
-dist/licenses.json. Keep those generated notices beside the binary. They
+The prototype binary embeds Bun, core/eval, footprinter, RunFrame and its
+viewers, Manifold JavaScript/WASM, the Kenpixel font, and their bundled
+dependencies. Each build produces backend and frontend compiler metafiles.
+scripts/license-inventory.ts collects installed package license files, font
+README notices, and preserved license comments into
+dist/THIRD_PARTY_NOTICES.txt and dist/licenses.json. Keep those generated notices beside the binary. They
 include this RP2040 notice and exact installed package versions. Reproduce the
 collection offline with: bun scripts/license-inventory.ts
 

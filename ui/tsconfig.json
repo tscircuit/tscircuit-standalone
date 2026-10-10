@@ -1,0 +1,33 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "types": [
+      "bun",
+      "react",
+      "react-dom"
+    ],
+    "noUncheckedSideEffectImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "/assets/manifold.js": [
+        "node_modules/manifold-3d/manifold.d.ts"
+      ],
+      "circuit-json": [
+        "../node_modules/circuit-json/dist/index.d.mts"
+      ]
+    },
+    "lib": [
+      "ESNext",
+      "DOM",
+      "DOM.Iterable"
+    ]
+  },
+  "include": [
+    "./**/*.ts",
+    "./**/*.tsx"
+  ],
+  "exclude": [
+    "./node_modules"
+  ]
+}

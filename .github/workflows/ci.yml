@@ -14,8 +14,25 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.12
-      - run: bun install --frozen-lockfile
+      - run: bun install --frozen-lockfile --ignore-scripts
       - run: bun run check
+      - name: Install the qualification browser
+        run: bunx playwright install --with-deps chromium
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/build/playwright
+      - name: Verify compiled RunFrame with only loopback networking
+        run: |
+          sudo unshare --net env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" SMOKE_ARTIFACT_DIR="$SMOKE_ARTIFACT_DIR" DEBUG="$DEBUG" CI_BROWSER_USER="$(id -un)" sh -c 'ip link set lo up; exec runuser -u "$CI_BROWSER_USER" -- env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" SMOKE_ARTIFACT_DIR="$SMOKE_ARTIFACT_DIR" DEBUG="$DEBUG" bun scripts/smoke-dev-browser.ts'
+        env:
+          DEBUG: pw:browser
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/build/playwright
+          SMOKE_ARTIFACT_DIR: build/browser-evidence
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: offline-runframe-browser-evidence
+          path: build/browser-evidence
+          if-no-files-found: ignore
       - name: Verify imports and circuit builds make no native network attempts
         run: |
           if ! command -v strace >/dev/null; then
@@ -78,7 +95,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.12
-      - run: bun install --frozen-lockfile
+      - run: bun install --frozen-lockfile --ignore-scripts
       - run: bun run build
         env:
           BUN_BUILD_TARGET: ${{ matrix.target }}

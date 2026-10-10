@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
 import { mkdir, readFile, readdir, realpath, writeFile } from "node:fs/promises"
-import { basename, join, relative, resolve, sep } from "node:path"
+import { basename, dirname, join, relative, resolve, sep } from "node:path"
 
 // This report follows the compiler's input graph. It is a reproducible notice
 // collection aid, not a license compatibility or completeness certification.
@@ -15,6 +15,18 @@ const metafileBytes = await readFile(metafilePath)
 const metafile = JSON.parse(metafileBytes.toString()) as Bun.BuildMetafile
 if (!metafile.inputs || !metafile.outputs) {
   throw new Error("License inventory requires a Bun build metafile with inputs and outputs")
+}
+const graphInputs = { ...metafile.inputs }
+const metafiles = [{ path: projectPath(metafilePath), sha256: sha256(metafileBytes), inputCount: Object.keys(metafile.inputs).length }]
+const uiMetafilePath = join(projectRoot, "build/ui/metafile.json")
+if (await Bun.file(uiMetafilePath).exists()) {
+  const uiMetafileBytes = await readFile(uiMetafilePath)
+  const uiMetafile = JSON.parse(uiMetafileBytes.toString()) as Bun.BuildMetafile
+  if (!uiMetafile.inputs) throw new Error("Frontend license inventory requires a valid UI compiler input graph")
+  Object.assign(graphInputs, uiMetafile.inputs)
+  metafiles.push({ path: projectPath(uiMetafilePath), sha256: sha256(uiMetafileBytes), inputCount: Object.keys(uiMetafile.inputs).length })
+} else if (Object.keys(graphInputs).some((path) => path.endsWith("generated-ui-assets.ts"))) {
+  throw new Error("The compiled binary embeds frontend assets but build/ui/metafile.json is missing. Rebuild the UI before collecting notices.")
 }
 
 interface NoticeSource {
@@ -35,7 +47,7 @@ interface PackageInventory {
 
 const packageInputs = new Map<string, Set<string>>()
 const unassignedInputs: string[] = []
-for (const input of Object.keys(metafile.inputs).sort(compare)) {
+for (const input of Object.keys(graphInputs).sort(compare)) {
   const absoluteInput = resolve(projectRoot, input)
   const normalized = portablePath(absoluteInput)
   const nodeModulesPosition = normalized.lastIndexOf("/node_modules/")
@@ -106,6 +118,20 @@ for (const [packageRoot, inputPaths] of [...packageInputs.entries()].sort(([left
     const content = await readFile(noticePath, "utf8")
     inventory.noticeFiles.push(appendNotice(`${name}@${version}: ${portablePath(relative(packageRoot, noticePath))}`, projectPath(noticePath), content))
   }
+  // Fonts can carry a separate dedication in an adjacent README rather than
+  // inherit the containing package's software license (e.g. Three's Kenpixel).
+  for (const inputPath of inventory.inputFiles.filter((path) => /\.(?:ttf|otf|woff2?)$/i.test(path))) {
+    const fontDirectory = dirname(resolve(projectRoot, inputPath))
+    for (const entry of await readdir(fontDirectory, { withFileTypes: true })) {
+      if (!entry.isFile() || !/^readme(?:\.[^.]+)?$/i.test(entry.name)) continue
+      const noticePath = join(fontDirectory, entry.name)
+      const content = await readFile(noticePath, "utf8")
+      if (!/license|copyright|CC0|public domain/i.test(content)) continue
+      const source = projectPath(noticePath)
+      if (inventory.noticeFiles.some((notice) => notice.source === source)) continue
+      inventory.noticeFiles.push(appendNotice(`${name}@${version}: bundled font attribution`, source, content))
+    }
+  }
   const commentHashes = new Set<string>()
   for (const inputPath of inventory.inputFiles) {
     if (/\.(?:wasm|node|a|so|dylib|dll)$/i.test(inputPath)) {
@@ -151,15 +177,17 @@ const limitations = [
 const reviewNeeded = packages.filter((entry) => entry.reviewReasons.length > 0)
 const report = {
   schemaVersion: 1,
-  scope: "Bun compiled input graph, installed package notice files, preserved legal comments, bundled RP2040 attribution, and pinned Bun runtime license overview",
+  scope: "Bun compiled backend and frontend input graphs, copied browser asset notices, installed package notice files, preserved legal comments, bundled RP2040 attribution, and pinned Bun runtime license overview",
   metafile: { path: projectPath(metafilePath), sha256: sha256(metafileBytes), inputCount: Object.keys(metafile.inputs).length },
+  metafiles,
+  totalInputCount: Object.keys(graphInputs).length,
   runtime: { ...runtime, buildTarget: process.env.BUN_BUILD_TARGET ?? `${process.platform}-${process.arch}`, noticeFiles: runtimeNoticeFiles },
   packageRootCount: packages.length,
   packages,
   unassignedInputs,
   limitations,
 }
-const header = `tscircuit standalone prototype artifact notices\n\nGenerated from ${projectPath(metafilePath)} with Bun ${Bun.version}.\nPackage roots in compiled graph: ${packages.length}.\nPackages requiring manual follow-up: ${reviewNeeded.length}.\n\n${limitations.join("\n")}\n\nRuntime review:\n${(runtime.reviewReasons as string[]).join("\n")}\n\nPackage follow-up:\n${reviewNeeded.map((entry) => `${entry.name}@${entry.version}: ${entry.reviewReasons.join(" ")}`).join("\n")}\n`
+const header = `tscircuit standalone prototype artifact notices\n\nGenerated from ${metafiles.map((graph) => graph.path).join(" and ")} with Bun ${Bun.version}.\nPackage roots in compiled graphs: ${packages.length}.\nPackages requiring manual follow-up: ${reviewNeeded.length}.\n\n${limitations.join("\n")}\n\nRuntime review:\n${(runtime.reviewReasons as string[]).join("\n")}\n\nPackage follow-up:\n${reviewNeeded.map((entry) => `${entry.name}@${entry.version}: ${entry.reviewReasons.join(" ")}`).join("\n")}\n`
 await mkdir(outputDir, { recursive: true })
 await writeFile(join(outputDir, "licenses.json"), `${JSON.stringify(report, null, 2)}\n`)
 await writeFile(join(outputDir, "THIRD_PARTY_NOTICES.txt"), header + sections.join(""))
