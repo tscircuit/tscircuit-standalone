@@ -27,6 +27,7 @@ const netlist = JSON.parse(await readFile(resolve(import.meta.dir, "../examples/
 await mkdir(join(project, "examples"))
 const entry = join(project, "examples", `${fixtureName}.tsx`)
 await cp(fixture, entry)
+await cp(resolve(import.meta.dir, "../examples/helpers"), join(project, "examples/helpers"), { recursive: true })
 const childEnv = {
   PATH: project, BUN_INSTALL_AUTO: "disable",
   HTTP_PROXY: "http://127.0.0.1:1", HTTPS_PROXY: "http://127.0.0.1:1",

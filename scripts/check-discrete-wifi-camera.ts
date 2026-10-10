@@ -46,7 +46,7 @@ export function checkDiscreteWifiCamera(circuit: CircuitJson, expected: WifiCame
     assert(cad?.type === "cad_component" && cad.footprinter_string && !cad.model_obj_url && !cad.model_glb_url && !cad.model_stl_url,
       `${name} must use a bundled procedural footprint/model`)
   }
-  for (const name of ["U_MCU", "U_FLASH", "U_LDO", "U_USB_ESD", "J_USB_C", "J_CAMERA", "J_AUX_POWER", "J_DEBUG", "J_GPIO"]) {
+  for (const name of ["U_MCU", "U_FLASH", "U_LDO", "U_USB_ESD", "J_USB_C", "J_CAMERA", "J_AUX_3V3", "J_DEBUG", "J_GPIO"]) {
     assert(components.some((component) => component.name === name), `${name} required chip/connector is missing`)
   }
   const groups = new Map<string, Set<string>>()
