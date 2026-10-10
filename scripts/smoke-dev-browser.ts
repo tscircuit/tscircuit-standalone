@@ -839,4 +839,11 @@ async function main() {
   }
 }
 
-await main()
+export {
+  assertBrowserEvidence, createMonitoredPage, downloadArtifact, emptyEvidence,
+  expectedAuthoredErrors, openMoreView, openView, saveSource,
+  selfCheckWorkerMonitor, waitForState,
+}
+export type { BrowserCircuitState }
+
+if (import.meta.main) await main()

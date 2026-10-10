@@ -100,6 +100,14 @@ Its explicit schematic placement works around an upstream auto-layout issue
 that drew a separate ground cluster without a rail label. Retain the existing
 rail-label regressions until that general issue is fixed.
 
+The [Wi-Fi camera carrier qualification](wifi-camera-qualification.md) adds a
+larger ESP32-CAM socket example and native/dev-server/browser worker tracing.
+It passes all six views and eleven connected nets without outbound attempts,
+while identifying missing catalog parts, header CAD row spacing, and array-label
+schematic pin resolution as concrete follow-ups. The carrier models two real
+sockets and uses explicit physical pin identifiers; catalog admission and module
+body/antenna clearance remain separate work.
+
 ## Remaining work
 
 ### 1. Expand the compact catalog
