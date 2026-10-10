@@ -1,0 +1,1168 @@
+{
+  "description": "Bare ESP32-S3R8 camera controller; Ai-Thinker-style bottom-contact OV2640 FPC interface",
+  "references": [
+    "https://github.com/SeeedDocument/forum_doc/blob/master/reg/ESP32_CAM_V1.6.pdf",
+    "https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf",
+    "https://cdn.sparkfun.com/datasheets/Dev/Arduino/Other/OV2640_DS.pdf"
+  ],
+  "importedParts": {
+    "U_MCU": "C2913194",
+    "U_FLASH": "C97521",
+    "U_LDO": "C23380830",
+    "U_USB_ESD": "C2827693",
+    "J_USB_C": "C2765186",
+    "J_AUX_3V3": "C265417",
+    "J_CAMERA": "C202112",
+    "Y_MAIN": "C5210647",
+    "U_CAM_ANALOG": "C53099",
+    "U_CAM_CORE": "C2868517",
+    "J_RF": "C88373"
+  },
+  "nets": [
+    {
+      "name": "VBUS",
+      "pins": [
+        [
+          "J_USB_C",
+          16
+        ],
+        [
+          "J_USB_C",
+          25
+        ],
+        [
+          "U_USB_ESD",
+          5
+        ],
+        [
+          "U_LDO",
+          1
+        ],
+        [
+          "U_LDO",
+          3
+        ],
+        [
+          "C_USB",
+          1
+        ],
+        [
+          "C_LDO_IN",
+          1
+        ]
+      ]
+    },
+    {
+      "name": "V3V3",
+      "pins": [
+        [
+          "U_LDO",
+          5
+        ],
+        [
+          "U_MCU",
+          2
+        ],
+        [
+          "U_MCU",
+          3
+        ],
+        [
+          "U_MCU",
+          20
+        ],
+        [
+          "U_MCU",
+          46
+        ],
+        [
+          "U_MCU",
+          55
+        ],
+        [
+          "U_MCU",
+          56
+        ],
+        [
+          "J_CAMERA",
+          14
+        ],
+        [
+          "U_CAM_ANALOG",
+          1
+        ],
+        [
+          "U_CAM_ANALOG",
+          3
+        ],
+        [
+          "U_CAM_CORE",
+          1
+        ],
+        [
+          "U_CAM_CORE",
+          3
+        ],
+        [
+          "J_AUX_3V3",
+          1
+        ],
+        [
+          "J_DEBUG",
+          1
+        ],
+        [
+          "J_GPIO",
+          1
+        ],
+        [
+          "C_LDO_OUT",
+          1
+        ],
+        [
+          "C_RF1",
+          1
+        ],
+        [
+          "C_RF2",
+          1
+        ],
+        [
+          "C_RTC",
+          1
+        ],
+        [
+          "C_CPU",
+          1
+        ],
+        [
+          "C_ANALOG1",
+          1
+        ],
+        [
+          "C_ANALOG2",
+          1
+        ],
+        [
+          "C_CAMERA",
+          1
+        ],
+        [
+          "C_CAMERA_HF",
+          1
+        ],
+        [
+          "C_CAM_AVDD_IN",
+          1
+        ],
+        [
+          "C_CAM_DVDD_IN",
+          1
+        ],
+        [
+          "R_EN",
+          1
+        ],
+        [
+          "R_BOOT",
+          1
+        ],
+        [
+          "R_SCCB_SDA",
+          1
+        ],
+        [
+          "R_SCCB_SCL",
+          1
+        ],
+        [
+          "R_CAM_RESET",
+          1
+        ]
+      ]
+    },
+    {
+      "name": "VDD_SPI",
+      "pins": [
+        [
+          "U_MCU",
+          29
+        ],
+        [
+          "U_FLASH",
+          8
+        ],
+        [
+          "C_FLASH",
+          1
+        ],
+        [
+          "C_SPI",
+          1
+        ],
+        [
+          "C_SPI_HF",
+          1
+        ],
+        [
+          "R_FLASH_CS",
+          1
+        ]
+      ]
+    },
+    {
+      "name": "CAM_AVDD",
+      "pins": [
+        [
+          "U_CAM_ANALOG",
+          5
+        ],
+        [
+          "J_CAMERA",
+          21
+        ],
+        [
+          "C_CAM_AVDD",
+          1
+        ]
+      ]
+    },
+    {
+      "name": "CAM_DVDD",
+      "pins": [
+        [
+          "U_CAM_CORE",
+          5
+        ],
+        [
+          "J_CAMERA",
+          15
+        ],
+        [
+          "C_CAM_DVDD",
+          1
+        ]
+      ]
+    },
+    {
+      "name": "GND",
+      "pins": [
+        [
+          "U_MCU",
+          57
+        ],
+        [
+          "U_FLASH",
+          4
+        ],
+        [
+          "U_LDO",
+          2
+        ],
+        [
+          "U_USB_ESD",
+          2
+        ],
+        [
+          "J_USB_C",
+          13
+        ],
+        [
+          "J_USB_C",
+          14
+        ],
+        [
+          "J_USB_C",
+          15
+        ],
+        [
+          "J_USB_C",
+          26
+        ],
+        [
+          "J_AUX_3V3",
+          2
+        ],
+        [
+          "J_CAMERA",
+          10
+        ],
+        [
+          "J_CAMERA",
+          23
+        ],
+        [
+          "U_CAM_ANALOG",
+          2
+        ],
+        [
+          "U_CAM_CORE",
+          2
+        ],
+        [
+          "J_CAMERA",
+          25
+        ],
+        [
+          "J_CAMERA",
+          26
+        ],
+        [
+          "J_DEBUG",
+          2
+        ],
+        [
+          "J_GPIO",
+          2
+        ],
+        [
+          "SW_BOOT",
+          2
+        ],
+        [
+          "SW_BOOT",
+          4
+        ],
+        [
+          "SW_RESET",
+          2
+        ],
+        [
+          "SW_RESET",
+          4
+        ],
+        [
+          "Y_MAIN",
+          2
+        ],
+        [
+          "Y_MAIN",
+          4
+        ],
+        [
+          "C_USB",
+          2
+        ],
+        [
+          "C_LDO_IN",
+          2
+        ],
+        [
+          "C_LDO_OUT",
+          2
+        ],
+        [
+          "C_RF1",
+          2
+        ],
+        [
+          "C_RF2",
+          2
+        ],
+        [
+          "C_RTC",
+          2
+        ],
+        [
+          "C_CPU",
+          2
+        ],
+        [
+          "C_ANALOG1",
+          2
+        ],
+        [
+          "C_ANALOG2",
+          2
+        ],
+        [
+          "C_FLASH",
+          2
+        ],
+        [
+          "C_SPI",
+          2
+        ],
+        [
+          "C_EN",
+          2
+        ],
+        [
+          "C_CAMERA",
+          2
+        ],
+        [
+          "C_CAMERA_HF",
+          2
+        ],
+        [
+          "C_CAM_AVDD",
+          2
+        ],
+        [
+          "C_CAM_DVDD",
+          2
+        ],
+        [
+          "C_CAM_AVDD_IN",
+          2
+        ],
+        [
+          "C_CAM_DVDD_IN",
+          2
+        ],
+        [
+          "C_SPI_HF",
+          2
+        ],
+        [
+          "R_CC1",
+          2
+        ],
+        [
+          "R_CC2",
+          2
+        ],
+        [
+          "R_GPIO45",
+          2
+        ],
+        [
+          "R_GPIO46",
+          2
+        ],
+        [
+          "R_CAM_PWDN",
+          2
+        ],
+        [
+          "C_XTAL_P",
+          2
+        ],
+        [
+          "C_XTAL_N",
+          2
+        ],
+        [
+          "C_RF_MATCH1",
+          2
+        ],
+        [
+          "C_RF_MATCH2",
+          2
+        ],
+        [
+          "D_STATUS",
+          2
+        ],
+        [
+          "J_RF",
+          1
+        ],
+        [
+          "J_RF",
+          3
+        ]
+      ]
+    },
+    {
+      "name": "CC1",
+      "pins": [
+        [
+          "J_USB_C",
+          18
+        ],
+        [
+          "R_CC1",
+          1
+        ]
+      ]
+    },
+    {
+      "name": "CC2",
+      "pins": [
+        [
+          "J_USB_C",
+          24
+        ],
+        [
+          "R_CC2",
+          1
+        ]
+      ]
+    },
+    {
+      "name": "USB_DM_PROTECTED",
+      "pins": [
+        [
+          "J_USB_C",
+          19
+        ],
+        [
+          "J_USB_C",
+          21
+        ],
+        [
+          "U_USB_ESD",
+          1
+        ],
+        [
+          "U_USB_ESD",
+          6
+        ],
+        [
+          "R_USB_DM",
+          1
+        ]
+      ]
+    },
+    {
+      "name": "USB_DP_PROTECTED",
+      "pins": [
+        [
+          "J_USB_C",
+          20
+        ],
+        [
+          "J_USB_C",
+          22
+        ],
+        [
+          "U_USB_ESD",
+          3
+        ],
+        [
+          "U_USB_ESD",
+          4
+        ],
+        [
+          "R_USB_DP",
+          1
+        ]
+      ]
+    },
+    {
+      "name": "USB_DM",
+      "pins": [
+        [
+          "U_MCU",
+          25
+        ],
+        [
+          "R_USB_DM",
+          2
+        ]
+      ]
+    },
+    {
+      "name": "USB_DP",
+      "pins": [
+        [
+          "U_MCU",
+          26
+        ],
+        [
+          "R_USB_DP",
+          2
+        ]
+      ]
+    },
+    {
+      "name": "CHIP_EN",
+      "pins": [
+        [
+          "U_MCU",
+          4
+        ],
+        [
+          "SW_RESET",
+          1
+        ],
+        [
+          "SW_RESET",
+          3
+        ],
+        [
+          "J_DEBUG",
+          5
+        ],
+        [
+          "C_EN",
+          1
+        ],
+        [
+          "R_EN",
+          2
+        ]
+      ]
+    },
+    {
+      "name": "BOOT",
+      "pins": [
+        [
+          "U_MCU",
+          5
+        ],
+        [
+          "SW_BOOT",
+          1
+        ],
+        [
+          "SW_BOOT",
+          3
+        ],
+        [
+          "J_DEBUG",
+          6
+        ],
+        [
+          "R_BOOT",
+          2
+        ]
+      ]
+    },
+    {
+      "name": "GPIO45",
+      "pins": [
+        [
+          "U_MCU",
+          51
+        ],
+        [
+          "R_GPIO45",
+          1
+        ]
+      ]
+    },
+    {
+      "name": "GPIO46",
+      "pins": [
+        [
+          "U_MCU",
+          52
+        ],
+        [
+          "R_GPIO46",
+          1
+        ]
+      ]
+    },
+    {
+      "name": "FLASH_CS",
+      "pins": [
+        [
+          "U_MCU",
+          32
+        ],
+        [
+          "U_FLASH",
+          1
+        ],
+        [
+          "R_FLASH_CS",
+          2
+        ]
+      ]
+    },
+    {
+      "name": "FLASH_CLK",
+      "pins": [
+        [
+          "U_MCU",
+          33
+        ],
+        [
+          "U_FLASH",
+          6
+        ]
+      ]
+    },
+    {
+      "name": "FLASH_D0",
+      "pins": [
+        [
+          "U_MCU",
+          35
+        ],
+        [
+          "U_FLASH",
+          5
+        ]
+      ]
+    },
+    {
+      "name": "FLASH_D1",
+      "pins": [
+        [
+          "U_MCU",
+          34
+        ],
+        [
+          "U_FLASH",
+          2
+        ]
+      ]
+    },
+    {
+      "name": "FLASH_D2",
+      "pins": [
+        [
+          "U_MCU",
+          31
+        ],
+        [
+          "U_FLASH",
+          3
+        ]
+      ]
+    },
+    {
+      "name": "FLASH_D3",
+      "pins": [
+        [
+          "U_MCU",
+          30
+        ],
+        [
+          "U_FLASH",
+          7
+        ]
+      ]
+    },
+    {
+      "name": "XTAL_P",
+      "pins": [
+        [
+          "U_MCU",
+          54
+        ],
+        [
+          "L_XTAL",
+          1
+        ]
+      ]
+    },
+    {
+      "name": "XTAL_P_CRYSTAL",
+      "pins": [
+        [
+          "L_XTAL",
+          2
+        ],
+        [
+          "Y_MAIN",
+          1
+        ],
+        [
+          "C_XTAL_P",
+          1
+        ]
+      ]
+    },
+    {
+      "name": "XTAL_N",
+      "pins": [
+        [
+          "U_MCU",
+          53
+        ],
+        [
+          "Y_MAIN",
+          3
+        ],
+        [
+          "C_XTAL_N",
+          1
+        ]
+      ]
+    },
+    {
+      "name": "CAM_D0",
+      "pins": [
+        [
+          "U_MCU",
+          9
+        ],
+        [
+          "J_CAMERA",
+          6
+        ]
+      ]
+    },
+    {
+      "name": "CAM_D1",
+      "pins": [
+        [
+          "U_MCU",
+          10
+        ],
+        [
+          "J_CAMERA",
+          4
+        ]
+      ]
+    },
+    {
+      "name": "CAM_D2",
+      "pins": [
+        [
+          "U_MCU",
+          11
+        ],
+        [
+          "J_CAMERA",
+          3
+        ]
+      ]
+    },
+    {
+      "name": "CAM_D3",
+      "pins": [
+        [
+          "U_MCU",
+          12
+        ],
+        [
+          "J_CAMERA",
+          5
+        ]
+      ]
+    },
+    {
+      "name": "CAM_D4",
+      "pins": [
+        [
+          "U_MCU",
+          13
+        ],
+        [
+          "J_CAMERA",
+          7
+        ]
+      ]
+    },
+    {
+      "name": "CAM_D5",
+      "pins": [
+        [
+          "U_MCU",
+          14
+        ],
+        [
+          "J_CAMERA",
+          9
+        ]
+      ]
+    },
+    {
+      "name": "CAM_D6",
+      "pins": [
+        [
+          "U_MCU",
+          15
+        ],
+        [
+          "J_CAMERA",
+          11
+        ]
+      ]
+    },
+    {
+      "name": "CAM_D7",
+      "pins": [
+        [
+          "U_MCU",
+          16
+        ],
+        [
+          "J_CAMERA",
+          13
+        ]
+      ]
+    },
+    {
+      "name": "CAM_PCLK",
+      "pins": [
+        [
+          "U_MCU",
+          17
+        ],
+        [
+          "J_CAMERA",
+          8
+        ]
+      ]
+    },
+    {
+      "name": "CAM_VSYNC",
+      "pins": [
+        [
+          "U_MCU",
+          18
+        ],
+        [
+          "J_CAMERA",
+          18
+        ]
+      ]
+    },
+    {
+      "name": "CAM_HREF",
+      "pins": [
+        [
+          "U_MCU",
+          19
+        ],
+        [
+          "J_CAMERA",
+          16
+        ]
+      ]
+    },
+    {
+      "name": "CAM_XCLK",
+      "pins": [
+        [
+          "U_MCU",
+          21
+        ],
+        [
+          "J_CAMERA",
+          12
+        ]
+      ]
+    },
+    {
+      "name": "CAM_SCL",
+      "pins": [
+        [
+          "U_MCU",
+          22
+        ],
+        [
+          "J_CAMERA",
+          20
+        ],
+        [
+          "R_SCCB_SCL",
+          2
+        ]
+      ]
+    },
+    {
+      "name": "CAM_SDA",
+      "pins": [
+        [
+          "U_MCU",
+          23
+        ],
+        [
+          "J_CAMERA",
+          22
+        ],
+        [
+          "R_SCCB_SDA",
+          2
+        ]
+      ]
+    },
+    {
+      "name": "CAM_PWDN",
+      "pins": [
+        [
+          "U_MCU",
+          24
+        ],
+        [
+          "J_CAMERA",
+          17
+        ],
+        [
+          "R_CAM_PWDN",
+          1
+        ]
+      ]
+    },
+    {
+      "name": "CAM_RESET",
+      "pins": [
+        [
+          "U_MCU",
+          27
+        ],
+        [
+          "J_CAMERA",
+          19
+        ],
+        [
+          "R_CAM_RESET",
+          2
+        ]
+      ]
+    },
+    {
+      "name": "UART_TX",
+      "pins": [
+        [
+          "U_MCU",
+          49
+        ],
+        [
+          "J_DEBUG",
+          3
+        ]
+      ]
+    },
+    {
+      "name": "UART_RX",
+      "pins": [
+        [
+          "U_MCU",
+          50
+        ],
+        [
+          "J_DEBUG",
+          4
+        ]
+      ]
+    },
+    {
+      "name": "GPIO39",
+      "pins": [
+        [
+          "U_MCU",
+          44
+        ],
+        [
+          "J_GPIO",
+          3
+        ]
+      ]
+    },
+    {
+      "name": "GPIO40",
+      "pins": [
+        [
+          "U_MCU",
+          45
+        ],
+        [
+          "J_GPIO",
+          4
+        ]
+      ]
+    },
+    {
+      "name": "GPIO41",
+      "pins": [
+        [
+          "U_MCU",
+          47
+        ],
+        [
+          "J_GPIO",
+          5
+        ]
+      ]
+    },
+    {
+      "name": "GPIO42",
+      "pins": [
+        [
+          "U_MCU",
+          48
+        ],
+        [
+          "J_GPIO",
+          6
+        ]
+      ]
+    },
+    {
+      "name": "GPIO47",
+      "pins": [
+        [
+          "U_MCU",
+          37
+        ],
+        [
+          "J_GPIO",
+          7
+        ]
+      ]
+    },
+    {
+      "name": "GPIO48",
+      "pins": [
+        [
+          "U_MCU",
+          36
+        ],
+        [
+          "J_GPIO",
+          8
+        ]
+      ]
+    },
+    {
+      "name": "STATUS",
+      "pins": [
+        [
+          "U_MCU",
+          43
+        ],
+        [
+          "R_LED",
+          1
+        ]
+      ]
+    },
+    {
+      "name": "LED_ANODE",
+      "pins": [
+        [
+          "D_STATUS",
+          1
+        ],
+        [
+          "R_LED",
+          2
+        ]
+      ]
+    },
+    {
+      "name": "RF_CHIP",
+      "pins": [
+        [
+          "U_MCU",
+          1
+        ],
+        [
+          "L_RF",
+          1
+        ],
+        [
+          "C_RF_MATCH1",
+          1
+        ]
+      ]
+    },
+    {
+      "name": "RF_ANTENNA",
+      "pins": [
+        [
+          "L_RF",
+          2
+        ],
+        [
+          "C_RF_MATCH2",
+          1
+        ],
+        [
+          "J_RF",
+          2
+        ]
+      ]
+    }
+  ]
+}

@@ -47,6 +47,21 @@ Per-record qualification reports retain reference digests and tool versions.
 
 Artifact dependency notices
 
+The vendored jscad-electronics package includes the U.FL procedural renderer
+from tscircuit/jscad-electronics@1d107c30c6f16ffb415b4f950d3a89ba4ee0d5e1
+(PR #499). vendor/jscad-electronics-1d107c3.source.json records its archive digest
+and embedded modelprinter contract revision (PR #115). Both original MIT license
+notices are preserved in the archive and vendor-notices. The UI, direct package
+and transitive override use this same archive.
+
+The vendored @tscircuit/core package is built from
+tscircuit/core@5c896e05fed5ed82023da470c1ba28d86419b3ed (PRs #4487/#4488).
+vendor/core-5c896e0.source.json records the upstream source tree, preview URL,
+official build, normalized packaging, and archive SHA-256. Its original MIT
+license is preserved in the archive and vendor-notices/core-5c896e0-LICENSE.txt.
+The direct package, public tscircuit alias and transitive override all use this
+same local archive; generated dependency notices include its installed license.
+
 The temporary vendored @tscircuit/footprinter package is built from
 tscircuit/footprinter@791582a27485a04504bf94d103dc65cd17ddf847 (PRs #910/#911).
 Its original ISC license is included in vendor/footprinter-791582a.tgz and copied

@@ -63,7 +63,8 @@
     "three": "0.165.0",
     "troika-three-text": "0.52.5",
     "zod": "3.25.76",
-    "zustand": "4.5.7"
+    "zustand": "4.5.7",
+    "jscad-electronics": "file:../vendor/jscad-electronics-1d107c3.tgz"
   },
   "devDependencies": {
     "@types/debug": "4.1.12",
