@@ -86,7 +86,7 @@ async function native(name: string, args: string[], expectedExit?: number) {
 
 function assertCamera(state: BrowserCircuitState, stage: string) {
   assert(state.status === "ready" && state.circuitJson, `Bare-chip camera failed: ${state.error}`)
-  qualify(`${stage} DRC`, () => assert(state.report?.errors.length === 0, `Bare-chip camera has core errors: ${JSON.stringify(state.report)}`))
+  qualify(`${stage} DRC`, () => assert(state.report?.errors.length === 0, `Bare-chip camera has ${state.report?.errors.length ?? "unknown"} core errors; inspect browser.report.json and browser.circuit.json`))
   const count = (type: string) => state.circuitJson!.filter((element) => element.type === type).length
   browserConnectivity = qualify(`${stage} connectivity`, () => checkDiscreteWifiCamera(state.circuitJson as CircuitJson, netlist)) ?? { passed: false }
   circuitSummary = { generation: state.generation, elementCounts: Object.fromEntries(
@@ -162,7 +162,8 @@ try {
   await native("camera-build", ["build", entry, "--output-dir", join(artifacts, "native-build"), "--timeout-ms", "240000"])
   nativeReport = JSON.parse(await readFile(join(artifacts, `native-build/${fixtureName}.report.json`), "utf8"))
   const nativeCircuit = JSON.parse(await readFile(join(artifacts, `native-build/${fixtureName}.json`), "utf8")) as CircuitJson
-  qualify("native DRC", () => assert((nativeReport as { errors: unknown[] }).errors.length === 0, `Bare-chip camera has core errors: ${JSON.stringify(nativeReport)}`))
+  const nativeErrors = (nativeReport as { errors: unknown[] }).errors
+  qualify("native DRC", () => assert(nativeErrors.length === 0, `Bare-chip camera has ${nativeErrors.length} core errors; inspect native-build/${fixtureName}.report.json`))
   nativeConnectivity = qualify("native connectivity", () => checkDiscreteWifiCamera(nativeCircuit, netlist))
   if (nativeConnectivity) qualify("connectivity monitor calibration", () => selfCheckConnectivityMonitor(nativeCircuit))
   else nativeConnectivity = { passed: false }
