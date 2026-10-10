@@ -13,7 +13,7 @@ describe("compact part catalog", () => {
   test("C2040 is the verified RP2040 with 56 signal pads and thermal ground", () => {
     const part = getBundledPart("C2040")
     expect(part.manufacturerPartNumber).toBe("RP2040")
-    expect(part.provenance.commit).toBe(
+    expect("commit" in part.provenance ? part.provenance.commit : undefined).toBe(
       "a5797da88ec19944442d87392174af0a36fe1a0a",
     )
     const pads = getBundledFootprintCircuitJson(part).filter(
@@ -44,28 +44,24 @@ describe("compact part catalog", () => {
       "duplicate supplier part C2040",
     )
     expect(() =>
-      createCatalog([
-        { ...bundledParts[0], footprint: "https://example.com/footprint.json" },
-      ]),
+      createCatalog([{ ...bundledParts[0], footprint: "https://example.com/footprint.json" }]),
     ).toThrow("local footprinter string")
+    expect(() => createCatalog([{ ...bundledParts[0], footprint: "kicad:QFN-56" }])).toThrow(
+      "local footprinter string",
+    )
+    expect(() => createCatalog([{ ...bundledParts[0], circuitJson: [] }])).toThrow(
+      "unsupported part field circuitJson",
+    )
     expect(() =>
-      createCatalog([{ ...bundledParts[0], footprint: "kicad:QFN-56" }]),
-    ).toThrow("local footprinter string")
-    expect(() =>
-      createCatalog([{ ...bundledParts[0], circuitJson: [] }]),
-    ).toThrow("unsupported part field circuitJson")
-    expect(() =>
-      createCatalog([
-        { ...bundledParts[0], cadModel: { objUrl: "https://example.com/a.obj" } },
-      ]),
+      createCatalog([{ ...bundledParts[0], cadModel: { objUrl: "https://example.com/a.obj" } }]),
     ).toThrow("unsupported part field cadModel")
     const pinLabels = { ...bundledParts[0].pinLabels, pin57: ["GND"] }
     expect(() => createCatalog([{ ...bundledParts[0], pinLabels }])).toThrow(
       "each copper pad must map",
     )
-    expect(() =>
-      createCatalog([{ ...bundledParts[0], footprint: "notarealfootprint" }]),
-    ).toThrow("cannot be generated")
+    expect(() => createCatalog([{ ...bundledParts[0], footprint: "notarealfootprint" }])).toThrow(
+      "cannot be generated",
+    )
   })
 
   test("catalog and generated source are deterministic and contain no CAD URLs", () => {
@@ -84,9 +80,7 @@ describe("compact part catalog", () => {
     expect(source).toContain('jlcpcb: ["C2040"]')
     expect(source).not.toContain("cadModel")
     expect(source).not.toContain("modelcdn")
-    expect(() => getBundledPart("C999999999")).toThrow(
-      BundledPartNotFoundError,
-    )
+    expect(() => getBundledPart("C999999999")).toThrow(BundledPartNotFoundError)
   })
 
   test("rejects aliases to other physical pins but permits shared functional labels", () => {
@@ -103,10 +97,7 @@ describe("compact part catalog", () => {
       ...bundledParts[0].pinLabels,
       pin1: ["IOVDD6", "GND"],
     }
-    const part = getBundledPart(
-      "C2040",
-      createCatalog([{ ...bundledParts[0], pinLabels }]),
-    )
+    const part = getBundledPart("C2040", createCatalog([{ ...bundledParts[0], pinLabels }]))
     const pads = getBundledFootprintCircuitJson(part).filter(
       (element) => element.type === "pcb_smtpad",
     )
@@ -121,9 +112,7 @@ describe("compact part catalog", () => {
       createCatalog([{ ...bundledParts[0], manufacturerPartNumber }]),
     )
     const source = generateBundledComponentTsx(part)
-    expect(source).toContain(
-      `manufacturerPartNumber={${JSON.stringify(manufacturerPartNumber)}}`,
-    )
+    expect(source).toContain(`manufacturerPartNumber={${JSON.stringify(manufacturerPartNumber)}}`)
     const transpiler = new Bun.Transpiler({ loader: "tsx" })
     expect(() => transpiler.transformSync(source)).not.toThrow()
   })
@@ -134,8 +123,30 @@ describe("compact part catalog", () => {
     input[0].pinLabels.pin1[0] = "WRONG_PIN"
     input[0].footprint = "qfn4"
     expect(getBundledPart("C2040", catalog).pinLabels.pin1).toEqual(["IOVDD6"])
-    expect(getBundledPart("C2040", catalog).footprint).toBe(
-      bundledParts[0].footprint,
-    )
+    expect(getBundledPart("C2040", catalog).footprint).toBe(bundledParts[0].footprint)
+  })
+
+  test("manufacturer provenance remains honest and cannot inject generated source comments", () => {
+    const provenance = {
+      kind: "manufacturer-facts",
+      datasheetUrl: "https://www.espressif.com/esp32-s3.pdf",
+      referenceUrl: "https://jlcpcb.com/partdetail/C2040",
+    }
+    const part = getBundledPart("C2040", createCatalog([{ ...bundledParts[0], provenance }]))
+    expect(generateBundledComponentTsx(part)).toContain("Independently authored")
+    expect(generateBundledComponentTsx(part)).not.toContain("Adapted from")
+    for (const invalid of [
+      { ...provenance, license: "MIT" },
+      { ...provenance, referenceUrl: "https://example.com/\nthrow new Error()" },
+      { ...provenance, referenceUrl: "https://example.com/\u0000" },
+      { ...provenance, datasheetUrl: "http://example.com/datasheet.pdf" },
+      { ...provenance, datasheetUrl: "https://user:secret@example.com/datasheet.pdf" },
+      { ...provenance, kind: "unverified" },
+      { ...bundledParts[0].provenance, unknown: true },
+    ]) {
+      expect(() => createCatalog([{ ...bundledParts[0], provenance: invalid }])).toThrow(
+        "Invalid standalone catalog",
+      )
+    }
   })
 })

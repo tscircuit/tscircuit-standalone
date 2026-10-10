@@ -39,20 +39,18 @@ const readString = (value: unknown, label: string): string => {
   return value
 }
 
-const normalizePinHint = (hint: string): string =>
-  /^\d+$/.test(hint) ? `pin${hint}` : hint
+const normalizePinHint = (hint: string): string => (/^\d+$/.test(hint) ? `pin${hint}` : hint)
 
 /** Parse only a local footprinter recipe, never a URL or library reference. */
 const parseCompactFootprint = (footprint: string): AnyCircuitElement[] => {
-  if (!/^[a-z][a-z0-9]*(?:_[a-zA-Z0-9.+-]+)*$/.test(footprint)) {
+  if (!/^[a-z][a-z0-9]*(?:_[a-zA-Z0-9.+(),-]+)*$/.test(footprint)) {
     return invalidCatalog("footprint must be a local footprinter string")
   }
   try {
     const circuitJson = fp.string(footprint).circuitJson()
     if (
       !circuitJson.some(
-        (element) =>
-          element.type === "pcb_smtpad" || element.type === "pcb_plated_hole",
+        (element) => element.type === "pcb_smtpad" || element.type === "pcb_plated_hole",
       )
     ) {
       return invalidCatalog("footprint must generate copper pads")
@@ -75,6 +73,12 @@ export const parseBundledPart = (value: unknown): BundledPart => {
     "componentName",
     "footprint",
     "pinLabels",
+    "componentType",
+    "connectorStandard",
+    "frequency",
+    "loadCapacitance",
+    "pinVariant",
+    "internallyConnectedPins",
     "provenance",
   ])
   for (const key of Object.keys(input)) {
@@ -85,10 +89,7 @@ export const parseBundledPart = (value: unknown): BundledPart => {
   if (input.supplier !== "jlcpcb") {
     return invalidCatalog("only jlcpcb supplier entries are supported initially")
   }
-  const supplierPartNumber = readString(
-    input.supplierPartNumber,
-    "supplierPartNumber",
-  )
+  const supplierPartNumber = readString(input.supplierPartNumber, "supplierPartNumber")
   if (!/^C[1-9]\d*$/.test(supplierPartNumber)) {
     return invalidCatalog("supplierPartNumber must be a JLCPCB C-number")
   }
@@ -97,11 +98,38 @@ export const parseBundledPart = (value: unknown): BundledPart => {
   if (!/^[A-Z][A-Za-z0-9_]*$/.test(componentName)) {
     return invalidCatalog("componentName must be a PascalCase identifier")
   }
-  const manufacturerPartNumber = readString(
-    input.manufacturerPartNumber,
-    "manufacturerPartNumber",
-  )
+  const manufacturerPartNumber = readString(input.manufacturerPartNumber, "manufacturerPartNumber")
   const footprint = readString(input.footprint, "footprint")
+  if (
+    input.componentType !== undefined &&
+    input.componentType !== "connector" &&
+    input.componentType !== "crystal"
+  ) {
+    return invalidCatalog("componentType must be connector or crystal when specified")
+  }
+  if (
+    input.connectorStandard !== undefined &&
+    (input.componentType !== "connector" || input.connectorStandard !== "usb_c")
+  ) {
+    return invalidCatalog("connectorStandard must be usb_c on a connector")
+  }
+  if (input.componentType === "crystal") {
+    if (
+      typeof input.frequency !== "string" ||
+      !/^\d+(?:\.\d+)?(?:Hz|kHz|MHz)$/.test(input.frequency) ||
+      input.pinVariant !== "four_pin" ||
+      typeof input.loadCapacitance !== "string" ||
+      !/^\d+(?:\.\d+)?pF$/.test(input.loadCapacitance)
+    ) {
+      return invalidCatalog("crystal must have a frequency, loadCapacitance and four_pin variant")
+    }
+  } else if (
+    input.frequency !== undefined ||
+    input.pinVariant !== undefined ||
+    input.loadCapacitance !== undefined
+  ) {
+    return invalidCatalog("frequency, loadCapacitance and pinVariant belong to a crystal")
+  }
   const footprintCircuitJson = parseCompactFootprint(footprint)
   const inputPinLabels = asObject(input.pinLabels, "pinLabels")
   const pinLabels: Record<string, readonly string[]> = {}
@@ -123,29 +151,21 @@ export const parseBundledPart = (value: unknown): BundledPart => {
     }
     for (const label of parsedLabels) {
       const numericAlias = label.match(/^(?:pin)?(\d+)$/i)
-      if (
-        numericAlias &&
-        Number(numericAlias[1]) !== Number(pinName.slice(3))
-      ) {
-        return invalidCatalog(
-          `${pinName} cannot alias physical pin${Number(numericAlias[1])}`,
-        )
+      if (numericAlias && Number(numericAlias[1]) !== Number(pinName.slice(3))) {
+        return invalidCatalog(`${pinName} cannot alias physical pin${Number(numericAlias[1])}`)
       }
     }
     pinLabels[pinName] = Object.freeze(parsedLabels)
   }
   const pads = footprintCircuitJson.filter(
-    (element) =>
-      element.type === "pcb_smtpad" || element.type === "pcb_plated_hole",
+    (element) => element.type === "pcb_smtpad" || element.type === "pcb_plated_hole",
   )
   const mappedPins = new Set<string>()
   for (const pad of pads) {
     if (pad.type !== "pcb_smtpad" && pad.type !== "pcb_plated_hole") continue
     const matchedPins = pinNames.filter((pinName) =>
       pad.port_hints?.some(
-        (hint) =>
-          normalizePinHint(hint) === pinName ||
-          pinLabels[pinName]!.includes(hint),
+        (hint) => normalizePinHint(hint) === pinName || pinLabels[pinName]!.includes(hint),
       ),
     )
     if (matchedPins.length !== 1) {
@@ -156,21 +176,75 @@ export const parseBundledPart = (value: unknown): BundledPart => {
   if (mappedPins.size !== pinNames.length) {
     return invalidCatalog("every labeled pin must map to a generated copper pad")
   }
+  let internallyConnectedPins: readonly (readonly string[])[] | undefined
+  if (input.internallyConnectedPins !== undefined) {
+    if (!Array.isArray(input.internallyConnectedPins)) {
+      return invalidCatalog("internallyConnectedPins must be an array")
+    }
+    internallyConnectedPins = Object.freeze(
+      input.internallyConnectedPins.map((group) => {
+        if (
+          !Array.isArray(group) ||
+          group.length < 2 ||
+          new Set(group).size !== group.length ||
+          group.some((pin) => !pinNames.includes(pin))
+        ) {
+          return invalidCatalog(
+            "internal connections must name at least two distinct mapped physical pins",
+          )
+        }
+        return Object.freeze([...group] as string[])
+      }),
+    )
+  }
   const inputProvenance = asObject(input.provenance, "provenance")
-  const repository = readString(inputProvenance.repository, "source repository")
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
-    return invalidCatalog("source repository must be owner/repository")
-  }
-  const commit = readString(inputProvenance.commit, "source commit")
-  if (!/^[a-f0-9]{40}$/.test(commit)) {
-    return invalidCatalog("source commit must be an exact Git SHA")
-  }
-  const path = readString(inputProvenance.path, "source path")
-  if (!/^[A-Za-z0-9_./-]+$/.test(path) || path.split("/").includes("..")) {
-    return invalidCatalog("source path must be a repository-relative file path")
-  }
-  if (inputProvenance.license !== "MIT") {
-    return invalidCatalog("source license must be MIT for the initial catalog")
+  let provenance: PartProvenance
+  if (inputProvenance.kind === "manufacturer-facts") {
+    const keys = new Set(["kind", "datasheetUrl", "referenceUrl"])
+    if (Object.keys(inputProvenance).some((key) => !keys.has(key))) {
+      return invalidCatalog("unsupported manufacturer provenance field")
+    }
+    const httpsUrl = (value: unknown, label: string): string => {
+      const url = readString(value, label)
+      if (/[\s\u0000-\u001f\u007f]/.test(url)) {
+        return invalidCatalog(`${label} must not contain whitespace or control characters`)
+      }
+      try {
+        const parsed = new URL(url)
+        if (parsed.protocol !== "https:" || parsed.username || parsed.password) {
+          return invalidCatalog(`${label} must be a public HTTPS reference`)
+        }
+      } catch {
+        return invalidCatalog(`${label} must be a public HTTPS reference`)
+      }
+      return url
+    }
+    provenance = Object.freeze({
+      kind: "manufacturer-facts",
+      datasheetUrl: httpsUrl(inputProvenance.datasheetUrl, "datasheetUrl"),
+      referenceUrl: httpsUrl(inputProvenance.referenceUrl, "referenceUrl"),
+    })
+  } else {
+    const keys = new Set(["repository", "commit", "path", "license"])
+    if (Object.keys(inputProvenance).some((key) => !keys.has(key))) {
+      return invalidCatalog("unsupported imported provenance field")
+    }
+    const repository = readString(inputProvenance.repository, "source repository")
+    if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
+      return invalidCatalog("source repository must be owner/repository")
+    }
+    const commit = readString(inputProvenance.commit, "source commit")
+    if (!/^[a-f0-9]{40}$/.test(commit)) {
+      return invalidCatalog("source commit must be an exact Git SHA")
+    }
+    const path = readString(inputProvenance.path, "source path")
+    if (!/^[A-Za-z0-9_./-]+$/.test(path) || path.split("/").includes("..")) {
+      return invalidCatalog("source path must be a repository-relative file path")
+    }
+    if (inputProvenance.license !== "MIT") {
+      return invalidCatalog("source license must be MIT for the initial catalog")
+    }
+    provenance = Object.freeze({ repository, commit, path, license: "MIT" })
   }
   return Object.freeze({
     supplier: "jlcpcb",
@@ -179,15 +253,27 @@ export const parseBundledPart = (value: unknown): BundledPart => {
     componentName,
     footprint,
     pinLabels: Object.freeze(pinLabels),
-    provenance: Object.freeze({ repository, commit, path, license: "MIT" }),
+    ...(input.componentType
+      ? { componentType: input.componentType as "connector" | "crystal" }
+      : {}),
+    ...(input.connectorStandard === "usb_c" ? { connectorStandard: "usb_c" } : {}),
+    ...(input.componentType === "crystal"
+      ? {
+          frequency: input.frequency as string,
+          loadCapacitance: input.loadCapacitance as string,
+          pinVariant: "four_pin" as const,
+        }
+      : {}),
+    ...(internallyConnectedPins ? { internallyConnectedPins } : {}),
+    provenance,
   })
 }
 
 /** Sort and validate recipes deterministically without storing generated pads. */
 export const createCatalog = (entries: readonly unknown[]): BundledCatalog => {
-  const parts = entries.map(parseBundledPart).sort((left, right) =>
-    left.supplierPartNumber.localeCompare(right.supplierPartNumber, "en"),
-  )
+  const parts = entries
+    .map(parseBundledPart)
+    .sort((left, right) => left.supplierPartNumber.localeCompare(right.supplierPartNumber, "en"))
   const bySupplierPartNumber = new Map<SupplierPartNumber, BundledPart>()
   for (const part of parts) {
     if (bySupplierPartNumber.has(part.supplierPartNumber)) {
@@ -198,9 +284,7 @@ export const createCatalog = (entries: readonly unknown[]): BundledCatalog => {
   return Object.freeze({
     parts: Object.freeze(parts),
     get: (supplierPartNumber: string) =>
-      bySupplierPartNumber.get(
-        supplierPartNumber.trim().toUpperCase() as SupplierPartNumber,
-      ),
+      bySupplierPartNumber.get(supplierPartNumber.trim().toUpperCase() as SupplierPartNumber),
   })
 }
 
@@ -219,9 +303,7 @@ export const getBundledPart = (
  * Generate footprint-local geometry in mm: +X right, +Y up, +Z above the PCB.
  * Coordinates are points before component placement/rotation; layer is top.
  */
-export const getBundledFootprintCircuitJson = (
-  part: BundledPart,
-): AnyCircuitElement[] =>
+export const getBundledFootprintCircuitJson = (part: BundledPart): AnyCircuitElement[] =>
   fp
     .string(part.footprint)
     .circuitJson()
@@ -236,19 +318,39 @@ export const getBundledFootprintCircuitJson = (
       )!
       return {
         ...element,
-        port_hints: [
-          ...new Set([
-            ...(element.port_hints ?? []),
-            pinEntry[0],
-            ...pinEntry[1],
-          ]),
-        ],
+        port_hints: [...new Set([...(element.port_hints ?? []), pinEntry[0], ...pinEntry[1]])],
       }
     })
 
 export const generateBundledComponentTsx = (part: BundledPart): string => {
-  const { repository, commit, path } = part.provenance
-  return `// Adapted from ${repository} (MIT), Copyright (c) 2025 tscircuit.\n// https://github.com/${repository}/blob/${commit}/${path}\n// Remote CAD models are omitted from this standalone component.\nimport type { ChipProps } from "@tscircuit/props"\n\nconst pinLabels = ${JSON.stringify(part.pinLabels, null, 2)} as const\n\nexport const ${part.componentName} = (props: ChipProps<typeof pinLabels>) => (\n  <chip\n    pinLabels={pinLabels}\n    supplierPartNumbers={{ jlcpcb: [${JSON.stringify(part.supplierPartNumber)}] }}\n    manufacturerPartNumber={${JSON.stringify(part.manufacturerPartNumber)}}\n    footprint={${JSON.stringify(part.footprint)}}\n    {...props}\n  />\n)\n\nexport default ${part.componentName}\n`
+  const attribution =
+    "kind" in part.provenance
+      ? `// Independently authored manufacturer pin/function and package facts.\n// ${part.provenance.datasheetUrl}\n// Supplier land-pattern reference: ${part.provenance.referenceUrl}\n// Reference: JLCEDA/EasyEDA Official Library; https://lceda.cn/ ; https://easyeda.com`
+      : `// Adapted from ${part.provenance.repository} (MIT), Copyright (c) 2025 tscircuit.\n// https://github.com/${part.provenance.repository}/blob/${part.provenance.commit}/${part.provenance.path}`
+  const element = part.componentType ?? "chip"
+  const importedPropsType =
+    element === "connector"
+      ? "ConnectorProps"
+      : element === "crystal"
+        ? "CrystalProps"
+        : "ChipProps"
+  const propsType =
+    element === "connector"
+      ? "ConnectorProps"
+      : element === "crystal"
+        ? 'Omit<CrystalProps, "frequency" | "pinVariant" | "loadCapacitance"> & { loadCapacitance?: CrystalProps["loadCapacitance"] }'
+        : "ChipProps<typeof pinLabels>"
+  const standard = part.connectorStandard
+    ? `    standard=${JSON.stringify(part.connectorStandard)}\n`
+    : ""
+  const crystalProps =
+    element === "crystal"
+      ? `    frequency=${JSON.stringify(part.frequency)}\n    loadCapacitance=${JSON.stringify(part.loadCapacitance)}\n    pinVariant="four_pin"\n`
+      : ""
+  const internalPins = part.internallyConnectedPins
+    ? `    internallyConnectedPins={${JSON.stringify(part.internallyConnectedPins)}}\n`
+    : ""
+  return `${attribution}\n// Remote CAD models are omitted from this standalone component.\nimport type { ${importedPropsType} } from "@tscircuit/props"\n\nconst pinLabels = ${JSON.stringify(part.pinLabels, null, 2)} as const\n\nexport const ${part.componentName} = (props: ${propsType}) => (\n  <${element}\n${standard}${crystalProps}${internalPins}    pinLabels={pinLabels}\n    supplierPartNumbers={{ jlcpcb: [${JSON.stringify(part.supplierPartNumber)}] }}\n    manufacturerPartNumber={${JSON.stringify(part.manufacturerPartNumber)}}\n    footprint={${JSON.stringify(part.footprint)}}\n    {...props}\n  />\n)\n\nexport default ${part.componentName}\n`
 }
 
 export const serializeCatalog = (entries: readonly unknown[]): string =>

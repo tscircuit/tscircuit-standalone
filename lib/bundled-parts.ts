@@ -1,4 +1,5 @@
 import type { BundledPart } from "./catalog-types"
+import { cameraParts } from "./camera-parts"
 
 // Adapted from tscircuit/common (MIT), Copyright (c) 2025 tscircuit.
 // The original pin mapping and compact footprint are preserved; remote CAD
@@ -77,4 +78,5 @@ export const bundledParts = [
       license: "MIT",
     },
   },
+  ...cameraParts,
 ] as const satisfies readonly BundledPart[]
