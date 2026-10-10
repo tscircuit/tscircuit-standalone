@@ -166,7 +166,15 @@ function selfCheckConnectivityMonitor(circuit: CircuitJson) {
   assert(groundPad?.type === "pcb_port", "The MCU exposed pad lost its physical ground terminal")
   const thermalVias = circuit.filter((element) => element.type === "pcb_via").filter((via) => via.pcb_port_ids?.includes(groundPad.pcb_port_id))
   assert(thermalVias.length === 9, "The real MCU footprint must retain all nine owned thermal vias")
-  const foreign = structuredClone(circuit)
+  const liveViaData = structuredClone(circuit)
+  for (const via of liveViaData.filter((element) => element.type === "pcb_via")) {
+    if (via.pcb_port_ids?.includes(groundPad.pcb_port_id)) via.pcb_trace_id = undefined
+  }
+  const liveContacts = checkEachPcbTraceNonOverlapping(liveViaData, {
+    connMap: getFullConnectivityMapFromCircuitJson(liveViaData),
+  })
+  assert(liveContacts.length === 0, "Owned thermal vias with an explicit undefined PCB trace ID produced false contacts")
+  const foreign = structuredClone(liveViaData)
   const foreignVia = foreign.find((element) => element.type === "pcb_via" && element.pcb_via_id === thermalVias[4]!.pcb_via_id)
   const vbus = foreign.find((element) => element.type === "source_net" && element.name === "VBUS")
   assert(foreignVia?.type === "pcb_via" && vbus?.type === "source_net", "The actual thermal-via counterexample lacks VBUS connectivity")
