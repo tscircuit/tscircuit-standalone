@@ -3,6 +3,8 @@ import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/pr
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import type { CircuitJson } from "circuit-json"
+import { checkEachPcbTraceNonOverlapping } from "@tscircuit/checks"
+import { getFullConnectivityMapFromCircuitJson } from "circuit-json-to-connectivity-map"
 import { checkDiscreteWifiCamera, type WifiCameraNetlist } from "./check-discrete-wifi-camera"
 import {
   assertBrowserEvidence, createMonitoredPage, downloadArtifact, emptyEvidence,
@@ -144,6 +146,33 @@ function selfCheckConnectivityMonitor(circuit: CircuitJson) {
   const withoutUsbRoute = disconnected.filter((element) => element.type !== "pcb_trace" || !element.route.some((point) =>
     point.route_type === "wire" && [point.start_pcb_port_id, point.end_pcb_port_id].includes(pcbUsb.pcb_port_id)))
   rejects("USB D- physical connection unrouted", withoutUsbRoute, /USB_DM has unrouted physical endpoints/)
+
+  // Exercise the actual rendered thermal-via geometry. A correctly owned
+  // GND via must pass, while assigning that same copper to VBUS must fail.
+  const baselineContacts = checkEachPcbTraceNonOverlapping(circuit, {
+    connMap: getFullConnectivityMapFromCircuitJson(circuit),
+  })
+  assert(baselineContacts.length === 0, "The actual board has accidental PCB trace contacts")
+  const ground = circuit.find((element) => element.type === "source_port" && element.source_component_id === usbPin.source_component_id && element.pin_number === 57)
+  assert(ground?.type === "source_port", "The MCU exposed pad lost its source ground terminal")
+  const groundPad = circuit.find((element) => element.type === "pcb_port" && element.source_port_id === ground.source_port_id)
+  assert(groundPad?.type === "pcb_port", "The MCU exposed pad lost its physical ground terminal")
+  const thermalVias = circuit.filter((element) => element.type === "pcb_via").filter((via) => via.pcb_port_ids?.includes(groundPad.pcb_port_id))
+  assert(thermalVias.length === 9, "The real MCU footprint must retain all nine owned thermal vias")
+  const foreign = structuredClone(circuit)
+  const foreignVia = foreign.find((element) => element.type === "pcb_via" && element.pcb_via_id === thermalVias[4]!.pcb_via_id)
+  const vbus = foreign.find((element) => element.type === "source_net" && element.name === "VBUS")
+  assert(foreignVia?.type === "pcb_via" && vbus?.type === "source_net", "The actual thermal-via counterexample lacks VBUS connectivity")
+  const vbusTrace = foreign.find((element) => element.type === "source_trace" && element.connected_source_net_ids?.includes(vbus.source_net_id))
+  assert(vbusTrace?.type === "source_trace", "The actual thermal-via counterexample lacks a VBUS source trace")
+  foreignVia.source_trace_id = vbusTrace.source_trace_id
+  foreignVia.pcb_port_ids = []
+  foreignVia.subcircuit_connectivity_map_key = vbus.subcircuit_connectivity_map_key
+  const foreignContacts = checkEachPcbTraceNonOverlapping(foreign, {
+    connMap: getFullConnectivityMapFromCircuitJson(foreign),
+  })
+  assert(foreignContacts.length > 0 && foreignContacts.every((error) => error.type === "pcb_trace_error" && error.pcb_trace_error_id.endsWith(`_${foreignVia.pcb_via_id}`)), "The PCB checker missed or misattributed a real VBUS-via/GND-trace contact")
+  connectivityMonitorChecks.push({ name: "thermal via assigned to VBUS touching ground traces", detected: foreignContacts.map((error) => error.message).join("\n") })
 }
 
 try {
