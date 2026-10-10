@@ -5,7 +5,7 @@ import { join } from "node:path"
 import { runCli } from "../cli/main"
 import { renderCircuitFile } from "../lib/build"
 
-test("normal connector imports retain USB-C source pins and FFC/U.FL copper numbering", async () => {
+test("normal connector imports retain USB-C source/SMT pins, D− schematic terminals and FFC/U.FL copper numbering", async () => {
   const project = await mkdtemp(join(tmpdir(), "standalone-connectors-"))
   const stderr: string[] = []
   const io = { stdout: () => {}, stderr: (message: string) => stderr.push(message) }
@@ -80,6 +80,21 @@ export default () => <board width="80mm" height="30mm" schMaxTraceDistance={0}>
         .map((port) => (port as { pin_number: number }).pin_number)
         .sort((a, b) => a - b),
     ).toEqual(Array.from({ length: 14 }, (_, index) => index + 13))
+    const schematicPortIds = new Set(
+      circuit
+        .filter((element) => element.type === "schematic_port")
+        .map((port) => port.source_port_id),
+    )
+    for (const pin of [19, 21]) {
+      const source = circuit.find(
+        (element) =>
+          element.type === "source_port" &&
+          element.source_component_id === usbSource.source_component_id &&
+          element.pin_number === pin,
+      )
+      if (source?.type !== "source_port") throw new Error(`Missing D− pin ${pin}`)
+      expect(schematicPortIds.has(source.source_port_id)).toBe(true)
+    }
     // Shared shell terminals need the Core physical-port fix; full geometry and
     // numbering are independently checked against the supplier in qualification.
     const usbContacts = padsFor("J_USB").filter((pad) => pad.type === "pcb_smtpad")
@@ -102,6 +117,16 @@ export default () => <board width="80mm" height="30mm" schMaxTraceDistance={0}>
     const rfSignal = rf.find((pad) => pinFor(pad) === 2)!
     const ground = rf.find((pad) => pinFor(pad) === 1)!
     expect((rfSignal as { x: number }).x).toBeLessThan((ground as { x: number }).x)
+    const bounds = rf.map((pad) => {
+      if (pad.type !== "pcb_smtpad" || pad.shape !== "rect")
+        throw new Error("Expected rectangular U.FL copper")
+      return { left: pad.x - pad.width / 2, right: pad.x + pad.width / 2 }
+    })
+    expect(
+      (Math.min(...bounds.map((bound) => bound.left)) +
+        Math.max(...bounds.map((bound) => bound.right))) /
+        2,
+    ).toBeCloseTo(20, 6)
   } finally {
     await rm(project, { recursive: true, force: true })
   }
