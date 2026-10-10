@@ -1,6 +1,12 @@
-RP2040 metadata and pin labels are adapted from:
+RP2040, AP2112K-3.3TRG1, SM02B-PASS-TBT(LF)(SN) and TYPE-C-16PIN-2MD(073)
+metadata and pin labels are adapted from:
 tscircuit/common@a5797da88ec19944442d87392174af0a36fe1a0a
 lib/Microcontroller_RP2040/imports/RP2040.tsx
+lib/Microcontroller_RP2040/imports/AP2112K_3_3TRG1.tsx
+lib/Microcontroller_RP2040/imports/SM02B_PASS_TBT_LF__SN_.tsx
+lib/Microcontroller_RP2040/imports/TYPE_C_16PIN_2MD_073_.tsx
+USB-C shell numbering and land-pattern parameters are corrected against a fresh
+supplier reference; the original compact recipe is not preserved.
 https://github.com/tscircuit/common/blob/a5797da88ec19944442d87392174af0a36fe1a0a/LICENSE
 
 MIT License
@@ -25,7 +31,27 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+Manufacturer and supplier facts
+
+Additional compact component records are independently authored from manufacturer
+pin/function and package facts. Their public datasheet and supplier reference
+URLs are retained in each catalog record and generated import. They are not
+adapted from the source code of unlicensed component repositories.
+
+Land-pattern comparison references: JLCEDA/EasyEDA Official Library.
+https://lceda.cn/
+https://easyeda.com
+The library's copyright and related rights belong to JLCEDA/EasyEDA. Acquired raw
+payloads, expanded footprint geometry and remote 3D models are not bundled.
+Per-record qualification reports retain reference digests and tool versions.
+
 Artifact dependency notices
+
+The temporary vendored @tscircuit/footprinter package is built from
+tscircuit/footprinter@4ecc56b38ecca6a08a05e42cc63283233d780093 (PRs #910/#911).
+Its original ISC license is included in vendor/footprinter-4ecc56b.tgz and copied
+to vendor/footprinter-LICENSE. vendor/footprinter.json records its exact source
+and SHA-256 digest. Installed-package notice collection includes this license.
 
 The prototype binary embeds Bun, core/eval, footprinter, RunFrame and its
 viewers, Manifold JavaScript/WASM, the Kenpixel font, and their bundled
