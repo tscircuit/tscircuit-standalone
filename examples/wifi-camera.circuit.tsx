@@ -748,33 +748,30 @@ export default function WifiCameraController() {
         />
 
         {Object.entries(nets).map(([net, pins]) =>
-          manualPcbPaths[net] ? (
-            <Fragment key={net}>
-              <trace
-                name={net}
-                path={[
-                  ...pins.map(([component, pin]) => `.${component} > .pin${pin}`),
-                  `net.${net}`,
-                ]}
-                pcbPathRelativeTo=".U_MCU > .pin54"
-                pcbPaths={manualPcbPaths[net]}
-                maxViaCount={net.startsWith("XTAL_") ? 0 : undefined}
-                maxLength={net.startsWith("XTAL_") ? "10mm" : undefined}
-                schDisplayLabel={net}
-              />
-            </Fragment>
-          ) : (
-            pins.map(([component, pin]) => (
-              <Fragment key={`${net}_${component}_${pin}`}>
-                <trace
-                  name={`${net}_${component}_${pin}`}
-                  from={`.${component} > .pin${pin}`}
-                  to={`net.${net}`}
-                  schDisplayLabel={net}
-                />
-              </Fragment>
-            ))
-          ),
+          manualPcbPaths[net]
+            ? manualPcbPaths[net].map((pcbPath, branch) => (
+                <Fragment key={`${net}_${branch}`}>
+                  <trace
+                    name={`${net}_${branch}`}
+                    path={[pcbPath[0] as string, pcbPath.at(-1) as string, `net.${net}`]}
+                    pcbPathRelativeTo=".U_MCU > .pin54"
+                    pcbPath={pcbPath}
+                    maxViaCount={net.startsWith("XTAL_") ? 0 : undefined}
+                    maxLength={net.startsWith("XTAL_") ? "10mm" : undefined}
+                    schDisplayLabel={net}
+                  />
+                </Fragment>
+              ))
+            : pins.map(([component, pin]) => (
+                <Fragment key={`${net}_${component}_${pin}`}>
+                  <trace
+                    name={`${net}_${component}_${pin}`}
+                    from={`.${component} > .pin${pin}`}
+                    to={`net.${net}`}
+                    schDisplayLabel={net}
+                  />
+                </Fragment>
+              )),
         )}
       </schematicsheet>
     </board>
