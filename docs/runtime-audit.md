@@ -3,8 +3,8 @@
 This audit records the original upstream snapshots below. The standalone path
 now supplies local catalog/build/dev commands and composes ordinary RunFrame
 source execution with a bundled browser worker, dynamic imports, and local
-platform providers. The merged changes and remaining style patch are described
-in [bundled RunFrame](offline-runframe.md). Findings and source links below refer
+platform providers. The merged changes and supported standalone workflows are
+described in [bundled RunFrame](offline-runframe.md). Findings and source links below refer
 to the original snapshots, not the current bundle. Revised compiled-browser
 qualification is recorded in the linked RunFrame document; wider reusable policy
 work remains in the [implementation plan](implementation-plan.md).
@@ -50,7 +50,10 @@ to canvas by storing `JSON.stringify("canvas")` under the existing
 parts-engine availability method, generates thumbnails locally, and loads
 analysis through the generic importer. Manifold/fonts and converter WASM assets are bundled.
 External hyperlinks and the existing autorouting-report callback retain normal
-navigation; automatic application requests cannot require external access.
+navigation; automatic requests in supported standalone user workflows cannot
+require external access. The developer-only Solvers debugger is not exposed in
+the standalone UI and falls outside its six-view qualification. Developer tools may continue
+loading from CDNs; replacing those requests is not a standalone requirement.
 Host graph errors stay in the editor while RunFrame remains mounted; worker
 errors follow its normal error path.
 
@@ -61,8 +64,7 @@ errors follow its normal error path.
 [internal-dynamic-import #35](https://github.com/tscircuit/internal-dynamic-import/pull/35),
 [worker lifecycle #5632](https://github.com/tscircuit/runframe/pull/5632), and
 [static JSON #5637](https://github.com/tscircuit/runframe/pull/5637) were merged
-by the user. [Solver/styles #5631](https://github.com/tscircuit/runframe/pull/5631)
-remains open and separate. Never merge PRs automatically. These
+by the user. Never merge PRs automatically. These
 changes address selected integration gaps. The current enabled flows have fresh
 compiled-browser qualification; wider asset/provider and export completeness
 remain follow-up work.

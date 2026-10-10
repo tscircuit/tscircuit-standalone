@@ -3,11 +3,16 @@
 ## Goal and runtime contract
 
 Release `tscircuit standalone` as downloadable compiled executables with a
-custom platform and a compact catalog. Supported commands and automatic UI
-operations must work without outbound requests or runtime package downloads.
+custom platform and a compact catalog. Supported standalone commands and
+automatic user-facing UI operations must work without outbound requests or
+runtime package downloads.
 Missing parts, dependencies, and assets fail locally. Build-time acquisition
 and dependency installation may use the network. Dev communicates with its
 bound loopback origin; user navigation through external hyperlinks is allowed.
+
+Developer-only features such as the Solvers debugger are outside the supported
+standalone user workflows and network qualification. Their CDN loading may
+remain unchanged; no local CDN replacement is required for those tools.
 
 `tsci import C2040` creates an RP2040 component from a verified footprinter
 string and pin mapping. Popularity alone does not qualify a part: only compact,
@@ -56,8 +61,7 @@ and remote CAD assets are omitted.
   [internal-dynamic-import #35](https://github.com/tscircuit/internal-dynamic-import/pull/35),
   [RunFrame worker lifecycle #5632](https://github.com/tscircuit/runframe/pull/5632),
   and [RunFrame static JSON #5637](https://github.com/tscircuit/runframe/pull/5637).
-  [RunFrame solver/styles #5631](https://github.com/tscircuit/runframe/pull/5631)
-  remains open and separate. Never merge PRs automatically.
+  Never merge PRs automatically.
 - Standalone uses published packages and
   public entrypoints: RunFrame 0.0.2953, importer 0.0.17, and schematic-viewer
   2.0.104. The published RunFrame artifact includes the merged changes; exact
@@ -65,8 +69,8 @@ and remote CAD assets are omitted.
   No composite RunFrame branch is needed. Fresh compiled-browser and native
   qualification has passed with these dependencies and host settings.
 - PR scope follows package ownership: RunFrame owns viewer forwarding and
-  existing host-configuration conventions; worker lifecycle, static JSON, and
-  solver styles have separate PRs. Schematic-viewer owns platform-based
+  existing host-configuration conventions; worker lifecycle and static JSON
+  have separate PRs. Schematic-viewer owns platform-based
   availability and local thumbnails; internal-dynamic-import owns generic
   module resolution. Standalone owns providers, manifests, packaging, and
   qualification. Shared `@tscircuit/props` interfaces stay unchanged.
@@ -235,6 +239,6 @@ sandbox; it is not established by the current source allowlist or fetch hooks.
 ## Source evidence
 
 [Runtime audit](runtime-audit.md) and [CLI audit](cli-audit.md) preserve the
-original inspected upstream snapshots. The merged changes, remaining style PR,
-and current composition address selected findings; they do not mean the general
+original inspected upstream snapshots. The merged changes and current
+composition address selected findings; they do not mean the general
 upstream CLI is already offline or that all exporters have been qualified.

@@ -95,10 +95,11 @@ remain normal hyperlinks. The startup telemetry global prevents analytics
 initialization/capture. The existing `onReportAutoroutingLog` callback opens the
 repository issue page through user navigation.
 
-User navigation to external pages is allowed. Automatic application requests,
-CDN imports, telemetry, and remote asset loading cannot rely on escaping the
-local request policy. The worker permits only its supported same-origin asset
-requests and rejects other transports before dispatch. Unsupported external
+User navigation to external pages is allowed. Automatic requests in supported
+standalone user workflows, including CDN imports, telemetry, and remote asset
+loading, cannot rely on escaping the local request policy. The worker permits
+only its supported same-origin asset requests and rejects other transports
+before dispatch. Unsupported external
 footprints, models, images, supplier declarations, and modules fail locally.
 
 The server binds to IPv4 loopback, validates the bound host and mutation origin,
@@ -135,11 +136,10 @@ and importer changes:
 - [internal-dynamic-import #35](https://github.com/tscircuit/internal-dynamic-import/pull/35):
   configurable resolvers, typed lazy manifests, and exact-version matching.
 
-[RunFrame #5631](https://github.com/tscircuit/runframe/pull/5631) remains open
-and separate. It removes RunFrame's legacy Tailwind request, but the actual
-debugger in `@tscircuit/solver-utils` also loads a Tailwind CDN script. That
-package must own its bundled styles before Solvers can be enabled. The six
-current standalone views exclude Solvers.
+The developer-only Solvers debugger is not exposed in the standalone UI and
+falls outside its six-view network qualification. Developer tools may retain
+their CDN loading; replacing those requests with bundled styles is not a
+standalone dependency or release requirement.
 Never merge PRs automatically.
 
 The shared `@tscircuit/props` platform and parts-engine interfaces stay unchanged.
@@ -153,7 +153,7 @@ including `@tscircuit/runframe@0.0.2953`,
 `@tscircuit/schematic-viewer@2.0.104`. The RunFrame artifact contains the merged
 changes; exact versions are recorded in the dependency manifest and lockfile.
 The integration no longer requires source subpaths or a composite RunFrame
-branch. The unmerged solver-style work still needs separate qualification.
+branch.
 The native `tsci build` command continues to use its embedded build worker.
 
 ## Qualification status
