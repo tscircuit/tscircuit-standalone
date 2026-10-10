@@ -31,7 +31,7 @@ try {
   const unsupported = run(["publish"])
   if (unsupported.exitCode === 0) throw new Error("Unimplemented commands must fail")
   await cp(resolve(import.meta.dir, "../examples"), join(projectDir, "examples"), { recursive: true })
-  for (const name of ["led-resistor", "rp2040-breakout", "supplier-footprint"]) {
+  for (const name of ["led-resistor", "rp2040-breakout", "supplier-footprint", "wifi-camera-carrier"]) {
     const built = run(["build", `examples/${name}.circuit.tsx`])
     if (built.exitCode !== 0) throw new Error(built.stderr.toString())
     const json = JSON.parse(await readFile(join(projectDir, `build/${name}.circuit.json`), "utf8"))
@@ -66,7 +66,7 @@ try {
   if (files.includes("node_modules") || files.includes("missing-output") || files.includes("remote-output")) {
     throw new Error("Build created a dependency install or partial failure output")
   }
-  console.log("Compiled binary imports C2040 and builds all three circuits without node_modules, tokens, or a runtime on PATH; missing modules and remote footprints fail locally.")
+  console.log("Compiled binary imports C2040 and builds all four circuits without node_modules, tokens, or a runtime on PATH; missing modules and remote footprints fail locally.")
 } finally {
   await rm(projectDir, { recursive: true, force: true })
 }

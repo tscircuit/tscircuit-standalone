@@ -1,0 +1,606 @@
+{
+  "scope": "ESP32-CAM socket carrier; source evaluated by native CLI and normal RunFrame browser worker",
+  "binarySha256": "83f9cb80f4b8b468c85eee4914372f1c5b9e4e7bb60087cbf85d8059ce5beefe",
+  "baseCommit": "a1e017039067799c9d66bbae5c1a37f420cf66ab",
+  "runtimeImplementationCommit": "cbe986004d7f937abdebfd9a0ed4213a2c695681",
+  "fixtureSha256": "a3853c85d9a898ddf3f1103feabf305cf96022951c0a2ee1e93ff0315c2342b5",
+  "nativeRuns": [
+    {
+      "name": "import-C277946",
+      "exitCode": 1,
+      "networkAttempts": []
+    },
+    {
+      "name": "import-C82899",
+      "exitCode": 1,
+      "networkAttempts": []
+    },
+    {
+      "name": "import-C23380830",
+      "exitCode": 1,
+      "networkAttempts": []
+    },
+    {
+      "name": "carrier-build",
+      "exitCode": 0,
+      "networkAttempts": []
+    }
+  ],
+  "devNetworkAttempts": [],
+  "nativeReport": {
+    "sourceFile": "wifi-camera-carrier.circuit.tsx",
+    "elementCounts": {
+      "source_project_metadata": 1,
+      "schematic_sheet": 1,
+      "source_group": 1,
+      "source_net": 3,
+      "source_port": 39,
+      "source_component": 11,
+      "source_board": 1,
+      "source_trace": 27,
+      "source_pin_missing_trace_warning": 4,
+      "schematic_component": 11,
+      "schematic_text": 21,
+      "schematic_group": 1,
+      "schematic_port": 39,
+      "schematic_trace": 22,
+      "schematic_net_label": 15,
+      "pcb_component": 11,
+      "pcb_board": 1,
+      "pcb_plated_hole": 29,
+      "pcb_silkscreen_text": 40,
+      "pcb_solder_paste": 56,
+      "pcb_courtyard_rect": 11,
+      "pcb_smtpad": 10,
+      "pcb_silkscreen_path": 7,
+      "pcb_port": 39,
+      "pcb_fabrication_note_path": 4,
+      "cad_component": 11,
+      "source_missing_manufacturer_part_number_warning": 11,
+      "pcb_trace": 24,
+      "pcb_via": 7
+    },
+    "errors": [],
+    "warnings": [
+      {
+        "type": "source_pin_missing_trace_warning",
+        "message": "Port IO2 on J_CAM_LEFT is missing a trace"
+      },
+      {
+        "type": "source_pin_missing_trace_warning",
+        "message": "Port IO4 on J_CAM_LEFT is missing a trace"
+      },
+      {
+        "type": "source_pin_missing_trace_warning",
+        "message": "Port PSRAM_IO16 on J_CAM_RIGHT is missing a trace"
+      },
+      {
+        "type": "source_pin_missing_trace_warning",
+        "message": "Port VCC_LINK on J_CAM_RIGHT is missing a trace"
+      },
+      {
+        "type": "source_missing_manufacturer_part_number_warning",
+        "message": "J_CAM_LEFT is missing a manufacturer part number and could not be resolved to a supplier part. Specify mpn, manufacturerPartNumber, or mfn, provide supplierPartNumbers, or configure a parts engine to select a part. If this part will not be assembled, mark it doNotPlace."
+      },
+      {
+        "type": "source_missing_manufacturer_part_number_warning",
+        "message": "J_CAM_RIGHT is missing a manufacturer part number and could not be resolved to a supplier part. Specify mpn, manufacturerPartNumber, or mfn, provide supplierPartNumbers, or configure a parts engine to select a part. If this part will not be assembled, mark it doNotPlace."
+      },
+      {
+        "type": "source_missing_manufacturer_part_number_warning",
+        "message": "J_POWER is missing a manufacturer part number and could not be resolved to a supplier part. Specify mpn, manufacturerPartNumber, or mfn, provide supplierPartNumbers, or configure a parts engine to select a part. If this part will not be assembled, mark it doNotPlace."
+      },
+      {
+        "type": "source_missing_manufacturer_part_number_warning",
+        "message": "J_UART is missing a manufacturer part number and could not be resolved to a supplier part. Specify mpn, manufacturerPartNumber, or mfn, provide supplierPartNumbers, or configure a parts engine to select a part. If this part will not be assembled, mark it doNotPlace."
+      },
+      {
+        "type": "source_missing_manufacturer_part_number_warning",
+        "message": "J_BOOT is missing a manufacturer part number and could not be resolved to a supplier part. Specify mpn, manufacturerPartNumber, or mfn, provide supplierPartNumbers, or configure a parts engine to select a part. If this part will not be assembled, mark it doNotPlace."
+      },
+      {
+        "type": "source_missing_manufacturer_part_number_warning",
+        "message": "J_GPIO is missing a manufacturer part number and could not be resolved to a supplier part. Specify mpn, manufacturerPartNumber, or mfn, provide supplierPartNumbers, or configure a parts engine to select a part. If this part will not be assembled, mark it doNotPlace."
+      },
+      {
+        "type": "source_missing_manufacturer_part_number_warning",
+        "message": "C_BULK is missing a manufacturer part number and could not be resolved to a supplier part. Specify mpn, manufacturerPartNumber, or mfn, provide supplierPartNumbers, or configure a parts engine to select a part. If this part will not be assembled, mark it doNotPlace."
+      },
+      {
+        "type": "source_missing_manufacturer_part_number_warning",
+        "message": "C_DECOUPLE is missing a manufacturer part number and could not be resolved to a supplier part. Specify mpn, manufacturerPartNumber, or mfn, provide supplierPartNumbers, or configure a parts engine to select a part. If this part will not be assembled, mark it doNotPlace."
+      },
+      {
+        "type": "source_missing_manufacturer_part_number_warning",
+        "message": "R_BOOT is missing a manufacturer part number and could not be resolved to a supplier part. Specify mpn, manufacturerPartNumber, or mfn, provide supplierPartNumbers, or configure a parts engine to select a part. If this part will not be assembled, mark it doNotPlace."
+      },
+      {
+        "type": "source_missing_manufacturer_part_number_warning",
+        "message": "R_STATUS is missing a manufacturer part number and could not be resolved to a supplier part. Specify mpn, manufacturerPartNumber, or mfn, provide supplierPartNumbers, or configure a parts engine to select a part. If this part will not be assembled, mark it doNotPlace."
+      },
+      {
+        "type": "source_missing_manufacturer_part_number_warning",
+        "message": "D_STATUS is missing a manufacturer part number and could not be resolved to a supplier part. Specify mpn, manufacturerPartNumber, or mfn, provide supplierPartNumbers, or configure a parts engine to select a part. If this part will not be assembled, mark it doNotPlace."
+      }
+    ]
+  },
+  "browser": {
+    "requestEvents": 109,
+    "uniqueSameOriginResources": [
+      "/",
+      "/api/render",
+      "/api/source",
+      "/api/state",
+      "/assets/app.css",
+      "/assets/app.js",
+      "/assets/eval-worker.js",
+      "/assets/font.ttf",
+      "/assets/host-config.js",
+      "/assets/manifold.js",
+      "/assets/manifold.wasm",
+      "/assets/occt-import-js.js",
+      "/favicon.svg"
+    ],
+    "workerPaths": [
+      "/assets/eval-worker.js"
+    ],
+    "forbiddenRequests": [],
+    "cspViolations": [],
+    "browserErrors": [],
+    "consoleErrors": [],
+    "failedRequests": [],
+    "monitorErrors": [],
+    "expectedDiagnostics": []
+  },
+  "connectivity": {
+    "nativeConnectivity": {
+      "passed": true,
+      "sourceEndpointCount": 39,
+      "schematicEndpointCount": 39,
+      "connectedEndpointCount": 35,
+      "expectedUnconnectedEndpoints": [
+        "J_CAM_LEFT:IO2",
+        "J_CAM_LEFT:IO4",
+        "J_CAM_RIGHT:PSRAM_IO16",
+        "J_CAM_RIGHT:VCC_LINK"
+      ],
+      "netCount": 11,
+      "pcbRouteCount": 24,
+      "viaCount": 7,
+      "nets": [
+        {
+          "name": "5V",
+          "endpoints": [
+            "J_POWER:V5V",
+            "J_CAM_LEFT:V5V",
+            "C_BULK:pin1",
+            "C_DECOUPLE:pin1"
+          ],
+          "pcbRouteCount": 3,
+          "connected": true
+        },
+        {
+          "name": "GND",
+          "endpoints": [
+            "J_POWER:GND",
+            "J_CAM_LEFT:GND_LEFT",
+            "J_CAM_RIGHT:GND_RIGHT",
+            "J_CAM_RIGHT:GND_UART",
+            "C_BULK:pin2",
+            "C_DECOUPLE:pin2",
+            "J_UART:GND",
+            "J_BOOT:GND",
+            "D_STATUS:pin2",
+            "J_GPIO:GND"
+          ],
+          "pcbRouteCount": 9,
+          "connected": true
+        },
+        {
+          "name": "3V3",
+          "endpoints": [
+            "J_CAM_RIGHT:V3V3",
+            "R_BOOT:pin1",
+            "R_STATUS:pin1",
+            "J_GPIO:V3V3"
+          ],
+          "pcbRouteCount": 3,
+          "connected": true
+        },
+        {
+          "name": "UART_RX",
+          "endpoints": [
+            "J_CAM_RIGHT:CAM_RX",
+            "J_UART:CAM_RX"
+          ],
+          "pcbRouteCount": 1,
+          "connected": true
+        },
+        {
+          "name": "UART_TX",
+          "endpoints": [
+            "J_CAM_RIGHT:CAM_TX",
+            "J_UART:CAM_TX"
+          ],
+          "pcbRouteCount": 1,
+          "connected": true
+        },
+        {
+          "name": "BOOT",
+          "endpoints": [
+            "J_CAM_RIGHT:BOOT_IO0",
+            "J_BOOT:BOOT_IO0",
+            "R_BOOT:pin2"
+          ],
+          "pcbRouteCount": 2,
+          "connected": true
+        },
+        {
+          "name": "STATUS_LED",
+          "endpoints": [
+            "R_STATUS:pin2",
+            "D_STATUS:pin1"
+          ],
+          "pcbRouteCount": 1,
+          "connected": true
+        },
+        {
+          "name": "GPIO12",
+          "endpoints": [
+            "J_CAM_LEFT:IO12",
+            "J_GPIO:IO12"
+          ],
+          "pcbRouteCount": 1,
+          "connected": true
+        },
+        {
+          "name": "GPIO13",
+          "endpoints": [
+            "J_CAM_LEFT:IO13",
+            "J_GPIO:IO13"
+          ],
+          "pcbRouteCount": 1,
+          "connected": true
+        },
+        {
+          "name": "GPIO14",
+          "endpoints": [
+            "J_CAM_LEFT:IO14",
+            "J_GPIO:IO14"
+          ],
+          "pcbRouteCount": 1,
+          "connected": true
+        },
+        {
+          "name": "GPIO15",
+          "endpoints": [
+            "J_CAM_LEFT:IO15",
+            "J_GPIO:IO15"
+          ],
+          "pcbRouteCount": 1,
+          "connected": true
+        }
+      ],
+      "socketPositions": [
+        {
+          "signal": "V5V",
+          "x": -11.43,
+          "y": -5.890000000000001
+        },
+        {
+          "signal": "GND_LEFT",
+          "x": -11.43,
+          "y": -3.3500000000000005
+        },
+        {
+          "signal": "IO12",
+          "x": -11.43,
+          "y": -0.8100000000000005
+        },
+        {
+          "signal": "IO13",
+          "x": -11.43,
+          "y": 1.7299999999999995
+        },
+        {
+          "signal": "IO15",
+          "x": -11.43,
+          "y": 4.27
+        },
+        {
+          "signal": "IO14",
+          "x": -11.43,
+          "y": 6.809999999999999
+        },
+        {
+          "signal": "IO2",
+          "x": -11.43,
+          "y": 9.35
+        },
+        {
+          "signal": "IO4",
+          "x": -11.43,
+          "y": 11.89
+        },
+        {
+          "signal": "V3V3",
+          "x": 11.43,
+          "y": -5.890000000000001
+        },
+        {
+          "signal": "PSRAM_IO16",
+          "x": 11.43,
+          "y": -3.3500000000000005
+        },
+        {
+          "signal": "BOOT_IO0",
+          "x": 11.43,
+          "y": -0.8100000000000005
+        },
+        {
+          "signal": "GND_RIGHT",
+          "x": 11.43,
+          "y": 1.7299999999999995
+        },
+        {
+          "signal": "VCC_LINK",
+          "x": 11.43,
+          "y": 4.27
+        },
+        {
+          "signal": "CAM_RX",
+          "x": 11.43,
+          "y": 6.809999999999999
+        },
+        {
+          "signal": "CAM_TX",
+          "x": 11.43,
+          "y": 9.35
+        },
+        {
+          "signal": "GND_UART",
+          "x": 11.43,
+          "y": 11.89
+        }
+      ]
+    },
+    "browserConnectivity": {
+      "passed": true,
+      "sourceEndpointCount": 39,
+      "schematicEndpointCount": 39,
+      "connectedEndpointCount": 35,
+      "expectedUnconnectedEndpoints": [
+        "J_CAM_LEFT:IO2",
+        "J_CAM_LEFT:IO4",
+        "J_CAM_RIGHT:PSRAM_IO16",
+        "J_CAM_RIGHT:VCC_LINK"
+      ],
+      "netCount": 11,
+      "pcbRouteCount": 24,
+      "viaCount": 7,
+      "nets": [
+        {
+          "name": "5V",
+          "endpoints": [
+            "J_POWER:V5V",
+            "J_CAM_LEFT:V5V",
+            "C_BULK:pin1",
+            "C_DECOUPLE:pin1"
+          ],
+          "pcbRouteCount": 3,
+          "connected": true
+        },
+        {
+          "name": "GND",
+          "endpoints": [
+            "J_POWER:GND",
+            "J_CAM_LEFT:GND_LEFT",
+            "J_CAM_RIGHT:GND_RIGHT",
+            "J_CAM_RIGHT:GND_UART",
+            "C_BULK:pin2",
+            "C_DECOUPLE:pin2",
+            "J_UART:GND",
+            "J_BOOT:GND",
+            "D_STATUS:pin2",
+            "J_GPIO:GND"
+          ],
+          "pcbRouteCount": 9,
+          "connected": true
+        },
+        {
+          "name": "3V3",
+          "endpoints": [
+            "J_CAM_RIGHT:V3V3",
+            "R_BOOT:pin1",
+            "R_STATUS:pin1",
+            "J_GPIO:V3V3"
+          ],
+          "pcbRouteCount": 3,
+          "connected": true
+        },
+        {
+          "name": "UART_RX",
+          "endpoints": [
+            "J_CAM_RIGHT:CAM_RX",
+            "J_UART:CAM_RX"
+          ],
+          "pcbRouteCount": 1,
+          "connected": true
+        },
+        {
+          "name": "UART_TX",
+          "endpoints": [
+            "J_CAM_RIGHT:CAM_TX",
+            "J_UART:CAM_TX"
+          ],
+          "pcbRouteCount": 1,
+          "connected": true
+        },
+        {
+          "name": "BOOT",
+          "endpoints": [
+            "J_CAM_RIGHT:BOOT_IO0",
+            "J_BOOT:BOOT_IO0",
+            "R_BOOT:pin2"
+          ],
+          "pcbRouteCount": 2,
+          "connected": true
+        },
+        {
+          "name": "STATUS_LED",
+          "endpoints": [
+            "R_STATUS:pin2",
+            "D_STATUS:pin1"
+          ],
+          "pcbRouteCount": 1,
+          "connected": true
+        },
+        {
+          "name": "GPIO12",
+          "endpoints": [
+            "J_CAM_LEFT:IO12",
+            "J_GPIO:IO12"
+          ],
+          "pcbRouteCount": 1,
+          "connected": true
+        },
+        {
+          "name": "GPIO13",
+          "endpoints": [
+            "J_CAM_LEFT:IO13",
+            "J_GPIO:IO13"
+          ],
+          "pcbRouteCount": 1,
+          "connected": true
+        },
+        {
+          "name": "GPIO14",
+          "endpoints": [
+            "J_CAM_LEFT:IO14",
+            "J_GPIO:IO14"
+          ],
+          "pcbRouteCount": 1,
+          "connected": true
+        },
+        {
+          "name": "GPIO15",
+          "endpoints": [
+            "J_CAM_LEFT:IO15",
+            "J_GPIO:IO15"
+          ],
+          "pcbRouteCount": 1,
+          "connected": true
+        }
+      ],
+      "socketPositions": [
+        {
+          "signal": "V5V",
+          "x": -11.43,
+          "y": -5.890000000000001
+        },
+        {
+          "signal": "GND_LEFT",
+          "x": -11.43,
+          "y": -3.3500000000000005
+        },
+        {
+          "signal": "IO12",
+          "x": -11.43,
+          "y": -0.8100000000000005
+        },
+        {
+          "signal": "IO13",
+          "x": -11.43,
+          "y": 1.7299999999999995
+        },
+        {
+          "signal": "IO15",
+          "x": -11.43,
+          "y": 4.27
+        },
+        {
+          "signal": "IO14",
+          "x": -11.43,
+          "y": 6.809999999999999
+        },
+        {
+          "signal": "IO2",
+          "x": -11.43,
+          "y": 9.35
+        },
+        {
+          "signal": "IO4",
+          "x": -11.43,
+          "y": 11.89
+        },
+        {
+          "signal": "V3V3",
+          "x": 11.43,
+          "y": -5.890000000000001
+        },
+        {
+          "signal": "PSRAM_IO16",
+          "x": 11.43,
+          "y": -3.3500000000000005
+        },
+        {
+          "signal": "BOOT_IO0",
+          "x": 11.43,
+          "y": -0.8100000000000005
+        },
+        {
+          "signal": "GND_RIGHT",
+          "x": 11.43,
+          "y": 1.7299999999999995
+        },
+        {
+          "signal": "VCC_LINK",
+          "x": 11.43,
+          "y": 4.27
+        },
+        {
+          "signal": "CAM_RX",
+          "x": 11.43,
+          "y": 6.809999999999999
+        },
+        {
+          "signal": "CAM_TX",
+          "x": 11.43,
+          "y": 9.35
+        },
+        {
+          "signal": "GND_UART",
+          "x": 11.43,
+          "y": 11.89
+        }
+      ]
+    }
+  },
+  "qualifiedActions": [
+    "native build",
+    "three real supplier import misses",
+    "PCB",
+    "Schematic",
+    "3D",
+    "BOM",
+    "Errors",
+    "Circuit JSON",
+    "schematic component details",
+    "local style analysis",
+    "browser missing C277946 supplier/recovery",
+    "source saves",
+    "rebuild",
+    "JSON download",
+    "PCB SVG download",
+    "schematic SVG download"
+  ],
+  "networkNamespace": "Unavailable locally (unshare Operation not permitted); CI workflow repeats qualification with loopback only",
+  "limits": [
+    "No ESP32-CAM catalog admission",
+    "Carrier, not discrete ESP32/camera design",
+    "No inserted module body/camera/antenna clearance model",
+    "No hardware/firmware/camera streaming validation",
+    "Native runtime exercised on Linux x64 only",
+    "Developer-only Solvers outside qualification"
+  ]
+}

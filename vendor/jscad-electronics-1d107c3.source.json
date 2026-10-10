@@ -1,0 +1,27 @@
+{
+  "package": "jscad-electronics",
+  "version": "0.0.232",
+  "artifact": "jscad-electronics-1d107c3.tgz",
+  "sha256": "2f40d80b86957fe5efcad6f527e037d459d89898e20136e0cdd9e6359ffbbe0f",
+  "sizeBytes": 1050353,
+  "sourceRepository": "https://github.com/tscircuit/jscad-electronics",
+  "sourceCommit": "1d107c30c6f16ffb415b4f950d3a89ba4ee0d5e1",
+  "pullRequest": "https://github.com/tscircuit/jscad-electronics/pull/499",
+  "build": "bun run build (upstream tsup; all public ESM, declarations, maps and model-contract metadata included)",
+  "modelContracts": {
+    "cacheVersion": 2,
+    "repository": "https://github.com/tscircuit/modelprinter.git",
+    "mainRef": "3bb19b2cc3b8927189abf523d72e691e7d0521c6",
+    "mainSha": "3bb19b2cc3b8927189abf523d72e691e7d0521c6",
+    "contractRef": "refs/pull/115/head",
+    "contractSha": "6a1d68a0f19a07b9cf172414d319b6e5ee22d565",
+    "treeSha": "4946c1590b29a0d80c3f28d12e3577979382d65d",
+    "generation": "generations/4946c1590b29a0d80c3f28d12e3577979382d65d-v2"
+  },
+  "license": "MIT",
+  "licenseNotices": [
+    "../vendor-notices/jscad-electronics-1d107c3-LICENSE.txt",
+    "../vendor-notices/jscad-electronics-modelprinter-LICENSE.txt"
+  ],
+  "manifestChanges": "Only standaloneSource provenance added; upstream version, dependencies, peers and exports preserved."
+}
