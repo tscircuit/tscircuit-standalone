@@ -60,15 +60,18 @@ and retains full traces, request logs, JSON, downloads, and screenshots.
    Y = ±11.43 mm, but `jscad-electronics` 0.0.213 places the two model rows at
    Y = ±1.27 mm. `Footprinter3d` omits `py`, and both header-row renderers
    hardcode 2.54 mm. The example now models its two actual sockets separately.
-   A focused upstream fix forwards the row pitch; no standalone dependency
-   replacement is needed for this fixture.
+   [jscad-electronics #498](https://github.com/tscircuit/jscad-electronics/pull/498)
+   forwards the row pitch; no standalone dependency replacement is needed for
+   this fixture.
 3. **Missing schematic pin:** core spreads an array of `pinLabels` into numeric
    keys starting at zero when resolving named pin arrangements. An eight-pin
    header with a reverse list of signal aliases consequently renders only
    physical pins 1–7. On this board that hid both IO4 and the connected UART
    ground, despite a build with no errors. Explicit `pin8` through `pin1`
    identifiers restore all ports. The checker now requires schematic coverage
-   as well as PCB continuity; the general array-normalization fix belongs in core.
+   as well as PCB continuity.
+   [Core #4486](https://github.com/tscircuit/core/pull/4486) fixes the general
+   array-label normalization.
 4. **Presentation and hardware limits:** A4 removes the original sheet-style
    warning. Some rail/BOOT/UART labels remain crowded near the right socket.
    The 3D view shows the carrier assembly, without the inserted module body,
