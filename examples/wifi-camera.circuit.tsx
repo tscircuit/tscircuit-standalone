@@ -356,7 +356,15 @@ const manualPcbPaths: Record<string, (string | { x: number; y: number })[][]> = 
     [".L_RF > .pin2", { x: -8.19, y: 3 }, ".C_RF_MATCH2 > .pin1"],
     [".C_RF_MATCH2 > .pin1", { x: -9.21, y: 3 }, ".J_RF > .pin2"],
   ],
-  CC1: [[".J_USB_C > .pin18", { x: -28.25, y: -24.8 }, { x: -31, y: -22.5 }, ".R_CC1 > .pin1"]],
+  CC1: [
+    [
+      ".J_USB_C > .pin18",
+      { x: -28.25, y: -24.8 },
+      { x: -31, y: -22.5 },
+      { x: -34, y: -22.5 },
+      ".R_CC1 > .pin1",
+    ],
+  ],
 }
 
 export default function WifiCameraController() {
@@ -692,7 +700,7 @@ export default function WifiCameraController() {
           capacitance="14pF"
           footprint="0402"
           pcbX={0}
-          pcbY={10.5}
+          pcbY={9}
           schX={-11.5}
           schY={-9}
           schRotation={270}
