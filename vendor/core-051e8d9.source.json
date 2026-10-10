@@ -1,0 +1,24 @@
+{
+  "package": "@tscircuit/core",
+  "artifact": "tscircuit-core-051e8d9.tgz",
+  "sha256": "d3f6ca14abf71a9b42b2ef7cf677600cb489ca10601d1d2d2e161617fe5ad51a",
+  "sizeBytes": 1458981,
+  "sourceRepository": "https://github.com/tscircuit/core",
+  "sourceCommit": "051e8d9c2cad8d675a6b5c17798f5324494283a3",
+  "sourceTree": "37aebc341869bc87897c1ea1bed4262f0947e4a6",
+  "pullRequest": "https://github.com/tscircuit/core/pull/4487",
+  "previewUrl": "https://pkg.pr.new/tscircuit/core/@tscircuit/core@051e8d9",
+  "build": "bun run build (the upstream tsup-node ESM and declarations build)",
+  "includedFiles": ["dist/index.js", "dist/index.d.ts", "LICENSE", "package.json"],
+  "manifestChanges": "Only standaloneSource repository/commit/pullRequests provenance was added; upstream dependencies, peers, exports and version are preserved.",
+  "license": "MIT",
+  "licenseNotice": "../vendor-notices/core-051e8d9-LICENSE.txt",
+  "validation": {
+    "officialBuildPassed": true,
+    "officialDistSmokePassed": true,
+    "schematicSolverRuntimeAndTypesBundled": true,
+    "secondOfficialBuildByteIdentical": true,
+    "sourceTreeVerifiedAgainstPublishedCommit": true,
+    "archiveMetadata": "Sorted paths, file mode 0644, zero tar/gzip timestamps and ownership"
+  }
+}

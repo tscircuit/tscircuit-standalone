@@ -19,19 +19,19 @@
   },
   "dependencies": {
     "@flatten-js/core": "1.6.12",
-    "@tscircuit/core": "0.0.2116",
+    "@tscircuit/core": "file:vendor/tscircuit-core-051e8d9.tgz",
     "@tscircuit/eval": "0.0.1569",
     "@tscircuit/footprinter": "file:vendor/footprinter-4ecc56b.tgz",
     "@tscircuit/krt-wasm": "0.1.6",
     "@tscircuit/math-utils": "0.0.36",
-    "@tscircuit/props": "0.0.697",
+    "@tscircuit/props": "0.0.698",
     "circuit-json": "0.0.525",
     "circuit-to-svg": "0.0.447",
     "kicad-to-circuit-json": "0.0.142",
     "kicadts": "0.0.58",
     "react": "19.2.7",
     "sucrase": "3.35.0",
-    "tscircuit": "npm:@tscircuit/core@0.0.2116",
+    "tscircuit": "file:vendor/tscircuit-core-051e8d9.tgz",
     "typescript": "5.9.3"
   },
   "devDependencies": {
@@ -45,7 +45,9 @@
   ],
   "overrides": {
     "altiumts": "0.0.59",
-    "@tscircuit/footprinter": "file:vendor/footprinter-4ecc56b.tgz"
+    "@tscircuit/footprinter": "file:vendor/footprinter-4ecc56b.tgz",
+    "@tscircuit/core": "file:vendor/tscircuit-core-051e8d9.tgz",
+    "@tscircuit/props": "0.0.698"
   },
   "trustedDependencies": []
 }
