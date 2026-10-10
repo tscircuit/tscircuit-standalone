@@ -58,7 +58,9 @@ of the runtime catalog.
 
 The USB-C recipe preserves supplier shell pins 13/14 and contacts 15–26.
 The FFC recipe preserves right-to-left physical contacts 1–24, with mounts 25/26.
-The U.FL recipe retains supplier ground pins 1/3 and signal pin 2. These need the
+The U.FL recipe retains supplier ground pins 1/3 and signal pin 2, with its
+copper bounds centered on the component datum. USB-C retains supplier EH/Dn
+labels alongside SHELL/DM aliases used by the native schematic symbol. These need the
 additive Footprinter families in [PR #910](https://github.com/tscircuit/footprinter/pull/910)
 and [PR #911](https://github.com/tscircuit/footprinter/pull/911). The temporary,
 locally bundled package is pinned throughout the dependency graph; its exact
@@ -70,9 +72,11 @@ Core 0.0.2116, currently pinned here, leaves the USB-C shared shell plated holes
 without PCB terminal ownership. The native import test covers USB-C source pins
 and SMT contact ownership, plus FFC/U.FL copper numbering; it does not assert
 that shell ownership is correct on this Core version. Full board qualification
-requires current Core with the thermal-via ownership fix in
+requires Core fixes for repeated physical shell terminals and thermal-via
+ownership, including
 [PR #4487](https://github.com/tscircuit/core/pull/4487), and must verify every shell
-hole and thermal via has its intended electrical owner. These renderer fixes
+hole and thermal via has its intended electrical owner. Adding canonical
+schematic aliases does not fix repeated PCB terminal ownership. These renderer fixes
 are a separate dependency change in the board preparation PR.
 
 Popularity ranking and broader acquisition automation remain pending.

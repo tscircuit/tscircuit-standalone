@@ -63,8 +63,8 @@ The direct package, public tscircuit alias and transitive override all use this
 same local archive; generated dependency notices include its installed license.
 
 The temporary vendored @tscircuit/footprinter package is built from
-tscircuit/footprinter@4ecc56b38ecca6a08a05e42cc63283233d780093 (PRs #910/#911).
-Its original ISC license is included in vendor/footprinter-4ecc56b.tgz and copied
+tscircuit/footprinter@791582a27485a04504bf94d103dc65cd17ddf847 (PRs #910/#911).
+Its original ISC license is included in vendor/footprinter-791582a.tgz and copied
 to vendor/footprinter-LICENSE. vendor/footprinter.json records its exact source
 and SHA-256 digest. Installed-package notice collection includes this license.
 

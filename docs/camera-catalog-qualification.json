@@ -21,7 +21,7 @@
         "footprinter": "0.0.431",
         "footprinterSource": {
           "repository": "tscircuit/footprinter",
-          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "commit": "791582a27485a04504bf94d103dc65cd17ddf847",
           "pullRequests": [
             910,
             911
@@ -51,7 +51,7 @@
         "footprinter": "0.0.431",
         "footprinterSource": {
           "repository": "tscircuit/footprinter",
-          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "commit": "791582a27485a04504bf94d103dc65cd17ddf847",
           "pullRequests": [
             910,
             911
@@ -81,7 +81,7 @@
         "footprinter": "0.0.431",
         "footprinterSource": {
           "repository": "tscircuit/footprinter",
-          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "commit": "791582a27485a04504bf94d103dc65cd17ddf847",
           "pullRequests": [
             910,
             911
@@ -112,7 +112,7 @@
         "footprinter": "0.0.431",
         "footprinterSource": {
           "repository": "tscircuit/footprinter",
-          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "commit": "791582a27485a04504bf94d103dc65cd17ddf847",
           "pullRequests": [
             910,
             911
@@ -143,7 +143,7 @@
         "footprinter": "0.0.431",
         "footprinterSource": {
           "repository": "tscircuit/footprinter",
-          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "commit": "791582a27485a04504bf94d103dc65cd17ddf847",
           "pullRequests": [
             910,
             911
@@ -173,7 +173,7 @@
         "footprinter": "0.0.431",
         "footprinterSource": {
           "repository": "tscircuit/footprinter",
-          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "commit": "791582a27485a04504bf94d103dc65cd17ddf847",
           "pullRequests": [
             910,
             911
@@ -203,7 +203,7 @@
         "footprinter": "0.0.431",
         "footprinterSource": {
           "repository": "tscircuit/footprinter",
-          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "commit": "791582a27485a04504bf94d103dc65cd17ddf847",
           "pullRequests": [
             910,
             911
@@ -233,7 +233,7 @@
         "footprinter": "0.0.431",
         "footprinterSource": {
           "repository": "tscircuit/footprinter",
-          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "commit": "791582a27485a04504bf94d103dc65cd17ddf847",
           "pullRequests": [
             910,
             911
@@ -263,7 +263,7 @@
         "footprinter": "0.0.431",
         "footprinterSource": {
           "repository": "tscircuit/footprinter",
-          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "commit": "791582a27485a04504bf94d103dc65cd17ddf847",
           "pullRequests": [
             910,
             911
@@ -293,7 +293,7 @@
         "footprinter": "0.0.431",
         "footprinterSource": {
           "repository": "tscircuit/footprinter",
-          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "commit": "791582a27485a04504bf94d103dc65cd17ddf847",
           "pullRequests": [
             910,
             911
@@ -308,7 +308,7 @@
       "footprint": "usbcmidmount16_sharedshell_pinstart13_tophw0.6mm_bottomhw0.6mm_tophh1.3mm_bottomhh1mm_topring0.25mm_bottomring0.3mm_rowy2.125mm_ph1.1mm_pw0.3mm_powerpw0.55mm_powerx3.2mm_shellx4.325mm_topy1.5751mm_bottomy2.625mm_holex2.89mm_holey1.0549mm_holed0.7mm",
       "sourcePadCount": 16,
       "compactPadCount": 16,
-      "compactRecordBytes": 1080,
+      "compactRecordBytes": 1110,
       "copperIntersectionOverUnion": 0.9813558348297498,
       "holeIntersectionOverUnion": 0.9998263090073003,
       "pinMatchRate": 1,
@@ -324,7 +324,7 @@
         "footprinter": "0.0.431",
         "footprinterSource": {
           "repository": "tscircuit/footprinter",
-          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "commit": "791582a27485a04504bf94d103dc65cd17ddf847",
           "pullRequests": [
             910,
             911
@@ -354,7 +354,7 @@
         "footprinter": "0.0.431",
         "footprinterSource": {
           "repository": "tscircuit/footprinter",
-          "commit": "4ecc56b38ecca6a08a05e42cc63283233d780093",
+          "commit": "791582a27485a04504bf94d103dc65cd17ddf847",
           "pullRequests": [
             910,
             911
