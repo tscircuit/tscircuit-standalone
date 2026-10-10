@@ -146,6 +146,13 @@ function selfCheckConnectivityMonitor(circuit: CircuitJson) {
   const withoutUsbRoute = disconnected.filter((element) => element.type !== "pcb_trace" || !element.route.some((point) =>
     point.route_type === "wire" && [point.start_pcb_port_id, point.end_pcb_port_id].includes(pcbUsb.pcb_port_id)))
   rejects("USB D- physical connection unrouted", withoutUsbRoute, /USB_DM has unrouted physical endpoints/)
+  const missingShellAnchor = structuredClone(circuit)
+  const connector = missingShellAnchor.find((element) => element.type === "source_component" && element.name === "J_USB_C")
+  assert(connector?.type === "source_component", "The USB-C connector is absent")
+  const shellAnchor = missingShellAnchor.find((element) => element.type === "source_port" && element.source_component_id === connector.source_component_id && element.pin_number === 13)
+  assert(shellAnchor?.type === "source_port", "The USB-C shell has no numeric pin13 anchor")
+  shellAnchor.pin_number = 99
+  rejects("duplicate shell missing its numeric pin13 anchor", missingShellAnchor, /pin13_internal_1 lost its physical pin number or declared internal owner/)
 
   // Exercise the actual rendered thermal-via geometry. A correctly owned
   // GND via must pass, while assigning that same copper to VBUS must fail.

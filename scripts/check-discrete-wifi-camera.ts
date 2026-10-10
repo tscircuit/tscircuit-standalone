@@ -51,9 +51,11 @@ export function checkDiscreteCameraPorts(circuit: CircuitJson) {
       numberedLabels.set(label, port.source_port_id)
       labels.set(port.source_port_id, label)
     } else {
-      const numberedAnchors = sourcePorts.filter((candidate) => root(candidate.source_port_id) === root(port.source_port_id) && candidate.pin_number !== undefined)
       const match = port.name.match(/^pin(\d+)_internal_\d+$/)
-      assert(match && numberedAnchors.length === 1 && numberedAnchors[0]!.pin_number === Number(match[1]), `${component.name}:${port.name} lost its physical pin number or declared internal owner`)
+      // A connector's common metal shell can link several logical ground pins.
+      // The duplicate copper still needs its own uniquely numbered anchor.
+      const numberedAnchors = match ? sourcePorts.filter((candidate) => root(candidate.source_port_id) === root(port.source_port_id) && candidate.pin_number === Number(match[1])) : []
+      assert(match && numberedAnchors.length === 1, `${component.name}:${port.name} lost its physical pin number or declared internal owner`)
       labels.set(port.source_port_id, `${component.name}:${port.name}`)
     }
     if (port.subcircuit_connectivity_map_key) {
