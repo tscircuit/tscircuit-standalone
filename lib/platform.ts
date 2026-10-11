@@ -52,10 +52,10 @@ export const createStandaloneFetch = (
       throw new OfflineRequestError(method, rawUrl)
     }
     const match = url.pathname.match(
-      /^\/(C[1-9]\d*)\/(component\.tsx|footprint\.json|metadata\.json)$/,
+      /^\/([^/]+)\/(component\.tsx|footprint\.json|metadata\.json)$/,
     )
     if (!match) throw new OfflineRequestError(method, rawUrl)
-    const part = getBundledPart(match[1]!, catalog)
+    const part = getBundledPart(decodeURIComponent(match[1]!), catalog)
     const resource = match[2]
     const body =
       resource === "component.tsx"
@@ -92,24 +92,23 @@ const createStandalonePartsEngine = (catalog: BundledCatalog): PartsEngine => ({
     if (supplierNumbers?.length) {
       return {
         jlcpcb: supplierNumbers.map(
-          (supplierPartNumber) =>
-            getBundledPart(supplierPartNumber, catalog).supplierPartNumber,
+          (supplierPartNumber) => {
+            const part = getBundledPart(supplierPartNumber, catalog)
+            if (!part.supplierPartNumber) throw new Error(`Supplier part ${supplierPartNumber} is not bundled`)
+            return part.supplierPartNumber
+          },
         ),
       }
     }
     const manufacturerPartNumber = sourceComponent.manufacturer_part_number
     if (!manufacturerPartNumber) return {}
-    const matchingParts = catalog.parts.filter(
-      (part) => part.manufacturerPartNumber === manufacturerPartNumber,
-    )
-    if (matchingParts.length === 0) {
+    const part = catalog.get(manufacturerPartNumber)
+    if (!part) {
       throw new Error(
         `Manufacturer part ${manufacturerPartNumber} is not bundled in tscircuit standalone. No network lookup was attempted.`,
       )
     }
-    return {
-      jlcpcb: matchingParts.map((part) => part.supplierPartNumber),
-    }
+    return part.supplierPartNumber ? { jlcpcb: [part.supplierPartNumber] } : {}
   },
   fetchPartCircuitJson: ({ supplierPartNumber, manufacturerPartNumber }) => {
     if (supplierPartNumber) {
@@ -117,10 +116,7 @@ const createStandalonePartsEngine = (catalog: BundledCatalog): PartsEngine => ({
         getBundledPart(supplierPartNumber, catalog),
       )
     }
-    const part = catalog.parts.find(
-      (candidate) =>
-        candidate.manufacturerPartNumber === manufacturerPartNumber,
-    )
+    const part = manufacturerPartNumber ? catalog.get(manufacturerPartNumber) : undefined
     if (!part) {
       throw new Error(
         `Manufacturer part ${manufacturerPartNumber ?? "(unspecified)"} is not bundled in tscircuit standalone. No network lookup was attempted.`,

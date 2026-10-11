@@ -2,6 +2,9 @@ import { mkdir, readFile, realpath, writeFile } from "node:fs/promises"
 import { createRequire } from "node:module"
 import { join, relative, resolve, sep } from "node:path"
 import { createUiPackageAdapters } from "./ui-package-adapters"
+import { buildDatasheetCatalog } from "./build-datasheets"
+
+await buildDatasheetCatalog()
 
 const projectRoot = resolve(import.meta.dir, "..")
 const uiRoot = join(projectRoot, "ui")

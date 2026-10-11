@@ -5,6 +5,7 @@ export {
   generateBundledComponentTsx,
   getBundledFootprintCircuitJson,
   getBundledPart,
+  getBundledPartFileName,
   parseBundledPart,
   serializeCatalog,
   type BundledCatalog,

@@ -3,7 +3,7 @@ import { watch, type FSWatcher } from "node:fs"
 import { mkdir, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises"
 import path from "node:path"
 import type { AnyCircuitElement } from "circuit-json"
-import { bundledCatalog, generateBundledComponentTsx, getBundledPart } from "./catalog"
+import { bundledCatalog, generateBundledComponentTsx, getBundledPart, getBundledPartFileName } from "./catalog"
 import { validateEmbeddedAssets } from "./circuit-policy"
 import type {
   StandaloneDevImport,
@@ -262,13 +262,15 @@ export async function startStandaloneDevServer(
   }
 
   const importPart = async (body: Record<string, unknown>): Promise<StandaloneDevImport> => {
-    requireFields(body, ["supplierPartNumber"])
-    if (typeof body.supplierPartNumber !== "string") {
-      throw new RequestError(400, "supplierPartNumber must be a string")
+    const identifierField = "partNumber" in body ? "partNumber" : "supplierPartNumber"
+    requireFields(body, [identifierField])
+    const identifier = body[identifierField]
+    if (typeof identifier !== "string") {
+      throw new RequestError(400, `${identifierField} must be a string`)
     }
     let part: ReturnType<typeof getBundledPart>
     try {
-      part = getBundledPart(body.supplierPartNumber)
+      part = getBundledPart(identifier)
     } catch (error) {
       throw new RequestError(404, error instanceof Error ? error.message : String(error))
     }
@@ -279,18 +281,19 @@ export async function startStandaloneDevServer(
       if (!isWithinProject(projectDir, resolvedDirectory) || resolvedDirectory.split(path.sep).includes("node_modules")) {
         throw new RequestError(403, "Imports directory follows a symlink outside the project directory")
       }
-      const importPath = path.join(resolvedDirectory, `${part.supplierPartNumber}.tsx`)
+      const filename = `${getBundledPartFileName(part)}.tsx`
+      const importPath = path.join(resolvedDirectory, filename)
       const source = generateBundledComponentTsx(part)
       try {
         await writeFile(importPath, source, { flag: "wx" })
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === "EEXIST") {
-          throw new RequestError(409, `Import ${part.supplierPartNumber}.tsx already exists and was preserved`)
+          throw new RequestError(409, `Import ${filename} already exists and was preserved`)
         }
         throw error
       }
       queueProject()
-      return { path: `imports/${part.supplierPartNumber}.tsx`, source }
+      return { path: `imports/${filename}`, source }
     })
   }
 

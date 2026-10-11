@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
-import { bundledCatalog, generateBundledComponentTsx, getBundledPart } from "../lib/catalog"
+import { bundledCatalog, generateBundledComponentTsx, getBundledPart, getBundledPartFileName } from "../lib/catalog"
 import { buildCircuitFile } from "../lib/build"
 import { startStandaloneDevServer } from "../lib/dev-server"
 import { uiAssets } from "../lib/ui-assets"
@@ -10,14 +10,15 @@ const version = packageMetadata.version
 const help = `tscircuit standalone ${version}
 
 Usage:
-  tsci import <supplier-part-number> [--output <file|->]
-  tsci catalog [supplier-part-number]
+  tsci import <part-number> [--output <file|->]
+  tsci catalog [part-number]
   tsci build <circuit.tsx> [--output-dir <directory>] [--project-dir <directory>] [--timeout-ms <number>]
   tsci dev <circuit.tsx> [--port <number>] [--project-dir <directory>]
   tsci --version
 
-Imports use the embedded footprinter catalog. Unknown parts fail locally.
-Default output: imports/<supplier-part-number>.tsx
+Imports accept manufacturer part numbers and bundled supplier part numbers.
+They use the embedded datasheet catalog. Unknown parts fail locally.
+Default output: imports/<supplier-part-number-or-component-name>.tsx
 
 Builds use an embedded evaluator and local routing, and produce Circuit JSON,
 PCB/schematic SVG previews, and a diagnostic report. Dev serves the embedded
@@ -39,7 +40,7 @@ export async function runCli(
       return 0
     }
     if (command === "catalog") {
-      if (rest.length > 1) throw new Error("Usage: tsci catalog [supplier-part-number]")
+      if (rest.length > 1) throw new Error("Usage: tsci catalog [part-number]")
       const result = rest[0] ? getBundledPart(rest[0]) : bundledCatalog.parts
       io.stdout(`${JSON.stringify(result, null, 2)}\n`)
       return 0
@@ -91,13 +92,13 @@ export async function runCli(
     if (command === "import") {
       const [partNumber, ...options] = rest
       if (!partNumber || partNumber.startsWith("-")) {
-        throw new Error("Usage: tsci import <supplier-part-number> [--output <file|->]")
+        throw new Error("Usage: tsci import <part-number> [--output <file|->]")
       }
       const part = getBundledPart(partNumber)
-      let output = join("imports", `${part.supplierPartNumber}.tsx`)
+      let output = join("imports", `${getBundledPartFileName(part)}.tsx`)
       if (options.length) {
         if (options.length !== 2 || options[0] !== "--output" || !options[1]) {
-          throw new Error("Usage: tsci import <supplier-part-number> [--output <file|->]")
+          throw new Error("Usage: tsci import <part-number> [--output <file|->]")
         }
         output = options[1]
       }
@@ -107,7 +108,9 @@ export async function runCli(
       } else {
         await mkdir(dirname(output), { recursive: true })
         await writeFile(output, source, { flag: "wx" })
-        io.stdout(`Imported ${part.supplierPartNumber} (${part.manufacturerPartNumber}) to ${output}\n`)
+        const identifier = part.supplierPartNumber ?? part.manufacturerPartNumber
+        const description = part.supplierPartNumber ? `${identifier} (${part.manufacturerPartNumber})` : identifier
+        io.stdout(`Imported ${description} to ${output}\n`)
       }
       return 0
     }

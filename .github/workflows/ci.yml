@@ -45,6 +45,8 @@ jobs:
           cp -R "$examples" "$project_dir/examples"
           cd "$project_dir"
           strace -f -e trace=network -o import.trace "$binary" import C2040
+          strace -f -e trace=network -o manufacturer-import.trace "$binary" import ESP32-S3R8
+          strace -f -e trace=network -o coordinate-import.trace "$binary" import nRF52840-QIAA
           if strace -f -e trace=network -o missing.trace "$binary" import C999999999; then
             exit 1
           fi
@@ -74,6 +76,8 @@ jobs:
           cp -R "$examples" "$project_dir/examples"
           cd "$project_dir"
           sudo unshare --net env PATH=/nonexistent BUN_INSTALL_AUTO=disable "$binary" import C2040
+          sudo unshare --net env -i PATH=/nonexistent BUN_INSTALL_AUTO=disable "$binary" import ESP32-S3R8
+          sudo unshare --net env -i PATH=/nonexistent BUN_INSTALL_AUTO=disable "$binary" import nRF52840-QIAA
           test -s imports/C2040.tsx
           mkdir src
           sed -e 's|"./helpers/pad-testpoint"|"../examples/helpers/pad-testpoint"|' -e 's|"./imports/C2040"|"../imports/C2040"|' examples/rp2040-breakout.circuit.tsx > src/imported-rp2040.circuit.tsx

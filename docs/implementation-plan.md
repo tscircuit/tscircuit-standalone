@@ -109,17 +109,16 @@ complete pin labels/attributes, searchable metadata, and qualification
 provenance. Generate expanded footprints and TSX at runtime. Acquisition is a
 build-time process, separate from runtime lookup.
 
-Seed candidates from curated `common` components and popular-category `jlc100`
-lists. `jlc5000` can supply additional candidates, but its stock ranking is not
-usage popularity. For each candidate, require copper IoU >98%, equal pad count,
-complete physical pin mapping, and no conflicting physical-pin aliases. Record
-rejections instead of admitting exact geometry. Preserve source licenses.
+Acquire candidates from the public datasheets API during the build. Validate
+local Footprinter recipes, complete physical pin mappings and pin attributes
+against the pinned release, then embed one ignored generated module containing
+compact part definitions. Log admission and rejection counts without committing
+the API data or a catalog manifest. Manufacturer-source accuracy audits remain
+in `tscircuit/datasheet-database`; structural admission is a separate check.
 
-Generate a deterministic admission manifest with source commits, converter and
-footprinter versions, ranking, metrics, serialized size, and a catalog size
-budget. Add footprint/render/thermal-pad checks before expanding the catalog.
-Bundle other request responses only when their API shape and compact local
-representation are verified. Do not emulate raw EasyEDA acquisition payloads.
+Retain footprint/render/thermal-pad checks as the catalog expands. Bundle other
+request responses only when their API shape and compact local representation
+are verified. Do not emulate raw EasyEDA acquisition payloads.
 
 ### 2. Generalize runtime providers and policy
 

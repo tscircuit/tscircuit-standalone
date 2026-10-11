@@ -5,6 +5,7 @@ import { join, resolve } from "node:path"
 import { inflateSync } from "node:zlib"
 import type { CircuitJson } from "circuit-json"
 import { checkBundledModules, type BundledModuleCheckReport } from "./check-bundled-modules"
+import { getBundledPart, getBundledPartFileName } from "../lib/catalog"
 
 type CircuitElement = {
   type: string
@@ -716,6 +717,13 @@ async function main() {
     console.log("Qualified source editing, Unicode CAD labels, file watching, and explicit rebuilding.")
 
     await page.getByRole("button", { name: "Bundled parts", exact: true }).click()
+    await page.getByLabel("Search bundled parts", { exact: true }).fill("ESP32-S3R8")
+    await page.getByRole("button", { name: "Import ESP32-S3R8", exact: true }).click()
+    await page.getByRole("status").filter({ hasText: /Imported ESP32-S3R8 to/ }).waitFor({ state: "visible" })
+    const cameraControllerFile = `${getBundledPartFileName(getBundledPart("ESP32-S3R8"))}.tsx`
+    const cameraController = await readFile(join(projectDir, "imports", cameraControllerFile), "utf8")
+    assert(cameraController.includes('manufacturerPartNumber={"ESP32-S3R8"}') && cameraController.includes("pinAttributes="), "Manufacturer-name import lost its API identity or pin facts")
+    assert(!cameraController.includes("supplierPartNumbers"), "Manufacturer-name import invented a supplier identifier")
     await page.getByLabel("Search bundled parts", { exact: true }).fill("RP2040")
     await page.getByRole("button", { name: "Import C2040", exact: true }).click()
     await page.getByRole("status").filter({ hasText: /Imported RP2040 to/ }).waitFor({ state: "visible" })

@@ -2,6 +2,7 @@ node_modules/
 dist/
 build/
 lib/generated-ui-assets.ts
+lib/generated-bundled-parts.ts
 imports/
 !examples/imports/
 !examples/imports/C2040.tsx
