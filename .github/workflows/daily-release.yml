@@ -1,0 +1,141 @@
+name: Daily standalone release
+
+on:
+  schedule:
+    - cron: "17 10 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: standalone-daily-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.repository == 'tscircuit/tscircuit-standalone' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+      publish: ${{ steps.release.outputs.publish }}
+    steps:
+      - name: Choose the daily tag and skip published dates
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          release_date="$(gh api "repos/$GH_REPO/actions/runs/$GITHUB_RUN_ID" --jq '.created_at[:10]')"
+          if [[ ! "$release_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            echo "The workflow run did not provide a valid release date."
+            exit 1
+          fi
+          tag="daily-$release_date"
+          version="0.0.0-daily.${release_date//-/}+${GITHUB_SHA:0:7}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if gh api "repos/$GH_REPO/releases/tags/$tag" > release.json 2> release-error.txt; then
+            if jq -e '.draft == false' release.json > /dev/null; then
+              echo "publish=false" >> "$GITHUB_OUTPUT"
+              echo "$tag is already published; leaving it unchanged."
+              exit 0
+            fi
+            if ! jq -e --arg sha "$GITHUB_SHA" '.target_commitish == $sha' release.json > /dev/null; then
+              echo "The existing daily draft belongs to a different source commit. Rerun its original workflow."
+              exit 1
+            fi
+          elif ! grep -q 'HTTP 404' release-error.txt; then
+            cat release-error.txt
+            exit 1
+          fi
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.publish == 'true'
+    uses: ./.github/workflows/ci.yml
+    with:
+      release_version: ${{ needs.prepare.outputs.version }}
+
+  publish:
+    needs: [prepare, build]
+    if: needs.prepare.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tscircuit-standalone-*
+          path: dist/release
+          merge-multiple: true
+      - name: Verify the archives and generate checksums
+        working-directory: dist/release
+        run: |
+          archives=(
+            tscircuit-standalone-linux-x64.tar.gz
+            tscircuit-standalone-linux-arm64.tar.gz
+            tscircuit-standalone-macos-x64.tar.gz
+            tscircuit-standalone-macos-arm64.tar.gz
+            tscircuit-standalone-windows-x64.zip
+          )
+          for archive in "${archives[@]}"; do
+            test -s "$archive"
+          done
+          sha256sum "${archives[@]}" > SHA256SUMS
+          sha256sum --check SHA256SUMS
+      - name: Publish the complete daily prerelease
+        working-directory: dist/release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          SOURCE_SHA: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          cat > release-notes.md <<EOF
+          Daily development build of tscircuit standalone.
+
+          Version: $RELEASE_VERSION
+          Source commit: $SOURCE_SHA
+          [Build and qualification results]($RUN_URL)
+
+          Each archive contains tsci, project licenses and generated dependency notices.
+          SHA256SUMS covers all five archives. The same build-time datasheet catalog and
+          UI bundle are embedded in every target. Runtime part imports, circuit builds
+          and the local UI use the embedded resources without outbound requests.
+
+          Linux x64 passes native and browser qualification. Linux arm64, macOS and
+          Windows artifacts are cross-compiled; native execution on those targets
+          remains to be qualified.
+          EOF
+          if gh api "repos/$GH_REPO/commits/$RELEASE_TAG" --jq .sha > tag-sha.txt 2> tag-error.txt; then
+            if [ "$(cat tag-sha.txt)" != "$SOURCE_SHA" ]; then
+              echo "The daily tag points to a different source commit; refusing to publish."
+              exit 1
+            fi
+          elif ! grep -q 'HTTP 404' tag-error.txt; then
+            cat tag-error.txt
+            exit 1
+          fi
+          if gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > existing-release.json 2> release-error.txt; then
+            if jq -e '.draft == false' existing-release.json > /dev/null; then
+              echo "$RELEASE_TAG is already published; leaving it unchanged."
+              exit 0
+            fi
+            jq -e --arg sha "$SOURCE_SHA" '.draft == true and .target_commitish == $sha' existing-release.json > /dev/null
+          elif grep -q 'HTTP 404' release-error.txt; then
+            gh release create "$RELEASE_TAG" --target "$SOURCE_SHA" --draft --prerelease \
+              --title "tscircuit standalone $RELEASE_TAG" --notes-file release-notes.md
+          else
+            cat release-error.txt
+            exit 1
+          fi
+          gh release upload "$RELEASE_TAG" ./*.tar.gz ./*.zip SHA256SUMS --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false --notes-file release-notes.md

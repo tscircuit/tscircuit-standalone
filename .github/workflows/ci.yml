@@ -4,6 +4,12 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      release_version:
+        description: Version embedded in a daily release build
+        required: false
+        type: string
 permissions:
   contents: read
 jobs:
@@ -15,6 +21,12 @@ jobs:
         with:
           bun-version: 1.3.12
       - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Set the release build version
+        if: inputs.release_version != ''
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
+        run: |
+          bun -e 'const metadata = await Bun.file("package.json").json(); metadata.version = process.env.RELEASE_VERSION; await Bun.write("package.json", JSON.stringify(metadata, null, 2) + "\n")'
       - run: bun run check
       - name: Install the qualification browser
         run: bunx playwright install --with-deps chromium
@@ -88,6 +100,16 @@ jobs:
             test -s "build/$circuit.circuit.json"
             grep -q 'data-schematic-component-id' "build/$circuit.circuit.schematic.svg"
           done
+      - name: Save the qualified catalog and UI for all target builds
+        uses: actions/upload-artifact@v4
+        with:
+          name: standalone-build-inputs
+          path: |
+            lib/generated-bundled-parts.ts
+            lib/generated-ui-assets.ts
+            build/ui/metafile.json
+          if-no-files-found: error
+          retention-days: 3
   build-targets:
     needs: check
     runs-on: ubuntu-latest
@@ -100,15 +122,27 @@ jobs:
         with:
           bun-version: 1.3.12
       - run: bun install --frozen-lockfile --ignore-scripts
-      - run: bun run build
+      - name: Set the release build version
+        if: inputs.release_version != ''
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
+        run: |
+          bun -e 'const metadata = await Bun.file("package.json").json(); metadata.version = process.env.RELEASE_VERSION; await Bun.write("package.json", JSON.stringify(metadata, null, 2) + "\n")'
+      - uses: actions/download-artifact@v4
+        with:
+          name: standalone-build-inputs
+          path: .
+      - name: Compile the qualified inputs for this target
+        run: bun scripts/compile-binary.ts
+        env:
+          BUN_BUILD_TARGET: ${{ matrix.target }}
+      - name: Package the binary and redistribution notices
+        run: bun scripts/package-release.ts
         env:
           BUN_BUILD_TARGET: ${{ matrix.target }}
       - uses: actions/upload-artifact@v4
         with:
           name: tscircuit-standalone-${{ matrix.target }}
-          path: |
-            dist/tsci*
-            dist/licenses.json
-            dist/THIRD_PARTY_NOTICES.txt
-            LICENSE
-            THIRD_PARTY_NOTICES
+          path: dist/release/*
+          if-no-files-found: error
+          retention-days: 3
