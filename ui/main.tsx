@@ -16,7 +16,7 @@ const platformConfig = createStandalonePlatformConfig()
 delete platformConfig.platformFetch
 
 type Source = { path: string; source: string; revision: string }
-type CatalogPart = { supplierPartNumber: string; manufacturerPartNumber: string; exportName: string; description?: string }
+type CatalogPart = { supplierPartNumber?: string; manufacturerPartNumber: string; componentName: string; description?: string }
 
 async function api<T>(path: string, body?: unknown): Promise<T> {
   const response = await fetch(path, body === undefined ? undefined : {
@@ -160,7 +160,7 @@ function App() {
     setActionError("")
     setNotice("")
     try {
-      const imported = await api<{ path: string; source: string }>("/api/import", { supplierPartNumber: part.supplierPartNumber })
+      const imported = await api<{ path: string; source: string }>("/api/import", { partNumber: part.supplierPartNumber ?? part.manufacturerPartNumber })
       setNotice(`Imported ${part.manufacturerPartNumber} to ${imported.path}`)
       await refresh()
     } catch (error) { setActionError(error instanceof Error ? error.message : String(error)) }
@@ -184,7 +184,7 @@ function App() {
   const error = actionError || state?.error || (completedGeneration === state?.generation ? renderError : "")
   const warnings = completedGeneration === state?.generation ? report?.warnings ?? [] : []
   const errors = completedGeneration === state?.generation ? report?.errors ?? [] : []
-  const parts = catalog?.filter((part) => `${part.supplierPartNumber} ${part.manufacturerPartNumber} ${part.description ?? ""}`.toLowerCase().includes(search.toLowerCase())) ?? []
+  const parts = catalog?.filter((part) => `${part.supplierPartNumber ?? ""} ${part.manufacturerPartNumber} ${part.description ?? ""}`.toLowerCase().includes(search.toLowerCase())) ?? []
 
   return <main className="app">
     <header className="app-header">
@@ -193,7 +193,7 @@ function App() {
     </header>
     {catalogVisible && <section className="catalog" aria-label="Bundled parts catalog">
       <div className="catalog-heading"><h2>Bundled parts</h2><input aria-label="Search bundled parts" placeholder="Search part number or name" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
-      <div className="catalog-results">{parts.map((part) => <article key={part.supplierPartNumber}><div><strong>{part.manufacturerPartNumber}</strong><small>{part.supplierPartNumber} · {part.description ?? "Footprinter footprint and pin labels"}</small></div><button onClick={() => void importPart(part)}>Import {part.supplierPartNumber}</button></article>)}{catalog && !parts.length && <p>No bundled parts match this search.</p>}</div>
+      <div className="catalog-results">{parts.map((part) => <article key={part.manufacturerPartNumber}><div><strong>{part.manufacturerPartNumber}</strong><small>{part.supplierPartNumber ? `${part.supplierPartNumber} · ` : ""}{part.description ?? "Footprinter footprint and pin labels"}</small></div><button onClick={() => void importPart(part)}>Import {part.supplierPartNumber ?? part.manufacturerPartNumber}</button></article>)}{catalog && !parts.length && <p>No bundled parts match this search.</p>}</div>
     </section>}
     <div className="workspace">
       <section className="editor-pane" aria-label="Circuit editor">

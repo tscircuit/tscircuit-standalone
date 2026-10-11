@@ -1,31 +1,55 @@
 # Compact catalog policy
 
-A bundled component must have a local footprinter recipe, a complete mapping
-from copper pads to physical pin labels, supplier/manufacturer identity, and
-source provenance. Runtime records contain no expanded footprint geometry,
-remote CAD assets, raw EasyEDA payloads, or acquisition API dependencies.
+Standalone acquires the public datasheets API catalog when its UI and binary are
+built. `bun run build` fetches the inventory, validates usable recipes and pin
+metadata, then compiles the admitted parts into one compressed generated module.
+The browser, evaluator worker and native binary embed that module. The generated
+catalog is ignored by Git; there is no committed datasheet collection or catalog
+manifest.
 
-The current validator generates copper from the recipe, verifies that each pad
-maps to exactly one labeled pin and every pin maps to copper, rejects duplicate
-supplier IDs and unsupported fields, and freezes the validated records. Catalog
-serialization is deterministic. This structural validator does not replace
-comparison against the original land pattern.
+## Build and admission
 
-New entries require build-time qualification against reference geometry using
-the CLI's existing >98% copper IoU threshold, equal pad count, complete physical
-pin mapping, and non-conflicting aliases. Pin metadata, source licensing and
-rendered connectivity also need review. Entries that need exact geometry are
-excluded; popularity does not waive the compactness rule.
+The build reads `/datasheets/list` and every `/datasheets/get` result with bounded
+concurrency and request deadlines. It checks that the complete inventory remains
+stable, validates all responses, and logs the admitted and excluded counts. A
+failed acquisition stops the build and leaves any previous generated module
+intact. The catalog is written atomically after acquisition and validation.
 
-The initial C2040 recipe comes from MIT-licensed
-`tscircuit/common@a5797da88ec19944442d87392174af0a36fe1a0a`. All 57 copper pads match
-the exact RP2040 comparison reference, with copper IoU 0.9981788348844475. Pin57
-retains both GND and thermalpad aliases. Remote OBJ/STEP links from the source
-are removed. The comparison reference is not included in the runtime bundle.
-Full measurements and source links are in [CLI audit](cli-audit.md).
+Admission uses the installed Footprinter release from the lockfile. It requires
+a local recipe, a complete mapping between its copper and physical terminals,
+and supported pin attributes. Missing recipes and inconsistent mappings are
+excluded. Only de-facto package conventions are accepted; coordinate pad layouts
+and manufacturer profiles are excluded. Structural admission does not establish
+manufacturer land-pattern accuracy. Independently reviewed parts retain separate
+manufacturer-source geometry and pin audits in `tscircuit/datasheet-database`.
 
-Catalog expansion, popularity ranking and acquisition tooling are pending.
-Candidate snapshots and expanded reference geometry belong in a build-time
-pipeline; the executable receives only qualified compact records. A future
-manifest should record converter versions, qualification metrics, rejected
-candidates and serialized size limits. The current prototype contains one part.
+The generated module stores only compact part definitions: Footprinter strings,
+selector labels, pin attributes, manufacturer identifiers and datasheet
+references. Expanded copper, raw API descriptions, generated TSX, PDF files and
+remote CAD assets are omitted. API-generated source is never executed.
+
+`bun run build:ui` also prepares its catalog first. For source development or
+unit tests without bundling the UI, run `bun run build:catalog` once. `bun run
+check` builds first, then typechecks, tests and qualifies the compiled binary, so
+those checks use the same generated catalog. Builds require API access; the
+compiled executable, including `tsci build`, uses its embedded parts locally.
+
+## Imports and physical identities
+
+`tsci import <manufacturer-part-number>` and the bundled-parts UI use the embedded
+part definitions. Manufacturer lookup follows the API's name normalization. The
+API currently has no supplier identifiers; the existing standalone `C2040` alias
+continues to select RP2040. No additional supplier numbers are invented. Unknown
+parts fail locally without a remote lookup.
+
+Core uses numeric pin keys. Numeric datasheet terminals retain their numbers;
+package coordinates and named exposed pads receive numeric keys, keeping their
+original physical IDs as selector aliases. Pin attributes move with their
+physical terminal. Selector aliases containing punctuation receive distinct,
+valid names. Export names and default filenames encode punctuation so distinct
+part numbers cannot collide.
+
+The RP2040 qualification fixture uses physical pin selectors for repeated supply
+names. Its placement is adjusted for the API land pattern to keep the routed via
+clear of the GPIO25 pad. The fixture qualifies runtime and footprint behavior;
+full power, memory, clock and manufacturing design remains separate work.

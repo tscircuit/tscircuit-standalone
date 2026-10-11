@@ -9,23 +9,26 @@ import {
   serializeCatalog,
 } from "../lib/catalog"
 
+const rp2040 = getBundledPart("C2040")
+
 describe("compact part catalog", () => {
   test("C2040 is the verified RP2040 with 56 signal pads and thermal ground", () => {
     const part = getBundledPart("C2040")
     expect(part.manufacturerPartNumber).toBe("RP2040")
-    expect(part.provenance.commit).toBe(
-      "a5797da88ec19944442d87392174af0a36fe1a0a",
-    )
+    expect(part.provenance).toMatchObject({
+      kind: "datasheet-api",
+      datasheetId: "2a51fc64-5154-4513-ad7c-29429bdc973e",
+    })
     const pads = getBundledFootprintCircuitJson(part).filter(
       (element) => element.type === "pcb_smtpad",
     )
     expect(pads).toHaveLength(57)
     const pinOne = pads.find((pad) => pad.port_hints?.includes("pin1"))!
-    expect(pinOne.port_hints).toContain("IOVDD6")
+    expect(pinOne.port_hints).toContain("IOVDD")
     expect(pinOne.shape).toBe("rect")
     if (pinOne.shape === "rect") {
-      expect(pinOne.x).toBeCloseTo(-3.42495, 5)
-      expect(pinOne.y).toBeCloseTo(2.60065, 5)
+      expect(pinOne.x).toBeCloseTo(-3.425, 5)
+      expect(pinOne.y).toBeCloseTo(2.6, 5)
     }
     const thermal = pads.find((pad) => pad.port_hints?.includes("thermalpad"))!
     expect(thermal.port_hints).toContain("pin57")
@@ -40,37 +43,37 @@ describe("compact part catalog", () => {
   })
 
   test("rejects duplicates, remote footprints, raw geometry and unmapped pads", () => {
-    expect(() => createCatalog([...bundledParts, ...bundledParts])).toThrow(
+    expect(() => createCatalog([rp2040, rp2040])).toThrow(
       "duplicate supplier part C2040",
     )
     expect(() =>
       createCatalog([
-        { ...bundledParts[0], footprint: "https://example.com/footprint.json" },
+        { ...rp2040, footprint: "https://example.com/footprint.json" },
       ]),
     ).toThrow("local footprinter string")
     expect(() =>
-      createCatalog([{ ...bundledParts[0], footprint: "kicad:QFN-56" }]),
+      createCatalog([{ ...rp2040, footprint: "kicad:QFN-56" }]),
     ).toThrow("local footprinter string")
     expect(() =>
-      createCatalog([{ ...bundledParts[0], circuitJson: [] }]),
+      createCatalog([{ ...rp2040, circuitJson: [] }]),
     ).toThrow("unsupported part field circuitJson")
     expect(() =>
       createCatalog([
-        { ...bundledParts[0], cadModel: { objUrl: "https://example.com/a.obj" } },
+        { ...rp2040, cadModel: { objUrl: "https://example.com/a.obj" } },
       ]),
     ).toThrow("unsupported part field cadModel")
-    const pinLabels = { ...bundledParts[0].pinLabels, pin57: ["GND"] }
-    expect(() => createCatalog([{ ...bundledParts[0], pinLabels }])).toThrow(
+    const pinLabels = { ...rp2040.pinLabels, pin57: ["GND"] }
+    expect(() => createCatalog([{ ...rp2040, pinLabels }])).toThrow(
       "each copper pad must map",
     )
     expect(() =>
-      createCatalog([{ ...bundledParts[0], footprint: "notarealfootprint" }]),
+      createCatalog([{ ...rp2040, footprint: "notarealfootprint" }]),
     ).toThrow("cannot be generated")
   })
 
   test("catalog and generated source are deterministic and contain no CAD URLs", () => {
     const secondPart = {
-      ...bundledParts[0],
+      ...rp2040,
       supplierPartNumber: "C2041",
       componentName: "RP2040OtherSupplierRecord",
     }
@@ -92,20 +95,20 @@ describe("compact part catalog", () => {
   test("rejects aliases to other physical pins but permits shared functional labels", () => {
     for (const alias of ["pin2", "2", "Pin2", "pin02"]) {
       const pinLabels = {
-        ...bundledParts[0].pinLabels,
+        ...rp2040.pinLabels,
         pin1: ["IOVDD6", alias],
       }
-      expect(() => createCatalog([{ ...bundledParts[0], pinLabels }])).toThrow(
+      expect(() => createCatalog([{ ...rp2040, pinLabels }])).toThrow(
         "pin1 cannot alias physical pin2",
       )
     }
     const pinLabels = {
-      ...bundledParts[0].pinLabels,
+      ...rp2040.pinLabels,
       pin1: ["IOVDD6", "GND"],
     }
     const part = getBundledPart(
       "C2040",
-      createCatalog([{ ...bundledParts[0], pinLabels }]),
+      createCatalog([{ ...rp2040, pinLabels }]),
     )
     const pads = getBundledFootprintCircuitJson(part).filter(
       (element) => element.type === "pcb_smtpad",
@@ -118,7 +121,7 @@ describe("compact part catalog", () => {
     const manufacturerPartNumber = 'a"b<&'
     const part = getBundledPart(
       "C2040",
-      createCatalog([{ ...bundledParts[0], manufacturerPartNumber }]),
+      createCatalog([{ ...rp2040, manufacturerPartNumber }]),
     )
     const source = generateBundledComponentTsx(part)
     expect(source).toContain(
@@ -129,13 +132,13 @@ describe("compact part catalog", () => {
   })
 
   test("input mutation cannot change a validated catalog", () => {
-    const input = JSON.parse(JSON.stringify(bundledParts))
+    const input = JSON.parse(JSON.stringify([rp2040]))
     const catalog = createCatalog(input)
     input[0].pinLabels.pin1[0] = "WRONG_PIN"
     input[0].footprint = "qfn4"
-    expect(getBundledPart("C2040", catalog).pinLabels.pin1).toEqual(["IOVDD6"])
+    expect(getBundledPart("C2040", catalog).pinLabels.pin1).toEqual(rp2040.pinLabels.pin1)
     expect(getBundledPart("C2040", catalog).footprint).toBe(
-      bundledParts[0].footprint,
+      rp2040.footprint,
     )
   })
 })

@@ -26,21 +26,21 @@ export default function Rp2040BreakoutCircuit() {
           name="U1"
           schX={0}
           schY={0}
-          pcbX={0}
+          pcbX={-0.25}
           pcbY={0}
           pinAttributes={{
-            IOVDD1: { requiresPower: true },
-            IOVDD2: { requiresPower: true },
-            IOVDD3: { requiresPower: true },
-            IOVDD4: { requiresPower: true },
-            IOVDD5: { requiresPower: true },
-            IOVDD6: { requiresPower: true },
+            pin49: { requiresPower: true },
+            pin42: { requiresPower: true },
+            pin33: { requiresPower: true },
+            pin22: { requiresPower: true },
+            pin10: { requiresPower: true },
+            pin1: { requiresPower: true },
             ADC_AVDD: { requiresPower: true },
             USB_VDD: { requiresPower: true },
-            VREG_IN: { requiresPower: true },
+            pin44: { requiresPower: true },
             VREG_VOUT: { providesPower: true },
-            DVDD1: { requiresPower: true },
-            DVDD2: { requiresPower: true },
+            pin50: { requiresPower: true },
+            pin23: { requiresPower: true },
             GND: { requiresGround: true },
           }}
         />
@@ -95,37 +95,37 @@ export default function Rp2040BreakoutCircuit() {
 
         <trace
           name="IOVDD1_SUPPLY"
-          from=".U1 > .IOVDD1"
+          from=".U1 > .pin49"
           to="net.V3V3"
           schDisplayLabel="V3V3"
         />
         <trace
           name="IOVDD2_SUPPLY"
-          from=".U1 > .IOVDD2"
+          from=".U1 > .pin42"
           to="net.V3V3"
           schDisplayLabel="V3V3"
         />
         <trace
           name="IOVDD3_SUPPLY"
-          from=".U1 > .IOVDD3"
+          from=".U1 > .pin33"
           to="net.V3V3"
           schDisplayLabel="V3V3"
         />
         <trace
           name="IOVDD4_SUPPLY"
-          from=".U1 > .IOVDD4"
+          from=".U1 > .pin22"
           to="net.V3V3"
           schDisplayLabel="V3V3"
         />
         <trace
           name="IOVDD5_SUPPLY"
-          from=".U1 > .IOVDD5"
+          from=".U1 > .pin10"
           to="net.V3V3"
           schDisplayLabel="V3V3"
         />
         <trace
           name="IOVDD6_SUPPLY"
-          from=".U1 > .IOVDD6"
+          from=".U1 > .pin1"
           to="net.V3V3"
           schDisplayLabel="V3V3"
         />
@@ -143,7 +143,7 @@ export default function Rp2040BreakoutCircuit() {
         />
         <trace
           name="VREG_INPUT"
-          from=".U1 > .VREG_IN"
+          from=".U1 > .pin44"
           to="net.V3V3"
           schDisplayLabel="V3V3"
         />
@@ -161,13 +161,13 @@ export default function Rp2040BreakoutCircuit() {
         />
         <trace
           name="DVDD1_SUPPLY"
-          from=".U1 > .DVDD1"
+          from=".U1 > .pin50"
           to="net.V1V1"
           schDisplayLabel="V1V1"
         />
         <trace
           name="DVDD2_SUPPLY"
-          from=".U1 > .DVDD2"
+          from=".U1 > .pin23"
           to="net.V1V1"
           schDisplayLabel="V1V1"
         />
