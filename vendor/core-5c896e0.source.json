@@ -1,0 +1,53 @@
+{
+  "package": "@tscircuit/core",
+  "artifact": "tscircuit-core-5c896e0.tgz",
+  "sha256": "7d9a95837688c301702f20a0aacd347cdae9c39050940c60aae36188197c2b15",
+  "sizeBytes": 1459019,
+  "sourceRepository": "https://github.com/tscircuit/core",
+  "sourceCommit": "5c896e05fed5ed82023da470c1ba28d86419b3ed",
+  "sourceTree": "2b0f9d11dee94298edc79ee06f84244088028b20",
+  "pullRequests": [
+    "https://github.com/tscircuit/core/pull/4487",
+    "https://github.com/tscircuit/core/pull/4488"
+  ],
+  "previewUrl": "https://pkg.pr.new/tscircuit/core/@tscircuit/core@5c896e0",
+  "build": "bun run build (official tsup-node script)",
+  "includedFiles": [
+    {
+      "path": "package/LICENSE",
+      "sizeBytes": 1071,
+      "sha256": "a5f5fb24026081322e48c6de970de4300dbc516fcddf02468d74b3978909f156"
+    },
+    {
+      "path": "package/dist/index.d.ts",
+      "sizeBytes": 10261770,
+      "sha256": "a504828f32ff7ad9a4f46a9a47f2048a4c70ce433d2d12d7ed4baf291324d1a2"
+    },
+    {
+      "path": "package/dist/index.js",
+      "sizeBytes": 5542914,
+      "sha256": "f50559c253f9f15aa806f670bb75541bc8b1fa21ff2840821584310fc0ddb4a6"
+    },
+    {
+      "path": "package/package.json",
+      "sizeBytes": 6222,
+      "sha256": "c93e5ab38f30772ed3aaaca8274210515a4d9a31eda862857505779dc21d9985"
+    }
+  ],
+  "manifestChanges": "Only standaloneSource repository/commit/pullRequests provenance added; upstream dependencies, peers, exports and version preserved.",
+  "license": "MIT",
+  "licenseNotice": "../vendor-notices/core-5c896e0-LICENSE.txt",
+  "validation": {
+    "officialBuildPassed": true,
+    "publicDistUsbShellOwnershipSmokePassed": true,
+    "sourceTreeVerifiedAgainstPublishedCommit": true,
+    "archiveMetadata": {
+      "mtime": 0,
+      "uid": 0,
+      "gid": 0,
+      "mode": "0644",
+      "pathOrder": "lexicographic",
+      "gzipFilename": ""
+    }
+  }
+}

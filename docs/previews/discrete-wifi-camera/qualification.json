@@ -1,0 +1,288 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "qualificationScope": "Compiled CLI imports/build and ordinary RunFrame source evaluation; hardware operation and manufacturing readiness are not qualified.",
+  "artifactMetadata": {
+    "integrationCommit": "b0d6dc045271a182bfb3508b63bd81019bdc4183",
+    "fixtureCommit": "6f71f7f03fac0a958a3d869cd770470005ff619e",
+    "binarySha256": "c506deef94bb9cbde192a52d51161fb593ee427eb8c1fc2550bef50208e45929",
+    "binarySizeBytes": 174274880,
+    "sourceSha256": "a7d3978fa687ecab6ab74122140a56dcbb49af06475bfe19b5efe7dd0447170b",
+    "netlistSha256": "3a605f0250d23ccdda3dd411c3993135fc51e9e693fc67314cf17be30f97e7cb",
+    "lockfileSha256": "5b5be56d72a9cd30118c241a71ebe4a7971386a2b8b51b09ce1b4c180acdf482",
+    "vendors": [
+      {
+        "path": "vendor/footprinter-791582a.tgz",
+        "sha256": "c01a591604c65867f2ae9f9e3c06ce202c794f920492980b452cccdab985ab33",
+        "sizeBytes": 208985
+      },
+      {
+        "path": "vendor/jscad-electronics-1d107c3.tgz",
+        "sha256": "2f40d80b86957fe5efcad6f527e037d459d89898e20136e0cdd9e6359ffbbe0f",
+        "sizeBytes": 1050353
+      },
+      {
+        "path": "vendor/tscircuit-checks-0b1d656.tgz",
+        "sha256": "b98f41de71c36243aecb81a8e739848f9ec9fc6fa7c728c453a40aac5d476f64",
+        "sizeBytes": 392934
+      },
+      {
+        "path": "vendor/tscircuit-core-5c896e0.tgz",
+        "sha256": "7d9a95837688c301702f20a0aacd347cdae9c39050940c60aae36188197c2b15",
+        "sizeBytes": 1459019
+      }
+    ],
+    "bunVersion": "1.3.12"
+  },
+  "views": [
+    "PCB",
+    "Schematic",
+    "3D",
+    "BOM",
+    "Errors",
+    "Circuit JSON"
+  ],
+  "qualificationFailures": [],
+  "nativeRuns": [
+    {
+      "name": "import-C2913194",
+      "exitCode": 0,
+      "networkAttemptCount": 0
+    },
+    {
+      "name": "import-C97521",
+      "exitCode": 0,
+      "networkAttemptCount": 0
+    },
+    {
+      "name": "import-C23380830",
+      "exitCode": 0,
+      "networkAttemptCount": 0
+    },
+    {
+      "name": "import-C2827693",
+      "exitCode": 0,
+      "networkAttemptCount": 0
+    },
+    {
+      "name": "import-C2765186",
+      "exitCode": 0,
+      "networkAttemptCount": 0
+    },
+    {
+      "name": "import-C265417",
+      "exitCode": 0,
+      "networkAttemptCount": 0
+    },
+    {
+      "name": "import-C202112",
+      "exitCode": 0,
+      "networkAttemptCount": 0
+    },
+    {
+      "name": "import-C5210647",
+      "exitCode": 0,
+      "networkAttemptCount": 0
+    },
+    {
+      "name": "import-C53099",
+      "exitCode": 0,
+      "networkAttemptCount": 0
+    },
+    {
+      "name": "import-C2868517",
+      "exitCode": 0,
+      "networkAttemptCount": 0
+    },
+    {
+      "name": "import-C88373",
+      "exitCode": 0,
+      "networkAttemptCount": 0
+    },
+    {
+      "name": "camera-build",
+      "exitCode": 0,
+      "networkAttemptCount": 0
+    }
+  ],
+  "devNetworkAttemptCount": 0,
+  "nativeErrorCount": 0,
+  "browserErrorCount": 0,
+  "nativeWarningsByType": {
+    "schematic_sheet_styling_warning": 1,
+    "source_refdes_convention_warning": 3,
+    "source_no_power_pin_defined_warning": 2,
+    "source_no_ground_pin_defined_warning": 1,
+    "source_component_pins_underspecified_warning": 1,
+    "pcb_connector_not_in_accessible_orientation_warning": 1,
+    "source_missing_manufacturer_part_number_warning": 44
+  },
+  "browserWarningsByType": {
+    "schematic_sheet_styling_warning": 1,
+    "source_refdes_convention_warning": 3,
+    "source_no_power_pin_defined_warning": 2,
+    "source_no_ground_pin_defined_warning": 1,
+    "source_component_pins_underspecified_warning": 1,
+    "pcb_connector_not_in_accessible_orientation_warning": 1,
+    "source_missing_manufacturer_part_number_warning": 44
+  },
+  "connectivity": {
+    "nativeConnectivity": {
+      "passed": true,
+      "componentCount": 55,
+      "sourceEndpointCount": 241,
+      "schematicEndpointCount": 239,
+      "physicalPinCount": 239,
+      "copperTerminalCount": 241,
+      "declaredIntrinsicConnectionCount": 15,
+      "schematicAliases": [
+        {
+          "physical": "J_USB_C:pin13_internal_1",
+          "representedBy": "J_USB_C:pin13"
+        },
+        {
+          "physical": "J_USB_C:pin14_internal_1",
+          "representedBy": "J_USB_C:pin13"
+        }
+      ],
+      "connectedEndpointCount": 220,
+      "netCount": 53,
+      "pcbRouteCount": 167,
+      "viaCount": 219
+    },
+    "browserConnectivity": {
+      "passed": true,
+      "componentCount": 55,
+      "sourceEndpointCount": 241,
+      "schematicEndpointCount": 239,
+      "physicalPinCount": 239,
+      "copperTerminalCount": 241,
+      "declaredIntrinsicConnectionCount": 15,
+      "schematicAliases": [
+        {
+          "physical": "J_USB_C:pin13_internal_1",
+          "representedBy": "J_USB_C:pin13"
+        },
+        {
+          "physical": "J_USB_C:pin14_internal_1",
+          "representedBy": "J_USB_C:pin13"
+        }
+      ],
+      "connectedEndpointCount": 220,
+      "netCount": 53,
+      "pcbRouteCount": 167,
+      "viaCount": 219
+    }
+  },
+  "importedParts": {
+    "U_MCU": "C2913194",
+    "U_FLASH": "C97521",
+    "U_LDO": "C23380830",
+    "U_USB_ESD": "C2827693",
+    "J_USB_C": "C2765186",
+    "J_AUX_3V3": "C265417",
+    "J_CAMERA": "C202112",
+    "Y_MAIN": "C5210647",
+    "U_CAM_ANALOG": "C53099",
+    "U_CAM_CORE": "C2868517",
+    "J_RF": "C88373"
+  },
+  "connectivityMonitorChecks": [
+    {
+      "name": "route endpoint displaced from its pad",
+      "detected": "Error: Bare-chip camera connectivity: pcb_trace_0 ends away from its referenced pad"
+    },
+    {
+      "name": "USB D- physical pin omitted",
+      "detected": "Error: Bare-chip camera connectivity: an intended net endpoint is missing"
+    },
+    {
+      "name": "USB D- physical connection unrouted",
+      "detected": "Error: Bare-chip camera connectivity: USB_DM has unrouted physical endpoints: R_USB_DM:pin2"
+    },
+    {
+      "name": "duplicate shell missing its numeric pin13 anchor",
+      "detected": "Error: Bare-chip camera connectivity: J_USB_C:pin13_internal_1 lost its physical pin number or declared internal owner"
+    },
+    {
+      "name": "thermal via assigned to VBUS touching ground traces",
+      "detected": "PCB trace .U_MCU > .pin57 to net.GND overlaps with pcb_via \"unnamed via\" (accidental contact)\nPCB trace .U_MCU > .pin57 to net.GND overlaps with pcb_via \"unnamed via\" (accidental contact)\nPCB trace .U_MCU > .pin57 to net.GND overlaps with pcb_via \"unnamed via\" (accidental contact)"
+    }
+  ],
+  "liveUndefinedThermalViaCalibration": "Owned thermal vias with an own pcb_trace_id: undefined passed before the foreign-VBUS contact calibration; the harness asserts both outcomes.",
+  "browserNetwork": {
+    "requestEventCount": 1168,
+    "distinctResourceCount": 13,
+    "distinctResourcePaths": [
+      "/",
+      "/assets/app.css",
+      "/assets/host-config.js",
+      "/assets/app.js",
+      "/assets/occt-import-js.js",
+      "/assets/manifold.js",
+      "/favicon.svg",
+      "/api/state",
+      "/assets/manifold.wasm",
+      "/assets/eval-worker.js",
+      "/api/source",
+      "/assets/font.ttf",
+      "/api/render"
+    ],
+    "externalAttemptCount": 0,
+    "cspViolationCount": 0,
+    "browserErrorCount": 0,
+    "consoleErrorCount": 0,
+    "failedRequestCount": 0,
+    "monitorErrorCount": 0
+  },
+  "completedWorkflowChecks": [
+    "MCU and USB component details",
+    "Local schematic style analysis",
+    "Missing-part local failure and recovery",
+    "Source rebuild",
+    "Circuit JSON download connectivity",
+    "PCB SVG and schematic SVG downloads",
+    "Worker denied-fetch monitor calibration"
+  ],
+  "routineValidation": {
+    "bunVersion": "1.3.12",
+    "frozenInstall": true,
+    "backendTypes": "passed",
+    "uiTypes": "passed",
+    "testsPassed": 102,
+    "assertions": 729,
+    "uiBuild": "passed",
+    "binaryBuild": "passed",
+    "originalCompiledBinaryFixtures": "passed"
+  },
+  "independentReview": {
+    "nativePhysicalPinAndCopperGraph": "passed",
+    "browserPhysicalPinAndCopperGraph": "passed",
+    "connectedPhysicalTerminalCount": 222,
+    "authoredLogicalEndpointCount": 220,
+    "additionalTerminals": "Two declared intrinsic USB shell copper terminals."
+  },
+  "previews": [
+    {
+      "path": "discrete-wifi-camera-pcb.png",
+      "sha256": "4f76bf2e5186ee2bd5d98471d63d0bc49d21c7e7bdcdec2b356c6a241ed83a4a",
+      "sizeBytes": 90985
+    },
+    {
+      "path": "discrete-wifi-camera-schematic.png",
+      "sha256": "d1a6bd0a31c94a9efaf244de65b4770bf4c3dbb1a119415d04e5d94a0bf4d9d8",
+      "sizeBytes": 62855
+    },
+    {
+      "path": "discrete-wifi-camera-3d.png",
+      "sha256": "b5bdf900ced6ac3e66a24c0f7695c15985e772daab403ff32a0139ac0d87da4b",
+      "sizeBytes": 100625
+    }
+  ],
+  "remainingLimits": [
+    "Hardware RF/antenna matching, ground return paths, USB signal integrity, power/thermal margins, camera I/O rail tolerance and mechanical validation",
+    "44 generic component MPN warnings and nine metadata/style warnings retained",
+    "Native execution has been qualified on Linux x64 only",
+    "Pinned Checks source/archive has no declared package license or license file; redistribution licensing remains unresolved"
+  ]
+}

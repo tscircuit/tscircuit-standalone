@@ -1,0 +1,10 @@
+Package: @tscircuit/checks 0.0.245
+Source: https://github.com/tscircuit/checks
+Commit: 0b1d656ac4690a1a0a0869bfda258ffa32965f28
+Pull request: https://github.com/tscircuit/checks/pull/403
+
+The upstream package manifest does not declare a license, and the source
+distribution does not provide a standalone license file. No license is inferred
+or added here. The official bundled distribution and its existing license
+comments are preserved. Confirm the upstream package's redistribution license
+as part of the standalone release audit.

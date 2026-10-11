@@ -24,8 +24,11 @@ and remote CAD assets are omitted.
 - Repository provisioned through `tscircuit/create-repo` PR #91.
 - Footprinter-only catalog validation, deterministic generated components,
   source/license provenance, local lookup, and local missing-part errors.
-- One admitted part: RP2040/C2040 from a pinned MIT-licensed `tscircuit/common`
-  source. Its 57 pads and pin mapping match the reference; copper IoU is 99.8179%.
+- Qualified RP2040/C2040 from a pinned MIT-licensed `tscircuit/common` source;
+  its 57 pads and pin mapping match the reference, with copper IoU 99.8179%.
+  The compact catalog now also supplies the eleven actual chip/connector
+  imports in the [bare ESP32-S3 camera qualification](discrete-wifi-camera-qualification.md),
+  with recorded reference geometry and physical-pin parity.
 - Custom platform using existing `PlatformConfig`/`PartsEngine` APIs, local
   supplier-footprint resolution, and rejecting request/provider defaults.
 - Native `tsci import`, `catalog`, and `build`. Builds use a fresh embedded
@@ -100,7 +103,22 @@ Its explicit schematic placement works around an upstream auto-layout issue
 that drew a separate ground cluster without a rail label. Retain the existing
 rail-label regressions until that general issue is fixed.
 
+The [bare ESP32-S3 camera qualification](discrete-wifi-camera-qualification.md)
+now imports eleven actual supplier chips/connectors and passes native build,
+all six RunFrame views, recovery/rebuild/downloads, physical connectivity, and
+network monitoring with zero errors or outbound attempts. It covers 55
+components and all 53 nets/220 authored endpoints. The
+[Wi-Fi camera carrier report](wifi-camera-qualification.md) remains historical
+evidence for the earlier module-socket fixture.
+
 ## Remaining work
+
+Release work still includes replacing reviewed prebuilt dependency artifacts
+with published packages, expanding the qualified compact catalog, native
+execution on every advertised OS/architecture, and the distribution/license audit. In particular,
+the pinned Checks source has no declared license or license file; its accurate
+notice does not resolve redistribution permission. Camera RF, signal integrity,
+power/thermal margins, and mechanical validation remain hardware work.
 
 ### 1. Expand the compact catalog
 

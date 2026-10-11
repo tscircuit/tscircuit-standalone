@@ -27,12 +27,6 @@ jobs:
           DEBUG: pw:browser
           PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/build/playwright
           SMOKE_ARTIFACT_DIR: build/browser-evidence
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: offline-runframe-browser-evidence
-          path: build/browser-evidence
-          if-no-files-found: ignore
       - name: Verify imports and circuit builds make no native network attempts
         run: |
           if ! command -v strace >/dev/null; then
@@ -51,7 +45,7 @@ jobs:
           mkdir src
           sed -e 's|"./helpers/pad-testpoint"|"../examples/helpers/pad-testpoint"|' -e 's|"./imports/C2040"|"../imports/C2040"|' examples/rp2040-breakout.circuit.tsx > src/imported-rp2040.circuit.tsx
           strace -f -e trace=network -o generated-import.trace "$binary" build src/imported-rp2040.circuit.tsx
-          for circuit in led-resistor rp2040-breakout supplier-footprint; do
+          for circuit in led-resistor rp2040-breakout supplier-footprint wifi-camera-carrier; do
             strace -f -e trace=network -o "$circuit.trace" "$binary" build "examples/$circuit.circuit.tsx"
           done
           printf '%s\n' 'import Missing from "unbundled-example-package"; export default Missing' > missing-module.tsx
@@ -79,11 +73,29 @@ jobs:
           sed -e 's|"./helpers/pad-testpoint"|"../examples/helpers/pad-testpoint"|' -e 's|"./imports/C2040"|"../imports/C2040"|' examples/rp2040-breakout.circuit.tsx > src/imported-rp2040.circuit.tsx
           sudo unshare --net env -i PATH=/nonexistent BUN_INSTALL_AUTO=disable "$binary" build src/imported-rp2040.circuit.tsx
           test -s build/imported-rp2040.circuit.json
-          for circuit in led-resistor rp2040-breakout supplier-footprint; do
+          for circuit in led-resistor rp2040-breakout supplier-footprint wifi-camera-carrier; do
             sudo unshare --net env -i PATH=/nonexistent BUN_INSTALL_AUTO=disable "$binary" build "examples/$circuit.circuit.tsx"
             test -s "build/$circuit.circuit.json"
             grep -q 'data-schematic-component-id' "build/$circuit.circuit.schematic.svg"
           done
+      - name: Qualify the camera carrier with only loopback networking
+        run: |
+          sudo unshare --net env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" SMOKE_ARTIFACT_DIR="$SMOKE_ARTIFACT_DIR" CI_BROWSER_USER="$(id -un)" sh -c 'ip link set lo up; exec runuser -u "$CI_BROWSER_USER" -- env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" SMOKE_ARTIFACT_DIR="$SMOKE_ARTIFACT_DIR" bun scripts/smoke-wifi-camera.ts'
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/build/playwright
+          SMOKE_ARTIFACT_DIR: build/browser-evidence/wifi-camera
+      - name: Qualify the bare-chip Wi-Fi camera with only loopback networking
+        run: |
+          sudo unshare --net env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" SMOKE_ARTIFACT_DIR="$SMOKE_ARTIFACT_DIR" CI_BROWSER_USER="$(id -un)" sh -c 'ip link set lo up; exec runuser -u "$CI_BROWSER_USER" -- env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" SMOKE_ARTIFACT_DIR="$SMOKE_ARTIFACT_DIR" bun scripts/smoke-discrete-wifi-camera.ts'
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/build/playwright
+          SMOKE_ARTIFACT_DIR: build/browser-evidence/discrete-wifi-camera
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: offline-runframe-browser-evidence
+          path: build/browser-evidence
+          if-no-files-found: ignore
   build-targets:
     needs: check
     runs-on: ubuntu-latest
