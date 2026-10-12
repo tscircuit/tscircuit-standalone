@@ -1,6 +1,7 @@
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
+import packageMetadata from "../package.json"
 
 const binary = resolve(process.platform === "win32" ? "dist/tsci.exe" : "dist/tsci")
 const projectDir = await mkdtemp(join(tmpdir(), "tscircuit-standalone-"))
@@ -15,6 +16,10 @@ try {
     },
     stdout: "pipe", stderr: "pipe",
   })
+  const version = run(["--version"])
+  if (version.exitCode !== 0 || version.stdout.toString().trim() !== packageMetadata.version) {
+    throw new Error("Compiled binary version does not match the selected tscircuit release")
+  }
   const imported = run(["import", "C2040"])
   if (imported.exitCode !== 0) throw new Error(imported.stderr.toString())
   const source = await readFile(join(projectDir, "imports/C2040.tsx"), "utf8")

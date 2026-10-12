@@ -19,7 +19,7 @@
     "@tscircuit/assembly-viewer": "0.0.6",
     "@tscircuit/circuit-json-schematic-placement-analysis": "https://jscdn.tscircuit.com/@tscircuit/circuit-json-schematic-placement-analysis/0.0.46.tgz",
     "@tscircuit/create-snippet-url": "0.0.9",
-    "@tscircuit/eval": "0.0.1569",
+    "@tscircuit/eval": "0.0.1596",
     "@tscircuit/internal-dynamic-import": "0.0.17",
     "@tscircuit/pcb-viewer": "1.11.424",
     "@tscircuit/runframe": "0.0.2953",
