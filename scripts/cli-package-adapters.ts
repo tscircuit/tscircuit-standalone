@@ -1,6 +1,7 @@
 import { readFile, realpath } from "node:fs/promises"
-import { resolve } from "node:path"
+import { join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { findUiPackageRoot } from "./ui-package-adapters"
 
 /** Include build-time dependencies that normally resolve files from node_modules. */
 export const cliPackageAdapters: Bun.BunPlugin = {
@@ -20,6 +21,10 @@ export const cliPackageAdapters: Bun.BunPlugin = {
         ),
       }),
     )
+    // Use the existing portable renderer instead of a host-specific native addon.
+    build.onResolve({ filter: /^@resvg\/resvg-(?:js|wasm)$/ }, async () => ({
+      path: join(await findUiPackageRoot("@resvg/resvg-wasm"), "index.js"),
+    }))
     build.onResolve({ filter: /^rollup(?:\/|$)/ }, ({ path }) => ({
       path: fileURLToPath(
         import.meta.resolve(path.replace(/^rollup/, "@rollup/wasm-node")),

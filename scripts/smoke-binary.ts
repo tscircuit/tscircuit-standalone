@@ -49,7 +49,13 @@ try {
   // Exercise the shared CLI's sequential and embedded worker paths.
   for (const concurrency of ["1", "2"])
     run(["build", "index.tsx", "--ignore-errors", "--concurrency", concurrency])
-  run(["build", "index.tsx", "--site", "--ignore-errors"])
+  run(["build", "index.tsx", "--site", "--pcb-png", "--ignore-errors"])
+  assert.equal(
+    (await readFile(join(projectDir, "dist/index/pcb.png")))
+      .subarray(1, 4)
+      .toString(),
+    "PNG",
+  )
   assert.match(
     await readFile(join(projectDir, "dist/index.html"), "utf8"),
     /TSCIRCUIT_JSCDN_BASE_URL = ".\/jscdn"/,
