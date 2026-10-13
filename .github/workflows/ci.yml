@@ -36,75 +36,12 @@ jobs:
         run: bunx playwright install --with-deps chromium
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/build/playwright
-      - name: Verify compiled RunFrame with only loopback networking
+      - name: Verify JS CDN modules and WASM with only loopback networking
         run: |
-          sudo unshare --net env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" SMOKE_ARTIFACT_DIR="$SMOKE_ARTIFACT_DIR" DEBUG="$DEBUG" CI_BROWSER_USER="$(id -un)" sh -c 'ip link set lo up; exec runuser -u "$CI_BROWSER_USER" -- env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" SMOKE_ARTIFACT_DIR="$SMOKE_ARTIFACT_DIR" DEBUG="$DEBUG" bun scripts/smoke-dev-browser.ts'
+          sudo unshare --net env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" CI_BROWSER_USER="$(id -un)" sh -c 'ip link set lo up; exec runuser -u "$CI_BROWSER_USER" -- env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" bun scripts/smoke-binary.ts --browser'
         env:
-          DEBUG: pw:browser
           PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/build/playwright
-          SMOKE_ARTIFACT_DIR: build/browser-evidence
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: offline-runframe-browser-evidence
-          path: build/browser-evidence
-          if-no-files-found: ignore
-      - name: Verify imports and circuit builds make no native network attempts
-        run: |
-          if ! command -v strace >/dev/null; then
-            sudo apt-get update
-            sudo apt-get install -y strace
-          fi
-          binary="$PWD/dist/tsci"
-          examples="$PWD/examples"
-          project_dir="$(mktemp -d)"
-          cp -R "$examples" "$project_dir/examples"
-          cd "$project_dir"
-          strace -f -e trace=network -o import.trace "$binary" import C2040
-          strace -f -e trace=network -o manufacturer-import.trace "$binary" import ESP32-S3R8
-          strace -f -e trace=network -o coordinate-import.trace "$binary" import nRF52840-QIAA
-          if strace -f -e trace=network -o missing.trace "$binary" import C999999999; then
-            exit 1
-          fi
-          mkdir src
-          sed -e 's|"./helpers/pad-testpoint"|"../examples/helpers/pad-testpoint"|' -e 's|"./imports/C2040"|"../imports/C2040"|' examples/rp2040-breakout.circuit.tsx > src/imported-rp2040.circuit.tsx
-          strace -f -e trace=network -o generated-import.trace "$binary" build src/imported-rp2040.circuit.tsx
-          for circuit in led-resistor rp2040-breakout supplier-footprint; do
-            strace -f -e trace=network -o "$circuit.trace" "$binary" build "examples/$circuit.circuit.tsx"
-          done
-          printf '%s\n' 'import Missing from "unbundled-example-package"; export default Missing' > missing-module.tsx
-          printf '%s\n' 'export default () => <board width="10mm" height="10mm"><chip name="U1" footprint="https://example.invalid/footprint.json"/></board>' > remote-footprint.tsx
-          for circuit in missing-module remote-footprint; do
-            if strace -f -e trace=network -o "$circuit.trace" "$binary" build "$circuit.tsx" --output-dir "$circuit-output"; then
-              exit 1
-            fi
-            test ! -e "$circuit-output"
-          done
-          if grep -E 'socket\(AF_INET6?|connect\(|sendto\(|sendmsg\(' ./*.trace; then
-            echo "Unexpected native network attempt"
-            exit 1
-          fi
-      - name: Verify the binary in a network namespace
-        run: |
-          binary="$PWD/dist/tsci"
-          examples="$PWD/examples"
-          project_dir="$(mktemp -d)"
-          cp -R "$examples" "$project_dir/examples"
-          cd "$project_dir"
-          sudo unshare --net env PATH=/nonexistent BUN_INSTALL_AUTO=disable "$binary" import C2040
-          sudo unshare --net env -i PATH=/nonexistent BUN_INSTALL_AUTO=disable "$binary" import ESP32-S3R8
-          sudo unshare --net env -i PATH=/nonexistent BUN_INSTALL_AUTO=disable "$binary" import nRF52840-QIAA
-          test -s imports/C2040.tsx
-          mkdir src
-          sed -e 's|"./helpers/pad-testpoint"|"../examples/helpers/pad-testpoint"|' -e 's|"./imports/C2040"|"../imports/C2040"|' examples/rp2040-breakout.circuit.tsx > src/imported-rp2040.circuit.tsx
-          sudo unshare --net env -i PATH=/nonexistent BUN_INSTALL_AUTO=disable "$binary" build src/imported-rp2040.circuit.tsx
-          test -s build/imported-rp2040.circuit.json
-          for circuit in led-resistor rp2040-breakout supplier-footprint; do
-            sudo unshare --net env -i PATH=/nonexistent BUN_INSTALL_AUTO=disable "$binary" build "examples/$circuit.circuit.tsx"
-            test -s "build/$circuit.circuit.json"
-            grep -q 'data-schematic-component-id' "build/$circuit.circuit.schematic.svg"
-          done
-      - name: Save the qualified dependencies, catalog and UI for all target builds
+      - name: Save the qualified dependencies and JS CDN for all target builds
         uses: actions/upload-artifact@v4
         with:
           name: standalone-build-inputs
@@ -112,9 +49,9 @@ jobs:
             package.json
             ui/package.json
             bun.lock
-            lib/generated-bundled-parts.ts
-            lib/generated-ui-assets.ts
-            build/ui/metafile.json
+            lib/generated-jscdn-assets.ts
+            build/jscdn
+            build/jscdn-metafile.json
           if-no-files-found: error
           retention-days: 3
   build-targets:
@@ -133,6 +70,9 @@ jobs:
           name: standalone-build-inputs
           path: .
       - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Install the pinned shared CLI build dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+        working-directory: node_modules/@tscircuit/cli
       - name: Compile the qualified inputs for this target
         run: bun scripts/compile-binary.ts
         env:

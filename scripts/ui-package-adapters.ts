@@ -1,5 +1,14 @@
-import { readFile } from "node:fs/promises"
-import { join } from "node:path"
+import { readFile, realpath } from "node:fs/promises"
+import { join, resolve } from "node:path"
+
+export async function findUiPackageRoot(name: string): Promise<string> {
+  const root = resolve(import.meta.dir, "..")
+  for (const nodeModules of [join(root, "ui/node_modules"), join(root, "node_modules")]) {
+    const packageRoot = join(nodeModules, name)
+    if (await Bun.file(join(packageRoot, "package.json")).exists()) return realpath(packageRoot)
+  }
+  throw new Error(`Missing UI dependency ${name}. Run bun install.`)
+}
 
 export interface UiPackageAsset {
   source: string

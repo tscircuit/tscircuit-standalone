@@ -18,15 +18,15 @@ if (!metafile.inputs || !metafile.outputs) {
 }
 const graphInputs = { ...metafile.inputs }
 const metafiles = [{ path: projectPath(metafilePath), sha256: sha256(metafileBytes), inputCount: Object.keys(metafile.inputs).length }]
-const uiMetafilePath = join(projectRoot, "build/ui/metafile.json")
-if (await Bun.file(uiMetafilePath).exists()) {
-  const uiMetafileBytes = await readFile(uiMetafilePath)
-  const uiMetafile = JSON.parse(uiMetafileBytes.toString()) as Bun.BuildMetafile
-  if (!uiMetafile.inputs) throw new Error("Frontend license inventory requires a valid UI compiler input graph")
-  Object.assign(graphInputs, uiMetafile.inputs)
-  metafiles.push({ path: projectPath(uiMetafilePath), sha256: sha256(uiMetafileBytes), inputCount: Object.keys(uiMetafile.inputs).length })
-} else if (Object.keys(graphInputs).some((path) => path.endsWith("generated-ui-assets.ts"))) {
-  throw new Error("The compiled binary embeds frontend assets but build/ui/metafile.json is missing. Rebuild the UI before collecting notices.")
+const jscdnMetafilePath = join(projectRoot, "build/jscdn-metafile.json")
+if (await Bun.file(jscdnMetafilePath).exists()) {
+  const jscdnMetafileBytes = await readFile(jscdnMetafilePath)
+  const jscdnMetafile = JSON.parse(jscdnMetafileBytes.toString()) as Bun.BuildMetafile
+  if (!jscdnMetafile.inputs) throw new Error("JS CDN license inventory requires a valid compiler input graph")
+  Object.assign(graphInputs, jscdnMetafile.inputs)
+  metafiles.push({ path: projectPath(jscdnMetafilePath), sha256: sha256(jscdnMetafileBytes), inputCount: Object.keys(jscdnMetafile.inputs).length })
+} else if (Object.keys(graphInputs).some((path) => path.endsWith("generated-jscdn-assets.ts"))) {
+  throw new Error("The compiled binary embeds frontend assets but build/jscdn-metafile.json is missing. Rebuild the JS CDN before collecting notices.")
 }
 
 interface NoticeSource {
