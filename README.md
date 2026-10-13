@@ -49,10 +49,5 @@ Keep the notices with redistributed binaries. Use the CI-pinned Bun 1.3.12 to
 match the vendored runtime notices; cross-compilation does not establish native
 runtime support on each target.
 
-The earlier custom CLI, offline platform and catalog remain available as library
-and prototype source. See the [prototype documentation](docs/prototype-cli.md)
-and its [RunFrame qualification notes](docs/offline-runframe.md) for that separate
-implementation.
-
 Licensed under MIT. Adapted RP2040 metadata is attributed in
 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).
