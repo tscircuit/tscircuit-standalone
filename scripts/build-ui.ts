@@ -1,7 +1,7 @@
-import { mkdir, readFile, realpath, writeFile } from "node:fs/promises"
+import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { createRequire } from "node:module"
 import { join, relative, resolve, sep } from "node:path"
-import { createUiPackageAdapters } from "./ui-package-adapters"
+import { createUiPackageAdapters, findUiPackageRoot as findPackageRoot } from "./ui-package-adapters"
 import { buildDatasheetCatalog } from "./build-datasheets"
 
 await buildDatasheetCatalog()
@@ -11,13 +11,6 @@ const uiRoot = join(projectRoot, "ui")
 const outputRoot = join(projectRoot, "build/ui")
 const uiRequire = createRequire(join(uiRoot, "package.json"))
 
-const findPackageRoot = async (name: string): Promise<string> => {
-  for (const nodeModules of [join(uiRoot, "node_modules"), join(projectRoot, "node_modules")]) {
-    const packageRoot = join(nodeModules, name)
-    if (await Bun.file(join(packageRoot, "package.json")).exists()) return realpath(packageRoot)
-  }
-  throw new Error(`Missing UI dependency ${name}. Run bun install.`)
-}
 const circuitJsonRoot = await findPackageRoot("circuit-json")
 const troikaRoot = await findPackageRoot("troika-three-text")
 const manifoldRoot = await findPackageRoot("manifold-3d")

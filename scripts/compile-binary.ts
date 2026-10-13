@@ -1,4 +1,5 @@
-import { mkdir, stat } from "node:fs/promises"
+import { mkdir, stat, writeFile } from "node:fs/promises"
+import { cliPackageAdapters } from "./cli-package-adapters"
 
 export const binaryTargets = [
   "bun-linux-x64",
@@ -14,45 +15,49 @@ export function validateBinaryTarget(target: string | undefined): void {
   }
 }
 
-/** Compile the already built catalog and UI, without fetching or rebuilding them. */
+/** Compile the shared CLI and prepared JS CDN files, without fetching packages. */
 export async function compileBinary(): Promise<string> {
   const target = process.env.BUN_BUILD_TARGET
   validateBinaryTarget(target)
   for (const path of [
-    "lib/generated-bundled-parts.ts",
-    "lib/generated-ui-assets.ts",
-    "build/ui/metafile.json",
+    "lib/generated-jscdn-assets.ts",
+    "build/jscdn-metafile.json",
   ]) {
     const input = await stat(path).catch(() => undefined)
     if (!input?.isFile() || input.size === 0) {
       throw new Error(
-        `Missing prepared build input: ${path}. Run bun run build:ui first.`,
+        `Missing prepared build input: ${path}. Run bun run build first.`,
       )
     }
   }
   await mkdir("dist", { recursive: true })
   const windows = target?.includes("windows") ?? process.platform === "win32"
   const outfile = windows ? "dist/tsci.exe" : "dist/tsci"
-  const result = Bun.spawnSync(
-    [
-      process.execPath,
-      "build",
-      "--compile",
-      "--minify",
-      "--metafile=dist/build-metafile.json",
-      ...(target ? [`--target=${target}`] : []),
-      `--outfile=${outfile}`,
-      "cli/main.ts",
-      "lib/build-worker.ts",
+  const result = await Bun.build({
+    entrypoints: [
+      "cli/standalone.ts",
+      "cli/build.worker.ts",
+      "cli/snapshot.worker.ts",
     ],
-    { stdout: "inherit", stderr: "inherit" },
-  )
-  if (result.exitCode !== 0)
-    throw new Error(`Binary compilation failed (${result.exitCode})`)
-  const notices = Bun.spawnSync([process.execPath, "scripts/license-inventory.ts"], {
-    stdout: "inherit",
-    stderr: "inherit",
+    compile: {
+      outfile,
+      ...(target ? { target: target as (typeof binaryTargets)[number] } : {}),
+    },
+    tsconfig: "node_modules/@tscircuit/cli/tsconfig.json",
+    minify: true,
+    metafile: true,
+    plugins: [cliPackageAdapters],
   })
+  if (!result.success)
+    throw new AggregateError(result.logs, "Binary compilation failed")
+  await writeFile("dist/build-metafile.json", JSON.stringify(result.metafile))
+  const notices = Bun.spawnSync(
+    [process.execPath, "scripts/license-inventory.ts"],
+    {
+      stdout: "inherit",
+      stderr: "inherit",
+    },
+  )
   if (notices.exitCode !== 0)
     throw new Error(`License inventory failed (${notices.exitCode})`)
   console.log(`Built preparation binary: ${outfile}`)

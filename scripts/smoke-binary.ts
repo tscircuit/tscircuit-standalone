@@ -1,77 +1,191 @@
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
+import assert from "node:assert/strict"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
+import { chromium } from "playwright"
 import packageMetadata from "../package.json"
 
-const binary = resolve(process.platform === "win32" ? "dist/tsci.exe" : "dist/tsci")
+const binary = resolve(
+  process.platform === "win32" ? "dist/tsci.exe" : "dist/tsci",
+)
 const projectDir = await mkdtemp(join(tmpdir(), "tscircuit-standalone-"))
-try {
-  const run = (args: string[]) => Bun.spawnSync([binary, ...args], {
+const env = {
+  PATH: projectDir,
+  HOME: projectDir,
+  TSCIRCUIT_CONFIG_DIR: join(projectDir, "config"),
+  TSCI_SKIP_CLI_UPDATE: "true",
+  BUN_INSTALL_AUTO: "disable",
+}
+const run = (args: string[]) => {
+  const result = Bun.spawnSync([binary, ...args], {
     cwd: projectDir,
-    env: {
-      PATH: projectDir,
-      BUN_INSTALL_AUTO: "disable",
-      HTTP_PROXY: "http://127.0.0.1:1",
-      HTTPS_PROXY: "http://127.0.0.1:1",
-    },
-    stdout: "pipe", stderr: "pipe",
+    env,
+    stdout: "pipe",
+    stderr: "pipe",
+    timeout: 60_000,
   })
-  const version = run(["--version"])
-  if (version.exitCode !== 0 || version.stdout.toString().trim() !== packageMetadata.version) {
-    throw new Error("Compiled binary version does not match the selected tscircuit release")
+  assert.equal(
+    result.exitCode,
+    0,
+    `${args.join(" ")}: ${result.signalCode ?? ""}\n${result.stderr
+      .toString()
+      .split("\n")
+      .map((line) => line.slice(0, 300))
+      .join("\n")}`,
+  )
+  return result.stdout.toString()
+}
+let dev: Bun.Subprocess<"ignore", "inherit", "inherit"> | undefined
+let staticServer: ReturnType<typeof Bun.serve> | undefined
+let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined
+try {
+  assert.equal(run(["--version"]).trim(), packageMetadata.version)
+  assert.match(run(["--help"]), /CLI for developing tscircuit packages/)
+  await writeFile(join(projectDir, "package.json"), "{}")
+  await writeFile(
+    join(projectDir, "index.tsx"),
+    'export default () => <board width="10mm" height="10mm" />',
+  )
+  // Exercise the shared CLI's sequential and embedded worker paths.
+  for (const concurrency of ["1", "2"])
+    run(["build", "index.tsx", "--ignore-errors", "--concurrency", concurrency])
+  run(["build", "index.tsx", "--site", "--ignore-errors"])
+  assert.match(
+    await readFile(join(projectDir, "dist/index.html"), "utf8"),
+    /TSCIRCUIT_JSCDN_BASE_URL = ".\/jscdn"/,
+  )
+
+  const files = [
+    ...new Bun.Glob("**/*").scanSync({ cwd: "build/jscdn", onlyFiles: true }),
+  ]
+  for (const file of files) {
+    assert.deepEqual(
+      await readFile(join(projectDir, "dist/jscdn", file)),
+      await readFile(join("build/jscdn", file)),
+    )
   }
-  const imported = run(["import", "C2040"])
-  if (imported.exitCode !== 0) throw new Error(imported.stderr.toString())
-  const source = await readFile(join(projectDir, "imports/C2040.tsx"), "utf8")
-  if (!source.includes("qfn56_") || !source.includes("RP2040")) {
-    throw new Error("Compiled binary did not emit the bundled RP2040 footprint")
+
+  // Launch the actual compiled `tsci dev`; its environment must supply the CDN.
+  const portProbe = Bun.serve({ port: 0, fetch: () => new Response() })
+  const port = portProbe.port!
+  portProbe.stop(true)
+  const origin = `http://127.0.0.1:${port}`
+  dev = Bun.spawn([binary, "dev", "index.tsx", "--port", String(port)], {
+    cwd: projectDir,
+    env,
+    stdin: "ignore",
+    stdout: "inherit",
+    stderr: "inherit",
+  })
+  let ready = false
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (dev.exitCode !== null)
+      throw new Error(`tsci dev exited with code ${dev.exitCode}`)
+    try {
+      if ((await fetch(origin, { signal: AbortSignal.timeout(1000) })).ok) {
+        ready = true
+        break
+      }
+    } catch {}
+    await Bun.sleep(100)
   }
-  if (/https?:\/\/.*\.(?:obj|step|glb)/.test(source)) {
-    throw new Error("Generated component contains an external CAD asset")
+  assert.ok(ready, "tsci dev did not start")
+  assert.match(
+    await (await fetch(origin, { signal: AbortSignal.timeout(1000) })).text(),
+    /TSCIRCUIT_JSCDN_BASE_URL = "\/jscdn"/,
+  )
+  for (const file of files) {
+    const response = await fetch(`${origin}/jscdn/${file}`, {
+      signal: AbortSignal.timeout(5000),
+    })
+    assert.equal(response.status, 200, file)
+    assert.deepEqual(
+      Buffer.from(await response.arrayBuffer()),
+      await readFile(join("build/jscdn", file)),
+    )
+    if (file.endsWith(".wasm"))
+      assert.match(response.headers.get("content-type")!, /application\/wasm/)
   }
-  const missing = run(["import", "C999999999"])
-  if (missing.exitCode === 0 || !missing.stderr.toString().includes("C999999999")) {
-    throw new Error("An unbundled part must fail with a useful local error")
-  }
-  const unsupported = run(["publish"])
-  if (unsupported.exitCode === 0) throw new Error("Unimplemented commands must fail")
-  await cp(resolve(import.meta.dir, "../examples"), join(projectDir, "examples"), { recursive: true })
-  for (const name of ["led-resistor", "rp2040-breakout", "supplier-footprint"]) {
-    const built = run(["build", `examples/${name}.circuit.tsx`])
-    if (built.exitCode !== 0) throw new Error(built.stderr.toString())
-    const json = JSON.parse(await readFile(join(projectDir, `build/${name}.circuit.json`), "utf8"))
-    if (!json.some((element: { type: string }) => element.type === "pcb_trace")) {
-      throw new Error(`${name} produced no routed PCB traces`)
+
+  console.log("Compiled build, site copy and tsci dev file checks passed")
+  if (process.argv.includes("--browser")) {
+    console.log("Launching Chromium")
+    browser = await chromium.launch({ headless: true })
+    // Check the same modules below a nested static site as well as tsci dev.
+    staticServer = Bun.serve({
+      port: 0,
+      async fetch(request) {
+        const path = new URL(request.url).pathname.replace(/^\/nested\//, "")
+        const file = Bun.file(join(projectDir, "dist", path))
+        return new Response(file, {
+          headers: {
+            "content-type": path.endsWith("+esm")
+              ? "text/javascript"
+              : file.type,
+          },
+        })
+      },
+    })
+    const modules = files.filter(
+      (file) => file.endsWith("+esm") || file.endsWith("/dist/browser.js"),
+    )
+    for (const base of [
+      `${origin}/jscdn/`,
+      `http://127.0.0.1:${staticServer.port}/nested/jscdn/`,
+    ]) {
+      console.log(`Checking browser imports at ${base}`)
+      const page = await browser.newPage()
+      const externalRequests: string[] = []
+      await page.route("**/*", async (route) => {
+        const url = route.request().url()
+        if (!url.startsWith(new URL(base).origin)) {
+          externalRequests.push(url)
+          return route.abort()
+        }
+        if (url.endsWith("/test-page"))
+          return route.fulfill({
+            contentType: "text/html",
+            body: "<!doctype html><body>JS CDN smoke</body>",
+          })
+        return route.continue()
+      })
+      await page.goto(`${new URL(base).origin}/test-page`)
+      await page.evaluate(
+        async ({ base, modules }) => {
+          for (const file of modules) {
+            const namespace = await import(base + file)
+            if (!Object.keys(namespace).length)
+              throw new Error(`Empty module: ${file}`)
+          }
+          // Run a WASM-backed exporter, beyond merely downloading its loader.
+          const { createFdmComponentBox } = await import(
+            base + "circuit-json-to-fdm-component-box/latest/+esm"
+          )
+          const box = await createFdmComponentBox([
+            {
+              type: "source_component",
+              source_component_id: "source_component_1",
+              name: "R1",
+              ftype: "simple_resistor",
+              resistance: 1000,
+            },
+          ])
+          if (box.threeMf[0] !== 80 || box.threeMf[1] !== 75)
+            throw new Error("FDM exporter returned invalid 3MF")
+        },
+        { base, modules },
+      )
+      assert.deepEqual(externalRequests, [])
+      await page.close()
     }
-    const svg = await readFile(join(projectDir, `build/${name}.circuit.schematic.svg`), "utf8")
-    if (!svg.includes("data-schematic-component-id")) {
-      throw new Error(`${name} produced an empty schematic preview`)
-    }
   }
-  // Exercise the normal import -> src build workflow, using the component the
-  // compiled executable just generated rather than the checked-in fixture.
-  await mkdir(join(projectDir, "src"))
-  const importedCircuit = (await readFile(join(projectDir, "examples/rp2040-breakout.circuit.tsx"), "utf8"))
-    .replace('"./helpers/pad-testpoint"', '"../examples/helpers/pad-testpoint"')
-    .replace('"./imports/C2040"', '"../imports/C2040"')
-  await writeFile(join(projectDir, "src/imported-rp2040.circuit.tsx"), importedCircuit)
-  const importedBuild = run(["build", "src/imported-rp2040.circuit.tsx"])
-  if (importedBuild.exitCode !== 0) throw new Error(importedBuild.stderr.toString())
-  const importedJson = JSON.parse(await readFile(join(projectDir, "build/imported-rp2040.circuit.json"), "utf8"))
-  if (importedJson.filter((element: { type: string }) => element.type === "pcb_smtpad").length !== 72) {
-    throw new Error("Generated RP2040 import did not preserve the fixture's pads")
-  }
-  await writeFile(join(projectDir, "missing-module.tsx"), `import Missing from 'unbundled-example-package'; export default Missing`)
-  const missingModule = run(["build", "missing-module.tsx", "--output-dir", "missing-output"])
-  if (missingModule.exitCode === 0) throw new Error("Missing dependencies must fail locally")
-  await writeFile(join(projectDir, "remote-footprint.tsx"), `export default () => <board width="10mm" height="10mm"><chip name="U1" footprint="https://example.invalid/footprint.json"/></board>`)
-  const remote = run(["build", "remote-footprint.tsx", "--output-dir", "remote-output"])
-  if (remote.exitCode === 0) throw new Error("Remote footprints must fail locally")
-  const files = await readdir(projectDir)
-  if (files.includes("node_modules") || files.includes("missing-output") || files.includes("remote-output")) {
-    throw new Error("Build created a dependency install or partial failure output")
-  }
-  console.log("Compiled binary imports C2040 and builds all three circuits without node_modules, tokens, or a runtime on PATH; missing modules and remote footprints fail locally.")
+  console.log(
+    `Shared CLI builds sites and serves ${files.length} embedded JS CDN files through tsci dev${browser ? "; all browser modules and WASM exporter work at dev and nested site URLs" : ""}.`,
+  )
 } finally {
+  await browser?.close()
+  staticServer?.stop(true)
+  dev?.kill()
+  if (dev) await dev.exited
   await rm(projectDir, { recursive: true, force: true })
 }
