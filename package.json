@@ -1,6 +1,6 @@
 {
   "name": "@tscircuit/standalone",
-  "version": "0.0.0-alpha.1",
+  "version": "0.0.2839",
   "private": true,
   "description": "Offline tscircuit platform and standalone binary preparation",
   "type": "module",
@@ -20,12 +20,12 @@
   },
   "dependencies": {
     "@flatten-js/core": "1.6.12",
-    "@tscircuit/core": "0.0.2116",
-    "@tscircuit/eval": "0.0.1569",
+    "@tscircuit/core": "0.0.2132",
+    "@tscircuit/eval": "0.0.1596",
     "@tscircuit/footprinter": "0.0.437",
     "@tscircuit/krt-wasm": "0.1.6",
     "@tscircuit/math-utils": "0.0.36",
-    "@tscircuit/props": "0.0.697",
+    "@tscircuit/props": "0.0.700",
     "circuit-json": "0.0.525",
     "circuit-to-svg": "0.0.447",
     "fflate": "0.8.3",
@@ -33,8 +33,10 @@
     "kicadts": "0.0.58",
     "react": "19.2.7",
     "sucrase": "3.35.0",
-    "tscircuit": "npm:@tscircuit/core@0.0.2116",
-    "typescript": "5.9.3"
+    "tscircuit": "npm:@tscircuit/core@0.0.2132",
+    "typescript": "5.9.3",
+    "@tscircuit/checks": "0.0.247",
+    "@tscircuit/circuit-json-util": "0.0.121"
   },
   "devDependencies": {
     "@types/bun": "1.3.12",
@@ -45,7 +47,12 @@
     "ui"
   ],
   "overrides": {
-    "altiumts": "0.0.59"
+    "altiumts": "0.0.59",
+    "@tscircuit/core": "0.0.2132",
+    "@tscircuit/eval": "0.0.1596",
+    "@tscircuit/props": "0.0.700",
+    "@tscircuit/checks": "0.0.247",
+    "@tscircuit/circuit-json-util": "0.0.121"
   },
   "trustedDependencies": []
 }
