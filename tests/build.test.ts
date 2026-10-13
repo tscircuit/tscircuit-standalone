@@ -33,7 +33,16 @@ test("LED circuit routes and emits local previews with only unsourced BOM warnin
   try {
     const result = await buildCircuitFile(example("led-resistor"), { outputDir })
     expect(result.report.errors).toEqual([])
-    expect(result.report.warnings.filter((warning) => warning.type === "source_missing_manufacturer_part_number_warning")).toHaveLength(2)
+    const warnedComponentNames = result.circuitJson
+      .filter((element) => element.type === "source_missing_manufacturer_part_number_warning")
+      .map((warning) => result.circuitJson.find((element) =>
+        element.type === "source_component" && element.source_component_id === warning.source_component_id,
+      ))
+      .map((component) => component?.type === "source_component" ? component.name : undefined)
+    // Newer core releases exempt passive components such as R1 from MPN warnings.
+    // D1 must still warn, and no unrelated component may acquire a warning.
+    expect(warnedComponentNames).toContain("D1")
+    expect(warnedComponentNames.every((name) => name === "D1" || name === "R1")).toBe(true)
     expect(result.report.warnings.every((warning) => warning.type === "source_missing_manufacturer_part_number_warning" || warning.type.includes("sheet"))).toBe(true)
     expect(result.report.elementCounts.pcb_smtpad).toBe(6)
     expect(result.report.elementCounts.pcb_trace).toBeGreaterThan(0)
