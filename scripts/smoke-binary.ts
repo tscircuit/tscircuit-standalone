@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { copyFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { chromium } from "playwright"
@@ -76,7 +76,12 @@ try {
   const port = portProbe.port!
   portProbe.stop(true)
   const origin = `http://127.0.0.1:${port}`
-  dev = Bun.spawn([binary, "dev", "index.tsx", "--port", String(port)], {
+  const devBinary = join(
+    projectDir,
+    process.platform === "win32" ? "tsci.exe" : "tsci",
+  )
+  await copyFile(binary, devBinary)
+  dev = Bun.spawn([devBinary, "dev", "index.tsx", "--port", String(port)], {
     cwd: projectDir,
     env,
     stdin: "ignore",
@@ -89,13 +94,33 @@ try {
       throw new Error(`tsci dev exited with code ${dev.exitCode}`)
     try {
       if ((await fetch(origin, { signal: AbortSignal.timeout(1000) })).ok) {
-        ready = true
-        break
+        const { event_list } = await (
+          await fetch(`${origin}/api/events/list`, {
+            signal: AbortSignal.timeout(1000),
+          })
+        ).json()
+        if (
+          event_list.some(
+            (event: { event_type: string }) =>
+              event.event_type === "INITIAL_FILES_UPLOADED",
+          )
+        ) {
+          ready = true
+          break
+        }
       }
     } catch {}
     await Bun.sleep(100)
   }
   assert.ok(ready, "tsci dev did not start")
+  const { file_list } = await (await fetch(`${origin}/api/files/list`)).json()
+  assert.ok(
+    !file_list.some(
+      (file: { file_path: string }) =>
+        file.file_path === "tsci" || file.file_path === "tsci.exe",
+    ),
+    "tsci dev must not upload its own executable",
+  )
   assert.match(
     await (await fetch(origin, { signal: AbortSignal.timeout(1000) })).text(),
     /TSCIRCUIT_JSCDN_BASE_URL = "\/jscdn"/,
