@@ -50,6 +50,8 @@ jobs:
             ui/package.json
             bun.lock
             lib/generated-jscdn-assets.ts
+            lib/generated-baked-assets.ts
+            build/baked-asset-server
             build/jscdn
             build/jscdn-metafile.json
           if-no-files-found: error

@@ -10,6 +10,7 @@ import {
   buildDatasheetCatalog,
   writeBundledPartsModule,
 } from "../scripts/build-datasheets"
+import { buildBakedAssets } from "../scripts/build-baked-assets"
 
 const directories: string[] = []
 afterEach(async () => {
@@ -102,6 +103,64 @@ const previousModule = async (outputPath: string): Promise<void> => {
 const expectUnchanged = async (outputPath: string): Promise<void> => {
   expect(await readFile(outputPath, "utf8")).toBe("previous module\n")
 }
+
+test("bakes full datasheet responses for normalized chip and ID lookups", async () => {
+  const root = await directory()
+  const outputDirectory = join(root, "baked-asset-server")
+  const modulePath = join(root, "generated-baked-assets.ts")
+  const records = [
+    part("rp2040", "RP2040"),
+    { ...part("unsupported", "USB*Chip"), footprinter_string: null },
+  ]
+  await buildBakedAssets({
+    fetch: api(records),
+    log: silent,
+    outputDirectory,
+    modulePath,
+  })
+  const getDirectory = join(outputDirectory, "datasheet-api/datasheets/get")
+  for (const record of records) {
+    const name = record.chip_name.replace(/[^0-9a-zA-Z_-]/g, "").toLowerCase()
+    for (const query of [
+      `chip_name%3D${name}`,
+      `datasheet_id%3D${record.datasheet_id}`,
+    ]) {
+      expect(
+        await Bun.file(join(getDirectory, `${query}.json`)).json(),
+      ).toEqual({
+        datasheet: record,
+      })
+    }
+  }
+  expect(
+    await Bun.file(
+      join(outputDirectory, "datasheet-api/datasheets/list"),
+    ).json(),
+  ).toEqual({
+    datasheets: records.map(({ datasheet_id, chip_name }) => ({
+      datasheet_id,
+      chip_name,
+    })),
+  })
+  expect(await readFile(modulePath, "utf8")).toContain('with { type: "file" }')
+})
+
+test("failed baking preserves the previous embedded responses", async () => {
+  const outputDirectory = await directory()
+  const modulePath = join(outputDirectory, "generated-baked-assets.ts")
+  await previousModule(modulePath)
+  await expect(
+    buildBakedAssets({
+      fetch: api([part("rp2040", "RP2040")], {
+        details: () => new Response("unavailable", { status: 503 }),
+      }),
+      log: silent,
+      outputDirectory,
+      modulePath,
+    }),
+  ).rejects.toThrow("HTTP 503")
+  expect(await readFile(modulePath, "utf8")).toBe("previous module\n")
+})
 
 describe("build-time datasheet compilation", () => {
   test("embeds only compiled parts and public provenance, omitting raw records and generated source", async () => {
