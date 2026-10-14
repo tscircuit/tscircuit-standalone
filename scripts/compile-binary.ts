@@ -50,6 +50,19 @@ export async function compileBinary(): Promise<string> {
   })
   if (!result.success)
     throw new AggregateError(result.logs, "Binary compilation failed")
+  // Bun's embedded payload needs a fresh signature before macOS execution.
+  if (process.platform === "darwin" && (!target || target.includes("darwin"))) {
+    for (const args of [
+      ["--force", "--sign", "-", outfile],
+      ["--verify", "--strict", outfile],
+    ]) {
+      const signing = Bun.spawnSync(["codesign", ...args], {
+        stdout: "inherit",
+        stderr: "inherit",
+      })
+      if (signing.exitCode !== 0) throw new Error("macOS code signing failed")
+    }
+  }
   await writeFile("dist/build-metafile.json", JSON.stringify(result.metafile))
   const notices = Bun.spawnSync(
     [process.execPath, "scripts/license-inventory.ts"],
