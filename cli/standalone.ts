@@ -1,5 +1,5 @@
 import "../lib/register-bundled-modules"
-import { setupStandaloneEnvironment } from "../lib/jscdn-assets"
+import { setupStandaloneEnvironment } from "../lib/standalone-environment"
 import packageMetadata from "../package.json"
 
 await setupStandaloneEnvironment()

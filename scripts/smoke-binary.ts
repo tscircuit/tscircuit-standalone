@@ -121,9 +121,32 @@ try {
     ),
     "tsci dev must not upload its own executable",
   )
-  assert.match(
-    await (await fetch(origin, { signal: AbortSignal.timeout(1000) })).text(),
-    /TSCIRCUIT_JSCDN_BASE_URL = "\/jscdn"/,
+  const html = await (
+    await fetch(origin, { signal: AbortSignal.timeout(1000) })
+  ).text()
+  assert.match(html, /TSCIRCUIT_JSCDN_BASE_URL = "\/jscdn"/)
+  const datasheetApiUrl = html.match(
+    /"TSCIRCUIT_DATASHEET_API_BASE_URL":"([^"]+)"/,
+  )?.[1]
+  assert.ok(datasheetApiUrl, "tsci dev must inject the baked datasheet API URL")
+  const datasheetQuery = "datasheets/get/chip_name%3Drp2040.json"
+  const bakedResponse = await fetch(
+    `${datasheetApiUrl}/datasheets/get?chip_name=rp2040`,
+  )
+  assert.equal(bakedResponse.status, 200)
+  assert.deepEqual(
+    await bakedResponse.json(),
+    await Bun.file(
+      join("build/baked-asset-server/datasheet-api", datasheetQuery),
+    ).json(),
+  )
+  assert.equal(
+    (
+      await fetch(
+        `${datasheetApiUrl}/datasheets/get?chip_name=not-in-the-catalog`,
+      )
+    ).status,
+    404,
   )
   for (const file of files) {
     const response = await fetch(`${origin}/jscdn/${file}`, {

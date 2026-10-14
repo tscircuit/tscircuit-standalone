@@ -3,6 +3,7 @@ dist/
 build/
 lib/generated-ui-assets.ts
 lib/generated-jscdn-assets.ts
+lib/generated-baked-assets.ts
 lib/generated-bundled-parts.ts
 imports/
 !examples/imports/

@@ -15,12 +15,13 @@ export function validateBinaryTarget(target: string | undefined): void {
   }
 }
 
-/** Compile the shared CLI and prepared JS CDN files, without fetching packages. */
+/** Compile the shared CLI and prepared assets, without fetching packages. */
 export async function compileBinary(): Promise<string> {
   const target = process.env.BUN_BUILD_TARGET
   validateBinaryTarget(target)
   for (const path of [
     "lib/generated-jscdn-assets.ts",
+    "lib/generated-baked-assets.ts",
     "build/jscdn-metafile.json",
   ]) {
     const input = await stat(path).catch(() => undefined)

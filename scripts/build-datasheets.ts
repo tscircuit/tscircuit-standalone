@@ -27,6 +27,11 @@ export interface BuildDatasheetCatalogOptions {
   concurrency?: number
   requestTimeoutMs?: number
   deadlineMs?: number
+  onResponse?: (
+    path: string,
+    query: Record<string, string>,
+    body: unknown,
+  ) => Promise<void>
 }
 
 export interface DatasheetBuildExclusion {
@@ -331,7 +336,10 @@ export const buildDatasheetCatalog = async (
   )
   const fetch = options.fetch ?? globalThis.fetch
   const deadline = Date.now() + deadlineMs
-  const request = async (path: string, body: unknown): Promise<unknown> => {
+  const request = async (
+    path: string,
+    body: Record<string, string>,
+  ): Promise<unknown> => {
     const remaining = deadline - Date.now()
     if (remaining <= 0) return invalid("build deadline exceeded")
     const controller = new AbortController()
@@ -363,11 +371,14 @@ export const buildDatasheetCatalog = async (
           })
           if (!response.ok)
             return invalid(`${path} returned HTTP ${response.status}`)
+          let data: unknown
           try {
-            return await response.json()
+            data = await response.json()
           } catch {
             return invalid(`${path} returned invalid JSON`)
           }
+          await options.onResponse?.(path, body, data)
+          return data
         })(),
         timeout,
       ])
