@@ -61,9 +61,11 @@ CI runs this browser check with only loopback networking.
 Set `BUN_BUILD_TARGET` to `bun-linux-x64`, `bun-linux-arm64`, `bun-darwin-x64`,
 `bun-darwin-arm64`, or `bun-windows-x64` to cross-compile. The build emits the
 binary, compiler graphs, `dist/licenses.json` and `dist/THIRD_PARTY_NOTICES.txt`.
-Keep the notices with redistributed binaries. Use the CI-pinned Bun 1.3.12 to
-match the vendored runtime notices; cross-compilation does not establish native
-runtime support on each target.
+Keep the notices with redistributed binaries. Use the CI-pinned Bun 1.3.14 to
+match the vendored runtime notices. CI builds macOS targets on matching native
+runners, applies an ad-hoc signature and checks `--version` and `--help` before
+packaging. Cross-compilation does not establish native runtime support on the
+remaining targets.
 
 Licensed under MIT. Adapted RP2040 metadata is attributed in
 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES).

@@ -51,8 +51,10 @@ including annotated tags. Daily workflows run serially, and only
 the publishing job receives permission to write releases.
 
 These are development prereleases. Linux x64 has native/browser execution
-coverage; the other four targets currently have cross-compilation coverage.
+coverage. Both macOS targets are built on native runners, ad-hoc signed and
+checked with `--version` and `--help` before packaging. Linux arm64 and Windows
+x64 currently have cross-compilation coverage.
 The archives retain the dependency inventory and collected redistribution
 notices, including the existing license-review follow-ups. Official release
-qualification, additional native platform tests and signing remain separate
-work.
+qualification, additional native platform tests and Developer ID signing and
+notarization remain separate work.

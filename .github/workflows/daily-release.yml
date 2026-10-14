@@ -143,9 +143,10 @@ jobs:
           UI bundle are embedded in every target. Runtime part imports, circuit builds
           and the local UI use the embedded resources without outbound requests.
 
-          Linux x64 passes native and browser qualification. Linux arm64, macOS and
-          Windows artifacts are cross-compiled; native execution on those targets
-          remains to be qualified.
+          Linux x64 passes native and browser qualification. Both macOS targets
+          are built on native runners, ad-hoc signed and checked with --version
+          and --help. Linux arm64 and Windows artifacts are cross-compiled;
+          native execution on those targets remains to be qualified.
           EOF
           if gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" > tag-ref.json 2> tag-error.txt; then
             while [ "$(jq -er '.object.type' tag-ref.json)" = "tag" ]; do
