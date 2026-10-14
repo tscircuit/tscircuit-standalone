@@ -23,6 +23,7 @@ type FixtureState = {
   runError?: number
   releaseError?: number
   npmVersion?: string
+  npmRequestedVersion?: string
   npmError?: boolean
 }
 
@@ -146,11 +147,11 @@ const curlStub =
 import { appendFileSync, readFileSync } from "node:fs"
 const args = process.argv.slice(2)
 appendFileSync(process.env.CURL_FIXTURE_CALLS, JSON.stringify(args) + "\n")
-if (args.at(-1) !== "https://registry.npmjs.org/tscircuit/latest") {
+const state = JSON.parse(readFileSync(process.env.GH_FIXTURE_STATE, "utf8"))
+if (args.at(-1) !== "https://registry.npmjs.org/tscircuit/" + (state.npmRequestedVersion ?? "latest")) {
   process.stderr.write("Unexpected fixture curl URL\n")
   process.exit(1)
 }
-const state = JSON.parse(readFileSync(process.env.GH_FIXTURE_STATE, "utf8"))
 if (state.npmError) {
   process.stderr.write("curl: fixture registry error\n")
   process.exit(22)
@@ -180,7 +181,7 @@ const fixture = async (initialState: FixtureState = {}) => {
   await writeFile(outputPath, "")
   for (const name of [...archives, "SHA256SUMS"])
     await writeFile(join(root, name), `Fixture ${name}\n`)
-  const runScript = (script: string) =>
+  const runScript = (script: string, env: Record<string, string> = {}) =>
     Bun.spawnSync(["/bin/bash", "-eo", "pipefail", "-c", script], {
       cwd: root,
       env: {
@@ -197,10 +198,11 @@ const fixture = async (initialState: FixtureState = {}) => {
         RELEASE_VERSION: releaseVersion,
         SOURCE_SHA: sourceSha,
         RUN_URL: "https://example.invalid/actions/runs/1",
+        ...env,
       },
     })
-  const run = () => runScript(publishScript)
-  const prepare = () => runScript(prepareScript)
+  const run = (env: Record<string, string> = {}) => runScript(publishScript, env)
+  const prepare = (env: Record<string, string> = {}) => runScript(prepareScript, env)
   const state = async () =>
     JSON.parse(await readFile(statePath, "utf8")) as FixtureState
   const calls = async () =>
@@ -442,4 +444,65 @@ test("preparation cannot release with invalid versions or failed registry reques
     expect((await release.outputs()).publish).toBeUndefined()
     expect(await release.mutations()).toEqual([])
   }
+})
+
+
+test("manual preparation uses a run-specific tag and can select an exact upstream version", async () => {
+  const release = await fixture({ npmRequestedVersion: "0.0.2857", npmVersion: "0.0.2857" })
+  expect(release.prepare({ MANUAL_RELEASE: "true", REQUESTED_VERSION: "0.0.2857" }).exitCode).toBe(0)
+  expect(await release.outputs()).toEqual({
+    tag: "manual-2026-10-12-123", version: "0.0.2857", publish: "true",
+  })
+  expect((await release.curlCalls())[0]?.at(-1)).toBe("https://registry.npmjs.org/tscircuit/0.0.2857")
+})
+
+test("manual retries preserve the run tag and draft version after npm latest changes", async () => {
+  const release = await fixture({
+    release: { draft: true, target_commitish: sourceSha, name: releaseName },
+    npmVersion: "0.0.3000",
+  })
+  expect(release.prepare({ MANUAL_RELEASE: "true" }).exitCode).toBe(0)
+  expect(await release.outputs()).toEqual({
+    tag: "manual-2026-10-12-123", version: releaseVersion, publish: "true",
+  })
+  expect(await release.curlCalls()).toEqual([])
+})
+
+test("manual preparation rejects unsafe input and mismatched registry or draft versions", async () => {
+  const invalid = await fixture()
+  expect(invalid.prepare({ MANUAL_RELEASE: "true", REQUESTED_VERSION: "latest/../../other" }).exitCode).not.toBe(0)
+  expect(await invalid.curlCalls()).toEqual([])
+  expect((await invalid.outputs()).publish).toBeUndefined()
+  for (const initialState of [
+    { npmRequestedVersion: "0.0.2857", npmVersion: releaseVersion },
+    { release: { draft: true, target_commitish: sourceSha, name: releaseName } },
+  ] satisfies FixtureState[]) {
+    const release = await fixture(initialState)
+    expect(release.prepare({ MANUAL_RELEASE: "true", REQUESTED_VERSION: "0.0.2857" }).exitCode).not.toBe(0)
+    expect((await release.outputs()).publish).toBeUndefined()
+    expect(await release.mutations()).toEqual([])
+  }
+})
+
+test("manual retries leave a published run unchanged without a registry request", async () => {
+  const release = await fixture({
+    release: { draft: false, target_commitish: sourceSha, name: releaseName }, npmError: true,
+  })
+  expect(release.prepare({ MANUAL_RELEASE: "true" }).exitCode).toBe(0)
+  expect(await release.outputs()).toEqual({ tag: "manual-2026-10-12-123", publish: "false" })
+  expect(await release.curlCalls()).toEqual([])
+  expect(await release.mutations()).toEqual([])
+})
+
+
+test("a manual latest release publishes all archives under its unique tag with manual notes", async () => {
+  const release = await fixture()
+  expect(release.prepare({ MANUAL_RELEASE: "true" }).exitCode).toBe(0)
+  const outputs = await release.outputs()
+  expect(outputs.tag).toBe("manual-2026-10-12-123")
+  expect(release.run({ RELEASE_TAG: outputs.tag!, RELEASE_VERSION: outputs.version!, BUILD_KIND: "Manual" }).exitCode).toBe(0)
+  expect((await release.state()).release?.draft).toBe(false)
+  expect((await release.state()).uploaded).toEqual([...archives, "SHA256SUMS"].sort())
+  expect((await release.mutations()).every((args) => args[2] === outputs.tag)).toBe(true)
+  expect(await readFile(join(release.root, "release-notes.md"), "utf8")).toContain("Manual development build")
 })

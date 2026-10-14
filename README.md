@@ -33,6 +33,22 @@ The shared CLI retains its normal behavior for other services, including remote
 parts, routing and browser resources. Embedding the JS CDN packages does not
 make every CLI command or RunFrame feature offline.
 
+## Manual releases
+
+In GitHub Actions, select **Manual standalone release**, click **Run workflow**,
+choose `main`, and enter an exact upstream tscircuit version or leave `latest`.
+You can also trigger it with:
+
+```sh
+gh workflow run manual-release.yml --ref main -f tscircuit_version=latest
+```
+
+Manual runs publish a prerelease tagged `manual-YYYY-MM-DD-RUN_ID`, so they can
+publish even when that day's daily release already exists. They use the same
+qualification checks, five platform archives, and `SHA256SUMS` as nightly releases.
+Rerunning the original run resumes its draft using the original tag and version;
+a published release is left unchanged. Publishing is restricted to `main`.
+
 ## Validation and release preparation
 
 `bun run check` builds the prototype UI fixtures, builds the executable, runs

@@ -1,0 +1,22 @@
+name: Manual standalone release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tscircuit_version:
+        description: Upstream tscircuit version (exact version or latest)
+        required: true
+        default: latest
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    if: github.repository == 'tscircuit/tscircuit-standalone' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/daily-release.yml
+    with:
+      manual_release: true
+      tscircuit_version: ${{ inputs.tscircuit_version }}
