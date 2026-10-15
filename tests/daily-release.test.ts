@@ -1,4 +1,5 @@
 import { afterEach, expect, test } from "bun:test"
+import { createHash } from "node:crypto"
 import {
   chmod,
   mkdir,
@@ -39,6 +40,18 @@ const archives = [
   "tscircuit-standalone-macos-arm64.tar.gz",
   "tscircuit-standalone-windows-x64.zip",
 ]
+const binaries = [
+  "tsci-linux-x64",
+  "tsci-linux-arm64",
+  "tsci-darwin-x64",
+  "tsci-darwin-arm64",
+  "tsci-windows-x64.exe",
+]
+const assets = [
+  ...binaries,
+  ...binaries.map((name) => `${name.replace(/\.exe$/, "")}.notices.txt`),
+  ...archives,
+]
 const workflow = Bun.YAML.parse(
   await Bun.file(
     new URL("../.github/workflows/daily-release.yml", import.meta.url),
@@ -54,6 +67,11 @@ const publishScript = workflow.jobs.publish.steps.find(
 )?.run
 if (!publishScript)
   throw new Error("The daily release publication step is missing")
+const verifyScript = workflow.jobs.publish.steps.find(
+  (step) => step.name === "Verify the release assets and generate checksums",
+)?.run
+if (!verifyScript)
+  throw new Error("The daily release asset verification step is missing")
 const prepareScript = workflow.jobs.prepare.steps.find(
   (step) =>
     step.name === "Choose the tscircuit version and skip published dates",
@@ -171,6 +189,13 @@ const fixture = async (initialState: FixtureState = {}) => {
   // Reruns must use the original GitHub run date, regardless of the runner clock.
   await writeFile(join(bin, "date"), "#!/bin/sh\nprintf '2099-01-01\\n'\n")
   await chmod(join(bin, "date"), 0o755)
+  if (process.platform === "darwin") {
+    await writeFile(
+      join(bin, "sha256sum"),
+      '#!/bin/sh\nexec /usr/bin/shasum -a 256 "$@"\n',
+    )
+    await chmod(join(bin, "sha256sum"), 0o755)
+  }
   const statePath = join(root, "state.json")
   const callsPath = join(root, "calls.jsonl")
   const curlCallsPath = join(root, "curl-calls.jsonl")
@@ -179,7 +204,7 @@ const fixture = async (initialState: FixtureState = {}) => {
   await writeFile(callsPath, "")
   await writeFile(curlCallsPath, "")
   await writeFile(outputPath, "")
-  for (const name of [...archives, "SHA256SUMS"])
+  for (const name of assets)
     await writeFile(join(root, name), `Fixture ${name}\n`)
   const runScript = (script: string, env: Record<string, string> = {}) =>
     Bun.spawnSync(["/bin/bash", "-eo", "pipefail", "-c", script], {
@@ -201,7 +226,9 @@ const fixture = async (initialState: FixtureState = {}) => {
         ...env,
       },
     })
-  const run = (env: Record<string, string> = {}) => runScript(publishScript, env)
+  const verify = () => runScript(verifyScript)
+  const run = (env: Record<string, string> = {}) =>
+    runScript(`${verifyScript}\n${publishScript}`, env)
   const prepare = (env: Record<string, string> = {}) => runScript(prepareScript, env)
   const state = async () =>
     JSON.parse(await readFile(statePath, "utf8")) as FixtureState
@@ -227,8 +254,34 @@ const fixture = async (initialState: FixtureState = {}) => {
         .filter(Boolean)
         .map((line) => line.split("=")),
     )
-  return { root, run, prepare, state, calls, mutations, curlCalls, outputs }
+  return { root, run, verify, prepare, state, calls, mutations, curlCalls, outputs }
 }
+
+test("checksums cover every direct binary, notices file and optional archive", async () => {
+  const release = await fixture()
+  const result = release.verify()
+  expect(result.exitCode).toBe(0)
+  const sums = await readFile(join(release.root, "SHA256SUMS"), "utf8")
+  const expected = await Promise.all(
+    assets.map(async (name) => {
+      const bytes = await readFile(join(release.root, name))
+      return `${createHash("sha256").update(bytes).digest("hex")}  ${name}`
+    }),
+  )
+  expect(sums.trim().split("\n").sort()).toEqual(expected.sort())
+})
+
+test("missing or empty release assets prevent publication", async () => {
+  for (const asset of assets) {
+    for (const missing of [true, false]) {
+      const release = await fixture()
+      if (missing) await rm(join(release.root, asset))
+      else await writeFile(join(release.root, asset), "")
+      expect(release.run().exitCode).not.toBe(0)
+      expect(await release.mutations()).toEqual([])
+    }
+  }
+})
 
 test("a missing git ref publishes the first release despite unknown commits returning 422", async () => {
   const release = await fixture()
@@ -236,7 +289,7 @@ test("a missing git ref publishes the first release despite unknown commits retu
   expect(result.exitCode).toBe(0)
   expect(await release.state()).toMatchObject({
     release: { draft: false, target_commitish: sourceSha, name: releaseName },
-    uploaded: [...archives, "SHA256SUMS"].sort(),
+    uploaded: [...assets, "SHA256SUMS"].sort(),
   })
   const requests = await release.calls()
   expect(requests[0]?.[1]).toBe(
@@ -251,6 +304,18 @@ test("a missing git ref publishes the first release despite unknown commits retu
   expect(
     await readFile(join(release.root, "release-notes.md"), "utf8"),
   ).toContain(`Version: ${releaseVersion}`)
+  const notes = await readFile(join(release.root, "release-notes.md"), "utf8")
+  expect(notes.indexOf("## Download a binary")).toBeLessThan(
+    notes.indexOf("## Build details"),
+  )
+  for (const binary of binaries) {
+    expect(notes).toContain(
+      `https://github.com/fixture/standalone/releases/download/${releaseTag}/${binary})`,
+    )
+    expect(notes).toContain(
+      `https://github.com/fixture/standalone/releases/download/${releaseTag}/${binary.replace(/\.exe$/, "")}.notices.txt)`,
+    )
+  }
 })
 
 test("direct and nested annotated tags may publish only when they resolve to the source commit", async () => {
@@ -330,7 +395,7 @@ test("an interrupted upload leaves a draft and a retry publishes every asset", a
   ])
   expect(release.run().exitCode).toBe(0)
   expect((await release.state()).uploaded).toEqual(
-    [...archives, "SHA256SUMS"].sort(),
+    [...assets, "SHA256SUMS"].sort(),
   )
   expect((await release.state()).release?.draft).toBe(false)
   expect((await release.mutations()).map((args) => args[1])).toEqual([
@@ -495,14 +560,19 @@ test("manual retries leave a published run unchanged without a registry request"
 })
 
 
-test("a manual latest release publishes all archives under its unique tag with manual notes", async () => {
+test("a manual latest release publishes all assets under its unique tag with manual notes", async () => {
   const release = await fixture()
   expect(release.prepare({ MANUAL_RELEASE: "true" }).exitCode).toBe(0)
   const outputs = await release.outputs()
   expect(outputs.tag).toBe("manual-2026-10-12-123")
   expect(release.run({ RELEASE_TAG: outputs.tag!, RELEASE_VERSION: outputs.version!, BUILD_KIND: "Manual" }).exitCode).toBe(0)
   expect((await release.state()).release?.draft).toBe(false)
-  expect((await release.state()).uploaded).toEqual([...archives, "SHA256SUMS"].sort())
+  expect((await release.state()).uploaded).toEqual([...assets, "SHA256SUMS"].sort())
   expect((await release.mutations()).every((args) => args[2] === outputs.tag)).toBe(true)
   expect(await readFile(join(release.root, "release-notes.md"), "utf8")).toContain("Manual development build")
+  for (const binary of binaries) {
+    expect(await readFile(join(release.root, "release-notes.md"), "utf8")).toContain(
+      `https://github.com/fixture/standalone/releases/download/${outputs.tag}/${binary})`,
+    )
+  }
 })

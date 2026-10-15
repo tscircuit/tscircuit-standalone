@@ -3,10 +3,12 @@ import {
   copyFile,
   mkdir,
   mkdtemp,
+  readFile,
   rename,
   rm,
   stat,
   utimes,
+  writeFile,
 } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { validateBinaryTarget } from "./compile-binary"
@@ -24,11 +26,17 @@ interface PackageReleaseOptions {
   target?: string
 }
 
-/** Package a compiled binary and all redistribution notices for one target. */
+export interface ReleaseAssets {
+  binary: string
+  notices: string
+  archive: string
+}
+
+/** Publishable binary, companion notices, and optional archive for one target. */
 export async function packageRelease({
   projectRoot = resolve(import.meta.dir, ".."),
   target = process.env.BUN_BUILD_TARGET,
-}: PackageReleaseOptions = {}): Promise<string> {
+}: PackageReleaseOptions = {}): Promise<ReleaseAssets> {
   validateBinaryTarget(target)
   if (!target) throw new Error("BUN_BUILD_TARGET is required to package a release")
   const platform = releaseTargets[target as keyof typeof releaseTargets]
@@ -52,6 +60,10 @@ export async function packageRelease({
   const stage = await mkdtemp(join(outputDir, ".package-"))
   const extension = windows ? "zip" : "tar.gz"
   const outfile = join(outputDir, `tscircuit-standalone-${platform}.${extension}`)
+  const assetName = `tsci-${target.slice("bun-".length)}`
+  const binaryAsset = join(outputDir, `${assetName}${windows ? ".exe" : ""}`)
+  const noticesAsset = join(outputDir, `${assetName}.notices.txt`)
+  const temporaryNotices = join(stage, "notices.txt")
   const temporaryArchive = join(stage, `archive.${extension}`)
   try {
     for (const [source, destination] of files) {
@@ -65,6 +77,16 @@ export async function packageRelease({
         new Date("1980-01-01T00:00:00Z"),
       )
     }
+    const noticeSections = await Promise.all(
+      files.slice(1).map(async ([, name]) =>
+        `\n${"=".repeat(72)}\n${name}\n\n${await readFile(join(stage, name), "utf8")}`,
+      ),
+    )
+    await writeFile(
+      temporaryNotices,
+      `tscircuit standalone redistribution notices (${platform})\nKeep this file with the binary when redistributing it.\n${noticeSections.join("\n")}\n`,
+    )
+    await chmod(temporaryNotices, 0o644)
     const names = files.map(([, name]) => name)
     const command = windows
       ? ["zip", "-X", "-q", temporaryArchive, ...names]
@@ -91,10 +113,15 @@ export async function packageRelease({
     const output = await stat(temporaryArchive)
     if (output.size === 0) throw new Error("Release archive is empty")
     await rename(temporaryArchive, outfile)
-    return outfile
+    await rename(join(stage, binary), binaryAsset)
+    await rename(temporaryNotices, noticesAsset)
+    return { binary: binaryAsset, notices: noticesAsset, archive: outfile }
   } finally {
     await rm(stage, { recursive: true, force: true })
   }
 }
 
-if (import.meta.main) console.log(`Packaged release: ${await packageRelease()}`)
+if (import.meta.main) {
+  const assets = await packageRelease()
+  console.log(`Packaged release:\n${Object.values(assets).join("\n")}`)
+}

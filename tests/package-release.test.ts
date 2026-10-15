@@ -36,7 +36,7 @@ test("Linux and macOS archives include usable executables and every notice", asy
     ["bun-darwin-x64", "macos-x64"],
     ["bun-darwin-arm64", "macos-arm64"],
   ]) {
-    const archive = await packageRelease({ projectRoot: root, target })
+    const { archive } = await packageRelease({ projectRoot: root, target })
     expect(basename(archive)).toBe(`tscircuit-standalone-${name}.tar.gz`)
     const extracted = join(root, name!)
     await mkdir(extracted)
@@ -69,7 +69,7 @@ test("Linux and macOS archives include usable executables and every notice", asy
 
 test("Windows ZIP contains the exe and every notice with exact bytes", async () => {
   const { root, files } = await fixture()
-  const archive = await packageRelease({ projectRoot: root, target: "bun-windows-x64" })
+  const { archive } = await packageRelease({ projectRoot: root, target: "bun-windows-x64" })
   expect(basename(archive)).toBe("tscircuit-standalone-windows-x64.zip")
   const listing = Bun.spawnSync(["unzip", "-Z1", archive])
   expect(listing.exitCode).toBe(0)
@@ -88,6 +88,45 @@ test("Windows ZIP contains the exe and every notice with exact bytes", async () 
     const extracted = Bun.spawnSync(["unzip", "-p", archive, basename(path)])
     expect(extracted.exitCode).toBe(0)
     expect(extracted.stdout.toString()).toBe(content)
+  }
+})
+
+test("direct downloads preserve binary bytes and include every redistribution file in companion notices", async () => {
+  const { root, files } = await fixture()
+  for (const platform of [
+    "linux-x64",
+    "linux-arm64",
+    "darwin-x64",
+    "darwin-arm64",
+    "windows-x64",
+  ]) {
+    const windows = platform === "windows-x64"
+    const assets = await packageRelease({
+      projectRoot: root,
+      target: `bun-${platform}`,
+    })
+    expect(basename(assets.binary)).toBe(`tsci-${platform}${windows ? ".exe" : ""}`)
+    expect(basename(assets.notices)).toBe(`tsci-${platform}.notices.txt`)
+    expect(await readFile(assets.binary)).toEqual(
+      await readFile(join(root, windows ? "dist/tsci.exe" : "dist/tsci")),
+    )
+    expect((await stat(assets.binary)).mode & 0o777).toBe(windows ? 0o644 : 0o755)
+    if (!windows) {
+      const execution = Bun.spawnSync([assets.binary])
+      expect(execution.exitCode).toBe(0)
+      expect(execution.stdout.toString()).toBe("fixture binary\n")
+    }
+    const notices = await readFile(assets.notices, "utf8")
+    for (const [path, content] of Object.entries(files).filter(
+      ([path]) => !path.startsWith("dist/tsci"),
+    )) {
+      expect(notices).toContain(`\n${basename(path)}\n\n${content}`)
+    }
+    const repeated = await packageRelease({
+      projectRoot: root,
+      target: `bun-${platform}`,
+    })
+    expect(await readFile(repeated.notices, "utf8")).toBe(notices)
   }
 })
 
@@ -110,6 +149,12 @@ test("packaging rejects missing or empty redistribution files before writing an 
         await Bun.file(
           join(root, "dist/release/tscircuit-standalone-linux-x64.tar.gz"),
         ).exists(),
+      ).toBe(false)
+      expect(
+        await Bun.file(join(root, "dist/release/tsci-linux-x64")).exists(),
+      ).toBe(false)
+      expect(
+        await Bun.file(join(root, "dist/release/tsci-linux-x64.notices.txt")).exists(),
       ).toBe(false)
     }
   }
