@@ -20,40 +20,29 @@ tests, compiled-binary smoke, browser qualification and native network tracing.
 It then compiles all five targets from the same qualified catalog and UI bundle.
 No release is published if a check, target build or packaging step fails.
 
-The primary release downloads are directly runnable binaries. The release notes
-link to each executable and its matching `.notices.txt` file before the build
-details. Download both files for your platform; no archive extraction or Bun/Node
-installation is required.
+Release assets:
 
 | Target | Primary binary | Optional archive |
 | --- | --- | --- |
 | Linux x64 | `tsci-linux-x64` | `tscircuit-standalone-linux-x64.tar.gz` |
 | Linux arm64 | `tsci-linux-arm64` | `tscircuit-standalone-linux-arm64.tar.gz` |
-| macOS Intel | `tsci-darwin-x64` | `tscircuit-standalone-macos-x64.tar.gz` |
-| macOS Apple Silicon | `tsci-darwin-arm64` | `tscircuit-standalone-macos-arm64.tar.gz` |
+| macOS x64 | `tsci-darwin-x64` | `tscircuit-standalone-macos-x64.tar.gz` |
+| macOS arm64 | `tsci-darwin-arm64` | `tscircuit-standalone-macos-arm64.tar.gz` |
 | Windows x64 | `tsci-windows-x64.exe` | `tscircuit-standalone-windows-x64.zip` |
 
-On macOS/Linux, rename the executable to `tsci`, run `chmod +x tsci`, then run
-`./tsci --version`. On Windows, rename it to `tsci.exe` and run
-`.\tsci.exe --version` in PowerShell. The embedded version matches the selected
-npm `tscircuit` release. Put the binary on your PATH to use `tsci import ESP32-S3R8`,
+Direct downloads need no extraction; keep the matching `.notices.txt` file with
+the binary. On macOS/Linux, rename it to `tsci` and run `chmod +x tsci`.
+
+Each optional archive includes `tsci` (`tsci.exe` on Windows), `LICENSE`,
+`THIRD_PARTY_NOTICES`, `licenses.json` and `THIRD_PARTY_NOTICES.txt`. Extract the
+archive and run `./tsci --version`, or `tsci.exe --version` on Windows. The
+embedded version matches the selected npm `tscircuit` release. The release notes
+identify its source commit, and `licenses.json` records compiled dependency
+versions. Put the binary on your PATH to use `tsci import ESP32-S3R8`,
 `tsci build my-board.circuit.tsx` and `tsci dev my-board.circuit.tsx`.
 
-Each companion notices file (for example, `tsci-linux-x64.notices.txt`) contains
-the complete contents of `LICENSE`, `THIRD_PARTY_NOTICES`, `licenses.json` and
-`THIRD_PARTY_NOTICES.txt` for that target. Keep it with the binary when
-redistributing it. The optional archives contain the same executable and those
-four files separately. The release notes identify the source commit, and the
-inventory records compiled dependency versions.
-
-The release also includes `SHA256SUMS`, covering all five binaries, five notices
-files and five optional archives. Before renaming your download, run
-`sha256sum tsci-linux-x64` on Linux or `shasum -a 256 tsci-darwin-arm64` on macOS,
-substituting your filename, and compare the result with its entry in
-`SHA256SUMS`. On Windows, use `Get-FileHash .\tsci-windows-x64.exe -Algorithm SHA256`
-in PowerShell. Verify the companion notices file the same way. If you downloaded
-every asset, use `sha256sum --check SHA256SUMS` on Linux or
-`shasum -a 256 --check SHA256SUMS` on macOS.
+The release includes `SHA256SUMS` for all assets. Compare `sha256sum <file>` on
+Linux or `shasum -a 256 <file>` on macOS with the matching entry in `SHA256SUMS`.
 
 Assets are uploaded to a draft before it becomes public. Published dates are
 skipped on reruns. A failed upload leaves a draft that the original workflow
@@ -65,7 +54,7 @@ the publishing job receives permission to write releases.
 
 These are development prereleases. Linux x64 has native/browser execution
 coverage; the other four targets currently have cross-compilation coverage.
-The companion notices and archives retain the dependency inventory and collected
-redistribution notices, including the existing license-review follow-ups. Official release
+The archives retain the dependency inventory and collected redistribution
+notices, including the existing license-review follow-ups. Official release
 qualification, additional native platform tests and signing remain separate
 work.

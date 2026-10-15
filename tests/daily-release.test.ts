@@ -306,7 +306,7 @@ test("a missing git ref publishes the first release despite unknown commits retu
   ).toContain(`Version: ${releaseVersion}`)
   const notes = await readFile(join(release.root, "release-notes.md"), "utf8")
   expect(notes.indexOf("## Download a binary")).toBeLessThan(
-    notes.indexOf("## Build details"),
+    notes.indexOf(`Version: ${releaseVersion}`),
   )
   for (const binary of binaries) {
     expect(notes).toContain(

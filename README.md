@@ -3,22 +3,6 @@
 A compiled Bun executable that launches the shared `@tscircuit/cli` and embeds
 the JS CDN packages requested by RunFrame's `internal-dynamic-import` calls.
 
-## Download a binary
-
-Open [Releases](https://github.com/tscircuit/tscircuit-standalone/releases) and
-use the **Download a binary** table in a release's notes to choose your platform.
-The primary downloads are standalone executables; no extraction or Bun/Node
-installation is required. Download the matching `.notices.txt` file as well and
-keep it with the binary when redistributing it.
-
-On macOS/Linux, rename the executable to `tsci`, run `chmod +x tsci`, then
-`./tsci --version`. On Windows, rename it to `tsci.exe` and run
-`.\tsci.exe --version` in PowerShell. Put it on your PATH to run `tsci` anywhere.
-Archives containing the executable and separate license files remain optional.
-See [release details and checksums](docs/releases.md).
-
-## Build from source
-
 ```sh
 bun install --frozen-lockfile --ignore-scripts
 bun run build
@@ -61,9 +45,8 @@ gh workflow run manual-release.yml --ref main -f tscircuit_version=latest
 
 Manual runs publish a prerelease tagged `manual-YYYY-MM-DD-RUN_ID`, so they can
 publish even when that day's daily release already exists. They use the same
-qualification checks, five platform binaries with companion notices, optional
-archives, and `SHA256SUMS` as nightly releases. Rerunning the original run
-resumes its draft using the original tag and version;
+qualification checks, five platform archives, and `SHA256SUMS` as nightly releases.
+Rerunning the original run resumes its draft using the original tag and version;
 a published release is left unchanged. Publishing is restricted to `main`.
 
 ## Validation and release preparation

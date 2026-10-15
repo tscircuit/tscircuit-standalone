@@ -94,7 +94,7 @@ jobs:
         run: |
           brew install gnu-tar
           echo "$(brew --prefix gnu-tar)/libexec/gnubin" >> "$GITHUB_PATH"
-      - name: Prepare binary downloads, companion notices and optional archives
+      - name: Package the binary and redistribution notices
         run: bun scripts/package-release.ts
         env:
           BUN_BUILD_TARGET: ${{ matrix.target }}

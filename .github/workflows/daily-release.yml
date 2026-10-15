@@ -146,11 +146,8 @@ jobs:
 
           ## Download a binary
 
-          Download the executable for your platform and its companion notices file.
-          No extraction or Bun/Node installation is required. On macOS/Linux, rename
-          the download to tsci and run chmod +x tsci before running ./tsci --version.
-          On Windows, rename the download to tsci.exe and run .\tsci.exe --version.
-          Keep the companion notices with the binary when redistributing it.
+          Download a binary and its notices file. Archives are optional. On macOS/Linux,
+          rename the binary to tsci and run chmod +x tsci.
 
           | Platform | Binary | Notices |
           | --- | --- | --- |
@@ -160,19 +157,14 @@ jobs:
           | macOS Apple Silicon | [tsci-darwin-arm64]($download_url/tsci-darwin-arm64) | [Notices]($download_url/tsci-darwin-arm64.notices.txt) |
           | Windows x64 | [tsci-windows-x64.exe]($download_url/tsci-windows-x64.exe) | [Notices]($download_url/tsci-windows-x64.notices.txt) |
 
-          SHA256SUMS covers every binary, companion notices file and optional archive.
-          The notices include the project license, third-party notices and compiled
-          dependency inventory. Archives remain available as an optional download
-          containing tsci, project licenses and generated dependency notices.
-
-          ## Build details
-
           Version: $RELEASE_VERSION
           Source commit: $SOURCE_SHA
           [Build and qualification results]($RUN_URL)
 
-          The same build-time datasheet catalog and UI bundle are embedded in every
-          target. Runtime part imports, circuit builds
+          Each archive contains tsci, project licenses and generated dependency notices.
+          Compiled dependency versions are recorded in licenses.json and the companion notices.
+          SHA256SUMS covers all binaries, notices and archives. The same build-time datasheet catalog and
+          UI bundle are embedded in every target. Runtime part imports, circuit builds
           and the local UI use the embedded resources without outbound requests.
 
           Linux x64 passes native and browser qualification. Linux arm64, macOS and
