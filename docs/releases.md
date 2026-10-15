@@ -22,15 +22,18 @@ No release is published if a check, target build or packaging step fails.
 
 Release assets:
 
-| Target | Archive |
-| --- | --- |
-| Linux x64 | `tscircuit-standalone-linux-x64.tar.gz` |
-| Linux arm64 | `tscircuit-standalone-linux-arm64.tar.gz` |
-| macOS x64 | `tscircuit-standalone-macos-x64.tar.gz` |
-| macOS arm64 | `tscircuit-standalone-macos-arm64.tar.gz` |
-| Windows x64 | `tscircuit-standalone-windows-x64.zip` |
+| Target | Primary binary | Optional archive |
+| --- | --- | --- |
+| Linux x64 | `tsci-linux-x64` | `tscircuit-standalone-linux-x64.tar.gz` |
+| Linux arm64 | `tsci-linux-arm64` | `tscircuit-standalone-linux-arm64.tar.gz` |
+| macOS x64 | `tsci-darwin-x64` | `tscircuit-standalone-macos-x64.tar.gz` |
+| macOS arm64 | `tsci-darwin-arm64` | `tscircuit-standalone-macos-arm64.tar.gz` |
+| Windows x64 | `tsci-windows-x64.exe` | `tscircuit-standalone-windows-x64.zip` |
 
-Each archive includes `tsci` (`tsci.exe` on Windows), `LICENSE`,
+Direct downloads need no extraction; keep the matching `.notices.txt` file with
+the binary. On macOS/Linux, rename it to `tsci` and run `chmod +x tsci`.
+
+Each optional archive includes `tsci` (`tsci.exe` on Windows), `LICENSE`,
 `THIRD_PARTY_NOTICES`, `licenses.json` and `THIRD_PARTY_NOTICES.txt`. Extract the
 archive and run `./tsci --version`, or `tsci.exe --version` on Windows. The
 embedded version matches the selected npm `tscircuit` release. The release notes
@@ -38,9 +41,8 @@ identify its source commit, and `licenses.json` records compiled dependency
 versions. Put the binary on your PATH to use `tsci import ESP32-S3R8`,
 `tsci build my-board.circuit.tsx` and `tsci dev my-board.circuit.tsx`.
 
-The release also includes `SHA256SUMS`. On Linux, verify downloaded archives
-with `sha256sum --check SHA256SUMS` from their directory; on macOS use
-`shasum -a 256 --check SHA256SUMS`.
+The release includes `SHA256SUMS` for all assets. Compare `sha256sum <file>` on
+Linux or `shasum -a 256 <file>` on macOS with the matching entry in `SHA256SUMS`.
 
 ## macOS download quarantine
 

@@ -104,20 +104,30 @@ jobs:
           pattern: tscircuit-standalone-*
           path: dist/release
           merge-multiple: true
-      - name: Verify the archives and generate checksums
+      - name: Verify the release assets and generate checksums
         working-directory: dist/release
         run: |
-          archives=(
+          assets=(
+            tsci-linux-x64
+            tsci-linux-arm64
+            tsci-darwin-x64
+            tsci-darwin-arm64
+            tsci-windows-x64.exe
+            tsci-linux-x64.notices.txt
+            tsci-linux-arm64.notices.txt
+            tsci-darwin-x64.notices.txt
+            tsci-darwin-arm64.notices.txt
+            tsci-windows-x64.notices.txt
             tscircuit-standalone-linux-x64.tar.gz
             tscircuit-standalone-linux-arm64.tar.gz
             tscircuit-standalone-macos-x64.tar.gz
             tscircuit-standalone-macos-arm64.tar.gz
             tscircuit-standalone-windows-x64.zip
           )
-          for archive in "${archives[@]}"; do
-            test -s "$archive"
+          for asset in "${assets[@]}"; do
+            test -s "$asset"
           done
-          sha256sum "${archives[@]}" > SHA256SUMS
+          sha256sum "${assets[@]}" > SHA256SUMS
           sha256sum --check SHA256SUMS
       - name: Publish the complete daily prerelease
         working-directory: dist/release
@@ -130,8 +140,22 @@ jobs:
           BUILD_KIND: ${{ inputs.manual_release && 'Manual' || 'Daily' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          download_url="https://github.com/$GH_REPO/releases/download/$RELEASE_TAG"
           cat > release-notes.md <<EOF
           ${BUILD_KIND:-Daily} development build of tscircuit standalone, based on tscircuit $RELEASE_VERSION.
+
+          ## Download a binary
+
+          Download a binary and its notices file. Archives are optional. On macOS/Linux,
+          rename the binary to tsci and run chmod +x tsci.
+
+          | Platform | Binary | Notices |
+          | --- | --- | --- |
+          | Linux x64 | [tsci-linux-x64]($download_url/tsci-linux-x64) | [Notices]($download_url/tsci-linux-x64.notices.txt) |
+          | Linux arm64 | [tsci-linux-arm64]($download_url/tsci-linux-arm64) | [Notices]($download_url/tsci-linux-arm64.notices.txt) |
+          | macOS Intel | [tsci-darwin-x64]($download_url/tsci-darwin-x64) | [Notices]($download_url/tsci-darwin-x64.notices.txt) |
+          | macOS Apple Silicon | [tsci-darwin-arm64]($download_url/tsci-darwin-arm64) | [Notices]($download_url/tsci-darwin-arm64.notices.txt) |
+          | Windows x64 | [tsci-windows-x64.exe]($download_url/tsci-windows-x64.exe) | [Notices]($download_url/tsci-windows-x64.notices.txt) |
 
           Version: $RELEASE_VERSION
           Source commit: $SOURCE_SHA
@@ -153,8 +177,8 @@ jobs:
           see [macOS quarantine instructions](https://github.com/$GH_REPO/blob/$SOURCE_SHA/docs/releases.md#macos-download-quarantine).
 
           Each archive contains tsci, project licenses and generated dependency notices.
-          Compiled dependency versions are recorded in licenses.json.
-          SHA256SUMS covers all five archives. The same build-time datasheet catalog and
+          Compiled dependency versions are recorded in licenses.json and the companion notices.
+          SHA256SUMS covers all binaries, notices and archives. The same build-time datasheet catalog and
           UI bundle are embedded in every target. Runtime part imports, circuit builds
           and the local UI use the embedded resources without outbound requests.
 
@@ -188,5 +212,9 @@ jobs:
             cat release-error.txt
             exit 1
           fi
-          gh release upload "$RELEASE_TAG" ./*.tar.gz ./*.zip SHA256SUMS --clobber
+          assets=()
+          while read -r checksum asset; do
+            assets+=("$asset")
+          done < SHA256SUMS
+          gh release upload "$RELEASE_TAG" "${assets[@]}" SHA256SUMS --clobber
           gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false --notes-file release-notes.md
