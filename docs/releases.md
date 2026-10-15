@@ -42,6 +42,40 @@ The release also includes `SHA256SUMS`. On Linux, verify downloaded archives
 with `sha256sum --check SHA256SUMS` from their directory; on macOS use
 `shasum -a 256 --check SHA256SUMS`.
 
+## macOS download quarantine
+
+The macOS binaries are ad hoc signed, without an Apple Developer ID or
+notarization. Browsers such as Chrome add `com.apple.quarantine` metadata to
+downloads; Archive Utility can propagate it to the extracted binary. This
+metadata is added on the user's Mac, not by the build or release archive, so
+changing release packaging cannot prevent it on browser downloads.
+
+For installation without browser quarantine, use the [terminal installer](../README.md#download-and-run-on-macos).
+It selects the native architecture, downloads the specified release and verifies
+its archive against `SHA256SUMS` before extracting it. It does not remove
+quarantine from existing files or change system security settings.
+
+For an archive already downloaded through a browser, verify its checksum first.
+If you trust the release, enter its extracted directory and run:
+
+```sh
+xattr -d com.apple.quarantine ./tsci
+./tsci --version
+```
+
+This removes the download quarantine check for that executable. If `xattr`
+reports that the attribute does not exist, it has already been cleared or was
+never attached. Alternatively, use **System Settings → Privacy & Security →
+Open Anyway** after the blocked launch, as described by
+[Apple](https://support.apple.com/102445).
+
+Wi-Fi does not need to be disabled to launch the binary. Offline qualification
+tests are separate from Gatekeeper's download checks. Developer ID signing and
+notarization would be needed for a release that passes the normal Gatekeeper
+checks after a browser download.
+
+## Release publication
+
 Assets are uploaded to a draft before it becomes public. Published dates are
 skipped on reruns. A failed upload leaves a draft that the original workflow
 can retry for the same source commit and npm version, even on a later day. The

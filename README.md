@@ -3,6 +3,29 @@
 A compiled Bun executable that launches the shared `@tscircuit/cli` and embeds
 the JS CDN packages requested by RunFrame's `internal-dynamic-import` calls.
 
+## Download and run on macOS
+
+Choose a tag from [Releases](https://github.com/tscircuit/tscircuit-standalone/releases)
+and pass it to the terminal installer, for example:
+
+```sh
+curl --fail --location --silent --show-error https://raw.githubusercontent.com/tscircuit/tscircuit-standalone/main/scripts/install-macos.sh | sh -s -- daily-2026-10-15
+./tscircuit-standalone-daily-2026-10-15/tsci --version
+```
+
+The installer selects Apple Silicon or Intel, checks the archive against the
+release's `SHA256SUMS`, and keeps the executable and license notices together.
+An optional second argument sets the destination directory; existing directories
+are left untouched. No Apple account, Bun/Node installation or `sudo` is needed.
+
+Browser downloads can acquire macOS quarantine metadata and trigger an
+“Apple could not verify” warning because these binaries are ad hoc signed and
+not notarized. The terminal installer downloads with `curl`, which does not add
+that metadata. For an existing browser download, see the
+[macOS quarantine instructions](docs/releases.md#macos-download-quarantine).
+
+## Build from source
+
 ```sh
 bun install --frozen-lockfile --ignore-scripts
 bun run build
