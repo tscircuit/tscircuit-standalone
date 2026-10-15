@@ -137,6 +137,21 @@ jobs:
           Source commit: $SOURCE_SHA
           [Build and qualification results]($RUN_URL)
 
+          ### macOS terminal installation
+
+          Downloads made by a browser can trigger Gatekeeper because the macOS
+          binaries are ad hoc signed and not notarized. Use the checksum-verified
+          terminal installer to download without browser quarantine:
+
+          ~~~sh
+          curl --fail --location --silent --show-error https://raw.githubusercontent.com/$GH_REPO/$SOURCE_SHA/scripts/install-macos.sh | sh -s -- $RELEASE_TAG
+          ./tscircuit-standalone-$RELEASE_TAG/tsci --version
+          ~~~
+
+          The installer selects Apple Silicon or Intel automatically. No Apple
+          account, Bun/Node or sudo is required. For existing browser downloads,
+          see [macOS quarantine instructions](https://github.com/$GH_REPO/blob/$SOURCE_SHA/docs/releases.md#macos-download-quarantine).
+
           Each archive contains tsci, project licenses and generated dependency notices.
           Compiled dependency versions are recorded in licenses.json.
           SHA256SUMS covers all five archives. The same build-time datasheet catalog and
