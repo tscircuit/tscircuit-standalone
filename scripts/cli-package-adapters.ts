@@ -21,6 +21,29 @@ export const cliPackageAdapters: Bun.BunPlugin = {
         ),
       }),
     )
+    // Embed the CLI's eval worker using RunFrame's existing browser build hook.
+    build.onLoad(
+      { filter: /runframe\/dist\/standalone\.min\.js$/ },
+      async ({ path }) => {
+        const source = await readFile(path, "utf8")
+        const placeholder = '"<--INJECT_TSCIRCUIT_EVAL_WEB_WORKER_BLOB_URL-->"'
+        if (!source.includes(placeholder)) {
+          throw new Error("RunFrame eval worker placeholder is missing")
+        }
+        const workerPath = Bun.resolveSync(
+          "@tscircuit/eval/worker-entrypoint",
+          resolve("node_modules/@tscircuit/cli"),
+        )
+        const worker = (await readFile(workerPath)).toString("base64")
+        return {
+          contents: source.replaceAll(
+            placeholder,
+            `URL.createObjectURL(new Blob([Uint8Array.from(atob(${JSON.stringify(worker)}), c => c.charCodeAt(0))], { type: "application/javascript" }))`,
+          ),
+          loader: "text",
+        }
+      },
+    )
     // Use the existing portable renderer instead of a host-specific native addon.
     build.onResolve({ filter: /^@resvg\/resvg-(?:js|wasm)$/ }, async () => ({
       path: join(await findUiPackageRoot("@resvg/resvg-wasm"), "index.js"),
