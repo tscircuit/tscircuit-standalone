@@ -5,12 +5,14 @@ the JS CDN packages requested by RunFrame's `internal-dynamic-import` calls.
 
 ## Download and run on macOS
 
-Choose a tag from [Releases](https://github.com/tscircuit/tscircuit-standalone/releases)
-and pass it to the terminal installer, for example:
+Download the newest published [release](https://github.com/tscircuit/tscircuit-standalone/releases),
+including development prereleases, with the terminal installer:
 
 ```sh
-curl --fail --location --silent --show-error https://raw.githubusercontent.com/tscircuit/tscircuit-standalone/main/scripts/install-macos.sh | sh -s -- daily-2026-10-15
-./tscircuit-standalone-daily-2026-10-15/tsci --version
+release_tag=$(curl --fail --location --silent --show-error 'https://api.github.com/repos/tscircuit/tscircuit-standalone/releases?per_page=1' |
+  plutil -extract 0.tag_name raw -o - -)
+curl --fail --location --silent --show-error https://raw.githubusercontent.com/tscircuit/tscircuit-standalone/main/scripts/install-macos.sh | sh -s -- "$release_tag"
+./tscircuit-standalone-"$release_tag"/tsci --version
 ```
 
 The installer selects Apple Silicon or Intel, checks the archive against the
