@@ -182,10 +182,20 @@ export async function buildJscdn() {
     Object.assign(metafile.inputs, result.metafile.inputs)
     Object.assign(metafile.outputs, result.metafile.outputs)
   }
-  await mkdir(join(outputDir, "_assets"), { recursive: true })
-  for (const [url, asset] of Object.entries(adapters.assets)) {
+  const assets = {
+    ...Object.fromEntries(
+      Object.entries(adapters.assets).map(([url, asset]) => [
+        `_assets/${url.slice("/assets/".length)}`,
+        asset,
+      ]),
+    ),
+    ...adapters.viewerAssets,
+  }
+  for (const [path, asset] of Object.entries(assets)) {
+    const destination = join(outputDir, path)
+    await mkdir(dirname(destination), { recursive: true })
     await writeFile(
-      join(outputDir, "_assets", url.slice("/assets/".length)),
+      destination,
       asset.content ?? (await readFile(asset.source)),
     )
     metafile.inputs[portable(relative(projectRoot, asset.source))] = {
@@ -207,7 +217,7 @@ export async function buildJscdn() {
     "jscdnAssets",
   )
   console.log(
-    `Prepared ${specifiers.size} RunFrame JS CDN entrypoints and ${Object.keys(adapters.assets).length} assets`,
+    `Prepared ${specifiers.size} RunFrame JS CDN entrypoints and ${Object.keys(assets).length} assets`,
   )
 }
 
