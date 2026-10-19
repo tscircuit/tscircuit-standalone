@@ -48,13 +48,15 @@ const replaceSection = (source: string, from: string, to: string, replacement: s
 
 /** Localizes reviewed nested loaders while retaining the real converters. */
 export async function createUiPackageAdapters({ findPackageRoot }: UiPackageAdapterOptions) {
-  const [lbrnRoot, fdmRoot, gltfRoot, manifoldRoot, occtRoot, resvgRoot] = await Promise.all([
+  const [lbrnRoot, fdmRoot, gltfRoot, manifoldRoot, occtRoot, resvgRoot, viewerManifoldRoot, threeRoot] = await Promise.all([
     exactPackage(findPackageRoot, "circuit-json-to-lbrn", "0.0.74"),
     exactPackage(findPackageRoot, "circuit-json-to-fdm-component-box", "0.0.4"),
     exactPackage(findPackageRoot, "circuit-json-to-gltf", "0.0.152"),
     exactPackage(findPackageRoot, "manifold-3d-exporters", "3.5.1"),
     exactPackage(findPackageRoot, "occt-import-js", "0.0.23"),
     exactPackage(findPackageRoot, "@resvg/resvg-wasm", "2.6.2"),
+    exactPackage(findPackageRoot, "manifold-3d", "3.2.1"),
+    exactPackage(findPackageRoot, "three", "0.165.0"),
   ])
 
   const lbrnPath = join(lbrnRoot, "dist/index.js")
@@ -184,5 +186,21 @@ export default function createLocalExporterManifold() {
     },
   }
 
-  return { plugin, assets }
+  const viewerAssets: Record<string, UiPackageAsset> = {
+    "manifold-3d/3.2.1/manifold.js": {
+      source: join(viewerManifoldRoot, "manifold.js"),
+      contentType: "text/javascript; charset=utf-8",
+    },
+    "manifold-3d/3.2.1/manifold.wasm": {
+      source: join(viewerManifoldRoot, "manifold.wasm"),
+      contentType: "application/wasm",
+    },
+    "occt-import-js/0.0.23/+esm": assets["/assets/occt-import-js.js"]!,
+    "occt-import-js/0.0.23/dist/occt-import-js.wasm": assets["/assets/occt-import-js.wasm"]!,
+    "three/0.165.0/examples/fonts/ttf/kenpixel.ttf": {
+      source: join(threeRoot, "examples/fonts/ttf/kenpixel.ttf"),
+      contentType: "font/ttf",
+    },
+  }
+  return { plugin, assets, viewerAssets }
 }

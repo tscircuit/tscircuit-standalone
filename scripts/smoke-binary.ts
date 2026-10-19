@@ -171,7 +171,7 @@ try {
       async fetch(request) {
         const path = new URL(request.url).pathname.replace(/^\/nested\//, "")
         const file = Bun.file(join(projectDir, "dist", path))
-        return new Response(file, {
+        return new Response(await file.arrayBuffer(), {
           headers: {
             "content-type": path.endsWith("+esm")
               ? "text/javascript"
@@ -226,12 +226,63 @@ try {
           ])
           if (box.threeMf[0] !== 80 || box.threeMf[1] !== 75)
             throw new Error("FDM exporter returned invalid 3MF")
+
+          const { default: createManifold } = await import(
+            base + "manifold-3d/3.2.1/manifold.js"
+          )
+          const manifold = await createManifold()
+          manifold.setup()
+          const cube = manifold.Manifold.cube([2, 3, 4])
+          if (cube.volume() !== 24)
+            throw new Error("Viewer Manifold runtime returned invalid geometry")
+          cube.delete()
+
+          const { default: createOcct } = await import(
+            base + "occt-import-js/0.0.23/+esm"
+          )
+          const occt = await createOcct({
+            locateFile: (path: string) =>
+              base + "occt-import-js/0.0.23/dist/" + path,
+          })
+          if (typeof occt.ReadStepFile !== "function")
+            throw new Error("Viewer STEP runtime did not initialize")
         },
         { base, modules },
       )
       assert.deepEqual(externalRequests, [])
       await page.close()
     }
+    const context = await browser.newContext({ serviceWorkers: "block" })
+    const externalRequests: string[] = []
+    const requests: string[] = []
+    context.on("request", (request) => requests.push(request.url()))
+    await context.route("**/*", (route) => {
+      const url = new URL(route.request().url())
+      if (["http:", "https:"].includes(url.protocol) && url.origin !== origin) {
+        externalRequests.push(url.href)
+        return route.abort()
+      }
+      return route.continue()
+    })
+    const page = await context.newPage()
+    const errors: string[] = []
+    page.on("pageerror", (error) => errors.push(error.message))
+    await page.goto(origin)
+    const fontLoaded = page.waitForResponse(
+      (response) => response.url().endsWith("/kenpixel.ttf") && response.ok(),
+    )
+    await page.getByText("3D", { exact: true }).first().click()
+    await page.waitForFunction(() =>
+      Boolean(
+        (window as any).__TSCIRCUIT_THREE_OBJECT?.getObjectByName("board-geom"),
+      ),
+    )
+    await fontLoaded
+    assert.ok(requests.some((url) => url.endsWith("/manifold.wasm")))
+    assert.ok(requests.some((url) => url.endsWith("/kenpixel.ttf")))
+    assert.deepEqual(errors, [])
+    assert.deepEqual(externalRequests, [])
+    await context.close()
   }
   console.log(
     `Shared CLI builds sites and serves ${files.length} embedded JS CDN files through tsci dev${browser ? "; all browser modules and WASM exporter work at dev and nested site URLs" : ""}.`,
