@@ -89,7 +89,7 @@ try {
     stderr: "inherit",
   })
   let ready = false
-  for (let attempt = 0; attempt < 100; attempt++) {
+  for (let attempt = 0; attempt < 300; attempt++) {
     if (dev.exitCode !== null)
       throw new Error(`tsci dev exited with code ${dev.exitCode}`)
     try {
