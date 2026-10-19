@@ -164,7 +164,10 @@ try {
   console.log("Compiled build, site copy and tsci dev file checks passed")
   if (process.argv.includes("--browser")) {
     console.log("Launching Chromium")
-    browser = await chromium.launch({ headless: true })
+    browser = await chromium.launch({
+      headless: true,
+      args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"],
+    })
     // Check the same modules below a nested static site as well as tsci dev.
     staticServer = Bun.serve({
       port: 0,
