@@ -64,6 +64,10 @@ try {
   const files = [
     ...new Bun.Glob("**/*").scanSync({ cwd: "build/jscdn", onlyFiles: true }),
   ]
+  assert.deepEqual(
+    files.filter((file) => file.endsWith("/manifold.wasm")),
+    ["_assets/manifold.wasm"],
+  )
   for (const file of files) {
     assert.deepEqual(
       await readFile(join(projectDir, "dist/jscdn", file)),
@@ -231,7 +235,7 @@ try {
             throw new Error("FDM exporter returned invalid 3MF")
 
           const { default: createManifold } = await import(
-            base + "manifold-3d/3.2.1/manifold.js"
+            base + "manifold-3d/3.5.1/manifold.js"
           )
           const manifold = await createManifold()
           manifold.setup()

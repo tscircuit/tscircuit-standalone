@@ -48,14 +48,13 @@ const replaceSection = (source: string, from: string, to: string, replacement: s
 
 /** Localizes reviewed nested loaders while retaining the real converters. */
 export async function createUiPackageAdapters({ findPackageRoot }: UiPackageAdapterOptions) {
-  const [lbrnRoot, fdmRoot, gltfRoot, manifoldRoot, occtRoot, resvgRoot, viewerManifoldRoot, threeRoot] = await Promise.all([
+  const [lbrnRoot, fdmRoot, gltfRoot, manifoldRoot, occtRoot, resvgRoot, threeRoot] = await Promise.all([
     exactPackage(findPackageRoot, "circuit-json-to-lbrn", "0.0.74"),
     exactPackage(findPackageRoot, "circuit-json-to-fdm-component-box", "0.0.4"),
     exactPackage(findPackageRoot, "circuit-json-to-gltf", "0.0.152"),
-    exactPackage(findPackageRoot, "manifold-3d-exporters", "3.5.1"),
+    exactPackage(findPackageRoot, "manifold-3d", "3.5.1"),
     exactPackage(findPackageRoot, "occt-import-js", "0.0.23"),
     exactPackage(findPackageRoot, "@resvg/resvg-wasm", "2.6.2"),
-    exactPackage(findPackageRoot, "manifold-3d", "3.2.1"),
     exactPackage(findPackageRoot, "three", "0.165.0"),
   ])
 
@@ -106,11 +105,11 @@ async function ensureWasmInitialized() {
   }
 
   const assets: Record<string, UiPackageAsset> = {
-    "/assets/manifold-exporters.js": {
+    "/assets/manifold.js": {
       source: join(manifoldRoot, "manifold.js"),
       contentType: "text/javascript; charset=utf-8",
     },
-    "/assets/manifold-exporters.wasm": {
+    "/assets/manifold.wasm": {
       source: join(manifoldRoot, "manifold.wasm"),
       contentType: "application/wasm",
     },
@@ -145,7 +144,7 @@ async function ensureWasmInitialized() {
       builder.onResolve({ filter: /^occt-import-js$|^https:\/\/cdn\.jsdelivr\.net\/npm\/occt-import-js@0\.0\.23\/\+esm$/ }, () => ({ path: "occt", namespace }))
       builder.onResolve({ filter: /^occt-import-js\/dist\/occt-import-js\.wasm\?url$/ }, () => ({ path: "occt-wasm-url", namespace }))
       builder.onResolve({ filter: /^@resvg\/resvg-wasm\/index_bg\.wasm\?url$/ }, () => ({ path: "resvg-wasm-url", namespace }))
-      builder.onResolve({ filter: /^\/assets\/(?:manifold-exporters|occt-import-js)\.js$/ }, ({ path }) => ({ path, external: true }))
+      builder.onResolve({ filter: /^\/assets\/(?:manifold|occt-import-js)\.js$/ }, ({ path }) => ({ path, external: true }))
 
       builder.onLoad({ filter: fileFilter(lbrnPath) }, () => ({ contents: localLbrnSource, loader: "js" }))
       builder.onLoad({ filter: fileFilter(browserPngPath) }, () => ({ contents: localBrowserPngSource, loader: "js" }))
@@ -170,8 +169,8 @@ export default function createLocalOcct(options = {}) {
           contents: `var pending;
 export default function createLocalExporterManifold() {
   pending ??= (async () => {
-    const { default: createManifold } = await import("/assets/manifold-exporters.js");
-    const module = await createManifold({ locateFile: () => "/assets/manifold-exporters.wasm" });
+    const { default: createManifold } = await import("/assets/manifold.js");
+    const module = await createManifold({ locateFile: () => "/assets/manifold.wasm" });
     const setup = module.setup.bind(module);
     let initialized = false;
     module.setup = () => { if (!initialized) { setup(); initialized = true; } };
@@ -187,13 +186,10 @@ export default function createLocalExporterManifold() {
   }
 
   const viewerAssets: Record<string, UiPackageAsset> = {
-    "manifold-3d/3.2.1/manifold.js": {
-      source: join(viewerManifoldRoot, "manifold.js"),
-      contentType: "text/javascript; charset=utf-8",
-    },
-    "manifold-3d/3.2.1/manifold.wasm": {
-      source: join(viewerManifoldRoot, "manifold.wasm"),
-      contentType: "application/wasm",
+    "manifold-3d/3.5.1/manifold.js": {
+      ...assets["/assets/manifold.js"]!,
+      // The viewer and exporters load the same JS/WASM pair.
+      content: 'export { default } from "../../_assets/manifold.js";\n',
     },
     "occt-import-js/0.0.23/+esm": assets["/assets/occt-import-js.js"]!,
     "occt-import-js/0.0.23/dist/occt-import-js.wasm": assets["/assets/occt-import-js.wasm"]!,

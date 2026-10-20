@@ -24,11 +24,11 @@ test("finds RunFrame's aliased dynamic imports, without unrelated calls", () => 
 test("resolves JS and WASM relative to the CDN module on nested sites", () => {
   expect(
     localizeAssetUrls(
-      'import("/assets/manifold-exporters.js"); fetch("/assets/manifold-exporters.wasm")',
+      'import("/assets/manifold.js"); fetch("/assets/manifold.wasm")',
       "/build/jscdn/package/latest/+esm",
       "/build/jscdn",
     ),
   ).toBe(
-    'import("../../_assets/manifold-exporters.js"); fetch(new URL("../../_assets/manifold-exporters.wasm", import.meta.url).href)',
+    'import("../../_assets/manifold.js"); fetch(new URL("../../_assets/manifold.wasm", import.meta.url).href)',
   )
 })
