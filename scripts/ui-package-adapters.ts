@@ -191,8 +191,16 @@ export default function createLocalExporterManifold() {
       // The viewer and exporters load the same JS/WASM pair.
       content: 'export { default } from "../../_assets/manifold.js";\n',
     },
-    "occt-import-js/0.0.23/+esm": assets["/assets/occt-import-js.js"]!,
-    "occt-import-js/0.0.23/dist/occt-import-js.wasm": assets["/assets/occt-import-js.wasm"]!,
+    "occt-import-js/0.0.23/+esm": {
+      ...assets["/assets/occt-import-js.js"]!,
+      // Ignore the viewer's CDN locateFile callback and share the exporters'
+      // loader/WASM. Relative URLs also work below a nested static-site path.
+      content: `import createOcct from "../../_assets/occt-import-js.js";
+export default function createLocalOcct(options = {}) {
+  return createOcct({ ...options, locateFile: () => new URL("../../_assets/occt-import-js.wasm", import.meta.url).href });
+}
+`,
+    },
     "three/0.165.0/examples/fonts/ttf/kenpixel.ttf": {
       source: join(threeRoot, "examples/fonts/ttf/kenpixel.ttf"),
       contentType: "font/ttf",

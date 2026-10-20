@@ -80,7 +80,9 @@ a published release is left unchanged. Publishing is restricted to `main`.
 typechecks and unit tests, then exercises the compiled `tsci build` and `tsci dev`
 in a project with no dependencies or Bun/Node on PATH. After installing Chromium
 with `bunx playwright install chromium`, run `bun scripts/smoke-binary.ts --browser`
-to check every CDN module and a WASM exporter at dev and nested static-site URLs.
+to check every CDN module and a WASM exporter at dev and nested static-site URLs,
+and 3D rendering of a board with an embedded STEP model in the compiled dev
+viewer. The viewer and exporters share a single OCCT loader/WASM pair.
 CI runs this browser check with only loopback networking.
 
 Set `BUN_BUILD_TARGET` to `bun-linux-x64`, `bun-linux-arm64`, `bun-darwin-x64`,
