@@ -36,7 +36,7 @@ jobs:
         run: bunx playwright install --with-deps chromium
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/build/playwright
-      - name: Verify JS CDN modules and WASM with only loopback networking
+      - name: Verify 3D STEP rendering, JS CDN modules and WASM with only loopback networking
         run: |
           sudo unshare --net env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" CI_BROWSER_USER="$(id -un)" sh -c 'ip link set lo up; exec runuser -u "$CI_BROWSER_USER" -- env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" bun scripts/smoke-binary.ts --browser'
         env:

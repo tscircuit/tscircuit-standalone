@@ -42,9 +42,16 @@ try {
   assert.equal(run(["--version"]).trim(), packageMetadata.version)
   assert.match(run(["--help"]), /CLI for developing tscircuit packages/)
   await writeFile(join(projectDir, "package.json"), "{}")
+  // A locally generated 2 x 3 x 2 mm solid exercises the viewer's STEP loader,
+  // rather than allowing procedural footprint CAD to hide an OCCT failure.
+  const stepFixture = await readFile(
+    resolve(import.meta.dir, "../tests/fixtures/occt-box.step"),
+    "utf8",
+  )
+  const stepUrl = `data:application/step;base64,${Buffer.from(stepFixture).toString("base64")}`
   await writeFile(
     join(projectDir, "index.tsx"),
-    'export default () => <board width="10mm" height="10mm" />',
+    `export default () => <board width="10mm" height="10mm" partsEngineDisabled><chip name="U1" footprint="pinrow2" cadModel={{ stepUrl: ${JSON.stringify(stepUrl)} }} /></board>`,
   )
   // Exercise the shared CLI's sequential and embedded worker paths.
   for (const concurrency of ["1", "2"])
@@ -67,6 +74,18 @@ try {
   assert.deepEqual(
     files.filter((file) => file.endsWith("/manifold.wasm")),
     ["_assets/manifold.wasm"],
+  )
+  assert.deepEqual(
+    files.filter((file) => file.endsWith("/occt-import-js.wasm")),
+    ["_assets/occt-import-js.wasm"],
+  )
+  assert.deepEqual(
+    files.filter((file) => file.endsWith("/occt-import-js.js")),
+    ["_assets/occt-import-js.js"],
+  )
+  assert.ok(
+    (await readFile("build/jscdn/occt-import-js/0.0.23/+esm")).length < 1024,
+    "Viewer OCCT entry must be a wrapper, not another copy of the loader",
   )
   for (const file of files) {
     assert.deepEqual(
@@ -133,6 +152,8 @@ try {
     /"TSCIRCUIT_DATASHEET_API_BASE_URL":"([^"]+)"/,
   )?.[1]
   assert.ok(datasheetApiUrl, "tsci dev must inject the baked datasheet API URL")
+  const bakedAssetOrigin = new URL(datasheetApiUrl).origin
+  assert.equal(new URL(bakedAssetOrigin).hostname, "127.0.0.1")
   const datasheetQuery = "datasheets/get/chip_name%3Drp2040.json"
   const bakedResponse = await fetch(
     `${datasheetApiUrl}/datasheets/get?chip_name=rp2040`,
@@ -212,7 +233,7 @@ try {
       })
       await page.goto(`${new URL(base).origin}/test-page`)
       await page.evaluate(
-        async ({ base, modules }) => {
+        async ({ base, modules, stepFixture }) => {
           for (const file of modules) {
             const namespace = await import(base + file)
             if (!Object.keys(namespace).length)
@@ -253,19 +274,28 @@ try {
           })
           if (typeof occt.ReadStepFile !== "function")
             throw new Error("Viewer STEP runtime did not initialize")
+          const result = occt.ReadStepFile(
+            new TextEncoder().encode(stepFixture),
+            null,
+          )
+          if (!result.success || !result.meshes.length)
+            throw new Error("Viewer STEP runtime did not produce geometry")
         },
-        { base, modules },
+        { base, modules, stepFixture },
       )
       assert.deepEqual(externalRequests, [])
       await page.close()
     }
     const context = await browser.newContext({ serviceWorkers: "block" })
+    // Dev's parts panel can query the binary's separate baked-asset server.
+    // Permit only that known loopback origin, never arbitrary external hosts.
+    const allowedOrigins = new Set([origin, bakedAssetOrigin])
     const externalRequests: string[] = []
     const requests: string[] = []
     context.on("request", (request) => requests.push(request.url()))
     await context.route("**/*", (route) => {
       const url = new URL(route.request().url())
-      if (["http:", "https:"].includes(url.protocol) && url.origin !== origin) {
+      if (["http:", "https:"].includes(url.protocol) && !allowedOrigins.has(url.origin)) {
         externalRequests.push(url.href)
         return route.abort()
       }
@@ -284,12 +314,20 @@ try {
         (window as any).__TSCIRCUIT_THREE_OBJECT?.getObjectByName("board-geom"),
       ),
     )
+    await page.waitForFunction(() =>
+      Boolean(
+        (window as any).__TSCIRCUIT_THREE_OBJECT?.getObjectByName("StandaloneOcctFixture"),
+      ),
+    )
     await fontLoaded
     assert.ok(requests.some((url) => url.endsWith("/manifold.wasm")))
     assert.ok(requests.some((url) => url.endsWith("/kenpixel.ttf")))
+    assert.ok(requests.some((url) => url.endsWith("/_assets/occt-import-js.js")))
+    assert.ok(requests.some((url) => url.endsWith("/_assets/occt-import-js.wasm")))
     assert.deepEqual(errors, [])
     assert.deepEqual(externalRequests, [])
     await context.close()
+    console.log(`3D board and STEP model rendered without external requests at ${origin}`)
   }
   console.log(
     `Shared CLI builds sites and serves ${files.length} embedded JS CDN files through tsci dev${browser ? "; all browser modules and WASM exporter work at dev and nested site URLs" : ""}.`,
