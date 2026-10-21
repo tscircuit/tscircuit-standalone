@@ -20,11 +20,14 @@ release's `SHA256SUMS`, and keeps the executable and license notices together.
 An optional second argument sets the destination directory; existing directories
 are left untouched. No Apple account, Bun/Node installation or `sudo` is needed.
 
-Browser downloads can acquire macOS quarantine metadata and trigger an
-“Apple could not verify” warning because these binaries are ad hoc signed and
-not notarized. The terminal installer downloads with `curl`, which does not add
-that metadata. For an existing browser download, see the
-[macOS quarantine instructions](docs/releases.md#macos-download-quarantine).
+The release workflow signs both macOS architectures with tscircuit Inc.'s
+Developer ID and requires Apple's notarization acceptance before publishing.
+Keep browser quarantine metadata intact so Gatekeeper can verify the download.
+Standalone executables cannot carry a stapled ticket, so the first Gatekeeper
+check needs internet access. Earlier unsigned releases are unchanged; see
+[macOS download verification](docs/releases.md#macos-download-quarantine).
+Maintainers must configure the [signing credentials](docs/releases.md#macos-signing-setup)
+before the first signed release.
 
 ## Build from source
 

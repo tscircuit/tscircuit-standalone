@@ -18,7 +18,12 @@ installation and compiles the same qualified catalog and UI bundle.
 The workflow reuses the normal CI checks: frozen installation, typechecks,
 tests, compiled-binary smoke, browser qualification and native network tracing.
 It then compiles all five targets from the same qualified catalog and UI bundle.
-No release is published if a check, target build or packaging step fails.
+After qualification, separate native macOS jobs sign the Intel and Apple Silicon
+executables with tscircuit Inc.'s Developer ID and submit each to Apple for
+notarization. They check Apple's ticket and run the signed executable before
+repackaging it. No release is published if a check, target build, signing,
+notarization or packaging step fails. Pull request CI does not receive signing
+credentials.
 
 Release assets:
 
@@ -43,38 +48,72 @@ versions. Put the binary on your PATH to use `tsci import ESP32-S3R8`,
 
 The release includes `SHA256SUMS` for all assets. Compare `sha256sum <file>` on
 Linux or `shasum -a 256 <file>` on macOS with the matching entry in `SHA256SUMS`.
+The macOS `.notarization.json` receipts record Apple's submission ID, acceptance,
+team ID and the SHA-256 of the signed executable. Publication also verifies that
+the executable inside each macOS archive matches its direct download.
 
 ## macOS download quarantine
 
-The macOS binaries are ad hoc signed, without an Apple Developer ID or
-notarization. Browsers such as Chrome add `com.apple.quarantine` metadata to
-downloads; Archive Utility can propagate it to the extracted binary. This
-metadata is added on the user's Mac, not by the build or release archive, so
-changing release packaging cannot prevent it on browser downloads.
+Signed releases use **Developer ID Application: tscircuit Inc. (WUQ9WUY75Z)**,
+a secure timestamp, hardened runtime and JavaScriptCore JIT entitlements.
+Browsers can add `com.apple.quarantine` to downloads and extracted files; leave
+that metadata intact. Gatekeeper uses the signature and Apple's notarization
+ticket to check the executable. Signing addresses the unverified-developer and
+malware-verification block; macOS may still show its normal first-open prompt.
 
-For installation without browser quarantine, use the [terminal installer](../README.md#download-and-run-on-macos).
-It selects the native architecture, downloads the specified release and verifies
-its archive against `SHA256SUMS` before extracting it. It does not remove
-quarantine from existing files or change system security settings.
-
-For an archive already downloaded through a browser, verify its checksum first.
-If you trust the release, enter its extracted directory and run:
+On macOS 10.15 or later, verify a downloaded executable with:
 
 ```sh
-xattr -d com.apple.quarantine ./tsci
-./tsci --version
+codesign --verify --strict --verbose=2 ./tsci
+codesign --verify --strict --check-notarization -R='notarized' ./tsci
+codesign --display --verbose=4 ./tsci
 ```
 
-This removes the download quarantine check for that executable. If `xattr`
-reports that the attribute does not exist, it has already been cleared or was
-never attached. Alternatively, use **System Settings → Privacy & Security →
-Open Anyway** after the blocked launch, as described by
-[Apple](https://support.apple.com/102445).
+Apple cannot staple tickets to standalone Mach-O executables, ZIP files or tar
+archives. The first Gatekeeper check therefore requires access to Apple's
+servers; subsequent circuit work can use the embedded offline resources.
+See [Apple's notarization workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow).
+For an offline first installation, a separately notarized and stapled installer
+package or disk image would be needed.
 
-Wi-Fi does not need to be disabled to launch the binary. Offline qualification
-tests are separate from Gatekeeper's download checks. Developer ID signing and
-notarization would be needed for a release that passes the normal Gatekeeper
-checks after a browser download.
+Earlier releases without these notarization receipts remain ad hoc signed.
+Download a signed release to use normal Gatekeeper verification. The
+[terminal installer](../README.md#download-and-run-on-macos) continues to select
+the native architecture and verify the archive against `SHA256SUMS`.
+
+## macOS signing setup
+
+The account holder creates a **Developer ID Application** certificate using the
+G2 intermediary in the [Apple Developer account](https://developer.apple.com/account/resources/certificates/list).
+Export that certificate and its private key together as a password-protected
+PKCS#12 file. Create an App Store Connect **team** API key with the **Developer**
+role for notarization. Keep its private `.p8` file and note the key ID and issuer
+ID. These credentials authorize signing as tscircuit Inc. and notarization;
+the API key also has Developer access to the team's App Store Connect apps.
+
+Configure these encrypted Actions secrets only in `tscircuit/tscircuit-standalone`:
+
+| Secret | Value |
+| --- | --- |
+| `MACOS_CERTIFICATE_P12_BASE64` | Base64 encoding of the certificate and private key PKCS#12 |
+| `MACOS_CERTIFICATE_PASSWORD` | Password used to export that PKCS#12 |
+| `APPLE_NOTARY_KEY_P8_BASE64` | Base64 encoding of the notarization API private key |
+| `APPLE_NOTARY_KEY_ID` | App Store Connect API key ID |
+| `APPLE_NOTARY_ISSUER_ID` | App Store Connect team issuer ID |
+
+Never commit these files or secret values. The signing script imports the
+identity into a temporary keychain and deletes it and the decoded credentials
+on success or failure. Only the signing step receives the secrets; build and
+pull request jobs remain independent of them. Manual releases forward the same
+secrets to the daily release workflow. Missing or invalid credentials fail the
+release instead of silently producing unsigned downloads.
+
+After merging the signing workflow and configuring the secrets, run **Manual
+standalone release** from `main`. Check both signing jobs for an accepted Apple
+submission. Download each binary through a browser on a fresh Mac, retain its
+quarantine metadata, and run it from Terminal with internet available to verify
+the user experience. A CI ticket check is useful but does not replace this
+end-to-end Gatekeeper test.
 
 ## Release publication
 
@@ -87,8 +126,8 @@ including annotated tags. Daily workflows run serially, and only
 the publishing job receives permission to write releases.
 
 These are development prereleases. Linux x64 has native/browser execution
-coverage; the other four targets currently have cross-compilation coverage.
+coverage; macOS Intel and Apple Silicon have native startup checks after
+signing and notarization. Linux arm64 and Windows have cross-compilation coverage.
 The archives retain the dependency inventory and collected redistribution
 notices, including the existing license-review follow-ups. Official release
-qualification, additional native platform tests and signing remain separate
-work.
+qualification and additional native platform tests remain separate work.

@@ -17,6 +17,7 @@ jobs:
   release:
     if: github.repository == 'tscircuit/tscircuit-standalone' && github.ref == 'refs/heads/main'
     uses: ./.github/workflows/daily-release.yml
+    secrets: inherit
     with:
       manual_release: true
       tscircuit_version: ${{ inputs.tscircuit_version }}

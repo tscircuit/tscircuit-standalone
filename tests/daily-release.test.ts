@@ -51,6 +51,8 @@ const assets = [
   ...binaries,
   ...binaries.map((name) => `${name.replace(/\.exe$/, "")}.notices.txt`),
   ...archives,
+  "tsci-darwin-x64.notarization.json",
+  "tsci-darwin-arm64.notarization.json",
 ]
 const workflow = Bun.YAML.parse(
   await Bun.file(
@@ -206,6 +208,21 @@ const fixture = async (initialState: FixtureState = {}) => {
   await writeFile(outputPath, "")
   for (const name of assets)
     await writeFile(join(root, name), `Fixture ${name}\n`)
+  for (const arch of ["x64", "arm64"]) {
+    const binary = `tsci-darwin-${arch}`
+    const content = await readFile(join(root, binary))
+    await writeFile(join(root, `${binary}.notarization.json`), JSON.stringify({
+      id: `accepted-${arch}`,
+      status: "Accepted",
+      teamId: "WUQ9WUY75Z",
+      sha256: createHash("sha256").update(content).digest("hex"),
+    }))
+    const stage = join(root, `macos-${arch}`)
+    await mkdir(stage)
+    await writeFile(join(stage, "tsci"), content)
+    const packed = Bun.spawnSync(["tar", "-czf", join(root, `tscircuit-standalone-macos-${arch}.tar.gz`), "-C", stage, "tsci"])
+    if (packed.exitCode !== 0) throw new Error(packed.stderr.toString())
+  }
   const runScript = (script: string, env: Record<string, string> = {}) =>
     Bun.spawnSync(["/bin/bash", "-eo", "pipefail", "-c", script], {
       cwd: root,
@@ -281,6 +298,38 @@ test("missing or empty release assets prevent publication", async () => {
       expect(await release.mutations()).toEqual([])
     }
   }
+})
+
+test("unaccepted receipts, wrong teams and changed macOS binaries cannot publish", async () => {
+  for (const arch of ["x64", "arm64"]) {
+    for (const change of [
+      { status: "Invalid" },
+      { status: "In Progress" },
+      { teamId: "WRONGTEAM1" },
+      { sha256: "0".repeat(64) },
+      { id: "" },
+    ]) {
+      const release = await fixture()
+      const receiptPath = join(release.root, `tsci-darwin-${arch}.notarization.json`)
+      const receipt = JSON.parse(await readFile(receiptPath, "utf8"))
+      await writeFile(receiptPath, JSON.stringify({ ...receipt, ...change }))
+      expect(release.run().exitCode).not.toBe(0)
+      expect(await release.mutations()).toEqual([])
+    }
+    const release = await fixture()
+    await writeFile(join(release.root, `tsci-darwin-${arch}`), "Changed binary")
+    expect(release.run().exitCode).not.toBe(0)
+    expect(await release.mutations()).toEqual([])
+  }
+})
+
+test("an archive containing a different executable cannot publish", async () => {
+  const release = await fixture()
+  await writeFile(join(release.root, "macos-arm64/tsci"), "Old unsigned binary")
+  const packed = Bun.spawnSync(["tar", "-czf", join(release.root, "tscircuit-standalone-macos-arm64.tar.gz"), "-C", join(release.root, "macos-arm64"), "tsci"])
+  expect(packed.exitCode).toBe(0)
+  expect(release.run().exitCode).not.toBe(0)
+  expect(await release.mutations()).toEqual([])
 })
 
 test("a missing git ref publishes the first release despite unknown commits returning 422", async () => {
