@@ -21,19 +21,32 @@ fi
 
 signing_dir="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/tsci-signing.XXXXXX")"
 keychain="$signing_dir/signing.keychain-db"
+original_keychains=()
+search_list_changed=false
 cleanup() {
+  if [ "$search_list_changed" = true ]; then
+    security list-keychains -d user -s "${original_keychains[@]}" >/dev/null 2>&1 || true
+  fi
   security delete-keychain "$keychain" >/dev/null 2>&1 || true
   rm -rf "$signing_dir"
 }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+security list-keychains -d user > "$signing_dir/keychains.txt"
+while IFS= read -r path; do
+  [ -z "$path" ] || original_keychains+=("$path")
+done < <(sed -e 's/^[[:space:]]*"//' -e 's/"[[:space:]]*$//' "$signing_dir/keychains.txt")
 keychain_password="$(openssl rand -hex 32)"
 printf '%s' "$MACOS_CERTIFICATE_P12_BASE64" | base64 --decode > "$signing_dir/certificate.p12"
 printf '%s' "$APPLE_NOTARY_KEY_P8_BASE64" | base64 --decode > "$signing_dir/notary.p8"
 security create-keychain -p "$keychain_password" "$keychain"
 security set-keychain-settings -lut 3600 "$keychain"
 security unlock-keychain -p "$keychain_password" "$keychain"
+# Trust evaluation must be able to find the imported G2 intermediate, even
+# when codesign/find-identity receive an explicit keychain argument.
+security list-keychains -d user -s "$keychain" "${original_keychains[@]}"
+search_list_changed=true
 security import "$signing_dir/certificate.p12" -k "$keychain" \
   -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
@@ -43,9 +56,17 @@ curl --fail --silent --show-error --retry 3 \
   https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer \
   -o "$signing_dir/DeveloperIDG2CA.cer"
 security import "$signing_dir/DeveloperIDG2CA.cer" -k "$keychain"
+# Some Macs keep Apple roots in the system trust store rather than the
+# certificate keychain searched by codesign. Supply the public chain without
+# adding or overriding any trust settings.
+curl --fail --silent --show-error --retry 3 \
+  https://www.apple.com/appleca/AppleIncRootCertificate.cer \
+  -o "$signing_dir/AppleRootCA.cer"
+security import "$signing_dir/AppleRootCA.cer" -k "$keychain"
 identity="$(security find-identity -v -p codesigning "$keychain" |
   awk -v team="($APPLE_TEAM_ID)" '/Developer ID Application:/ && index($0, team) {print $2}')"
 if [[ ! "$identity" =~ ^[0-9A-Fa-f]{40}$ ]]; then
+  security find-identity -p codesigning "$keychain" >&2 || true
   echo "Expected exactly one Developer ID Application identity for $APPLE_TEAM_ID" >&2
   exit 1
 fi

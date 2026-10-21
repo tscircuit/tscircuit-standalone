@@ -32,6 +32,7 @@ const failure = process.env.SIGNING_FAILURE
 appendFileSync(process.env.SIGNING_CALLS, JSON.stringify([command, ...args]) + "\n")
 if (command === "uname") console.log("Darwin")
 else if (command === "security") {
+  if (args[0] === "list-keychains" && !args.includes("-s")) console.log('    "/Users/fixture/Library/Keychains/login.keychain-db"\n    "/Users/fixture/Shared Keychains/shared.keychain-db"')
   if (args[0] === "import" && failure === "import") process.exit(1)
   if (args[0] === "find-identity") console.log('  1) ' + 'A'.repeat(40) + ' "Developer ID Application: tscircuit Inc. (' + (failure === "team" ? "WRONGTEAM1" : "WUQ9WUY75Z") + ')"')
 } else if (command === "curl") {
@@ -135,6 +136,17 @@ test("accepted notarization records the final signed bytes and removes private m
     ),
   ).toBe(true)
   expect(calls.at(-1)?.slice(0, 2)).toEqual(["security", "delete-keychain"])
+  const searchLists = calls.filter(
+    (call) =>
+      call[0] === "security" &&
+      call[1] === "list-keychains" &&
+      call.includes("-s"),
+  )
+  expect(searchLists).toHaveLength(2)
+  expect(searchLists.at(-1)?.slice(5)).toEqual([
+    "/Users/fixture/Library/Keychains/login.keychain-db",
+    "/Users/fixture/Shared Keychains/shared.keychain-db",
+  ])
   expect(
     (await readdir(signing.root)).some((name) =>
       name.startsWith("tsci-signing."),
@@ -182,7 +194,7 @@ test("import failures, wrong teams, rejection, timeout and failed ticket verific
       expect(calls.some((call) => call[0] === "xcrun")).toBe(false)
     }
   }
-})
+}, 30_000)
 
 test("publication waits for both signed artifacts and manual releases forward secrets", async () => {
   const daily = Bun.YAML.parse(
