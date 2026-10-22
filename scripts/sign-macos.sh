@@ -4,16 +4,18 @@ set -euo pipefail
 umask 077
 
 binary="${1:?Usage: bash scripts/sign-macos.sh path/to/tsci}"
+installer="$binary.pkg"
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 test "$(uname -s)" = Darwin
 test -s "$binary"
-rm -f "$binary.notarization.json"
-for name in MACOS_CERTIFICATE_P12_BASE64 MACOS_CERTIFICATE_PASSWORD APPLE_NOTARY_KEY_P8_BASE64 APPLE_NOTARY_KEY_ID APPLE_NOTARY_ISSUER_ID APPLE_TEAM_ID; do
+rm -f "$binary.notarization.json" "$installer" "$installer.notarization.json"
+for name in MACOS_CERTIFICATE_P12_BASE64 MACOS_CERTIFICATE_PASSWORD MACOS_INSTALLER_CERTIFICATE_P12_BASE64 MACOS_INSTALLER_CERTIFICATE_PASSWORD APPLE_NOTARY_KEY_P8_BASE64 APPLE_NOTARY_KEY_ID APPLE_NOTARY_ISSUER_ID APPLE_TEAM_ID RELEASE_VERSION MACOS_ARCH; do
   if [ -z "${!name:-}" ]; then
     echo "Missing required signing credential: $name" >&2
     exit 1
   fi
 done
+case "$MACOS_ARCH" in arm64|x64) ;; *) echo "Invalid macOS architecture" >&2; exit 1 ;; esac
 if [[ ! "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]; then
   echo "Invalid Apple team ID" >&2
   exit 1
@@ -37,10 +39,13 @@ cleanup() {
     if [ -s "$binary" ]; then
       shasum -a 256 "$binary" > "$diagnostics_dir/final-binary.sha256"
     fi
+    if [ -s "$installer" ]; then
+      shasum -a 256 "$installer" > "$diagnostics_dir/final-installer.sha256"
+    fi
     printf 'stage=%s\nexit_status=%s\nutc=%s\n' "$phase" "$result" \
       "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" > "$diagnostics_dir/result.txt"
     # Allowlist public diagnostic files; never copy the keychain or credentials.
-    for name in signature.txt signature-verification.txt submission.json notary-log.json notarization-verification.txt; do
+    for name in signature.txt signature-verification.txt submission.json notary-log.json notarization-verification.txt installer-signature.txt installer-stapling.txt installer-gatekeeper.txt; do
       if [ -f "$signing_dir/$name" ]; then
         cp "$signing_dir/$name" "$diagnostics_dir/$name"
       fi
@@ -77,6 +82,7 @@ while IFS= read -r path; do
 done < <(sed -e 's/^[[:space:]]*"//' -e 's/"[[:space:]]*$//' "$signing_dir/keychains.txt")
 keychain_password="$(openssl rand -hex 32)"
 printf '%s' "$MACOS_CERTIFICATE_P12_BASE64" | base64 --decode > "$signing_dir/certificate.p12"
+printf '%s' "$MACOS_INSTALLER_CERTIFICATE_P12_BASE64" | base64 --decode > "$signing_dir/installer.p12"
 printf '%s' "$APPLE_NOTARY_KEY_P8_BASE64" | base64 --decode > "$signing_dir/notary.p8"
 security create-keychain -p "$keychain_password" "$keychain"
 security set-keychain-settings -lut 3600 "$keychain"
@@ -87,6 +93,8 @@ security list-keychains -d user -s "$keychain" "${original_keychains[@]}"
 search_list_changed=true
 security import "$signing_dir/certificate.p12" -k "$keychain" \
   -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+security import "$signing_dir/installer.p12" -k "$keychain" \
+  -P "$MACOS_INSTALLER_CERTIFICATE_PASSWORD" -T /usr/bin/productsign -T /usr/bin/security
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
   -k "$keychain_password" "$keychain" >/dev/null
 # The G2 intermediate is public; importing it does not change system trust.
@@ -106,6 +114,13 @@ identity="$(security find-identity -v -p codesigning "$keychain" |
 if [[ ! "$identity" =~ ^[0-9A-Fa-f]{40}$ ]]; then
   security find-identity -p codesigning "$keychain" >&2 || true
   echo "Expected exactly one Developer ID Application identity for $APPLE_TEAM_ID" >&2
+  exit 1
+fi
+# Installer identities are excluded by security's codesigning policy filter.
+installer_identity="$(security find-identity -v "$keychain" |
+  awk -v team="($APPLE_TEAM_ID)" '/Developer ID Installer:/ && index($0, team) {print $2}')"
+if [[ ! "$installer_identity" =~ ^[0-9A-Fa-f]{40}$ ]]; then
+  echo "Expected exactly one Developer ID Installer identity for $APPLE_TEAM_ID" >&2
   exit 1
 fi
 phase="Developer ID signing"
@@ -128,14 +143,22 @@ grep -F 'Authority=Developer ID Application:' "$signing_dir/signature.txt"
 grep -E 'flags=.*\(runtime\)' "$signing_dir/signature.txt"
 grep -E '^Timestamp=.' "$signing_dir/signature.txt"
 
-# Apple accepts ZIP submissions, and issues a ticket for the contained Mach-O.
-# A standalone executable cannot have a ticket stapled to it.
+phase="installer packaging and signing"
+bun "$script_dir/build-macos-installer.ts" "$binary" "$RELEASE_VERSION" "$MACOS_ARCH" "$signing_dir/unsigned.pkg"
+productsign --sign "$installer_identity" --keychain "$keychain" --timestamp \
+  "$signing_dir/unsigned.pkg" "$installer"
+pkgutil --check-signature "$installer" > "$signing_dir/installer-signature.txt" 2>&1
+cat "$signing_dir/installer-signature.txt"
+grep -E "Developer ID Installer:.*\($APPLE_TEAM_ID\)" "$signing_dir/installer-signature.txt"
+grep -F 'Signed with a trusted timestamp' "$signing_dir/installer-signature.txt"
+
+# One submission covers the installer and its signed executable. The package
+# supports stapling and the normal Finder installation path for command-line tools.
 phase="Apple notarization submission and wait"
-echo "Submitting the signed executable to Apple; waiting up to 30 minutes."
-ditto -c -k --keepParent "$binary" "$signing_dir/submission.zip"
+echo "Submitting the signed installer to Apple; waiting up to 30 minutes."
 auth=(--key "$signing_dir/notary.p8" --key-id "$APPLE_NOTARY_KEY_ID" --issuer "$APPLE_NOTARY_ISSUER_ID")
 submit_status=0
-xcrun notarytool submit "$signing_dir/submission.zip" "${auth[@]}" \
+xcrun notarytool submit "$installer" "${auth[@]}" \
   --wait --timeout 30m --output-format json > "$signing_dir/submission.json" || submit_status=$?
 cat "$signing_dir/submission.json"
 submission_id="$(jq -r '.id // empty' "$signing_dir/submission.json")"
@@ -146,7 +169,7 @@ if [ -n "$submission_id" ]; then
   fi
 fi
 if [ "$submit_status" -ne 0 ] || ! jq -e '.status == "Accepted" and (.id | type == "string" and length > 0)' "$signing_dir/submission.json" >/dev/null; then
-  echo "Apple did not accept the executable; refusing to release it." >&2
+  echo "Apple did not accept the installer; refusing to release it." >&2
   exit 1
 fi
 # Unlike spctl's app assessment, this supports standalone command-line code.
@@ -167,10 +190,21 @@ if [ "$verification_status" -ne 0 ]; then
   echo "Apple accepted the submission, but local ticket verification failed (exit $verification_status)." >&2
   exit "$verification_status"
 fi
+phase="installer stapling and Gatekeeper verification"
+xcrun stapler staple "$installer" > "$signing_dir/installer-stapling.txt" 2>&1
+xcrun stapler validate "$installer" >> "$signing_dir/installer-stapling.txt" 2>&1
+cat "$signing_dir/installer-stapling.txt"
+spctl --assess --type install --verbose=4 "$installer" > "$signing_dir/installer-gatekeeper.txt" 2>&1
+cat "$signing_dir/installer-gatekeeper.txt"
 phase="acceptance receipt"
 checksum="$(shasum -a 256 "$binary" | awk '{print $1}')"
 jq --arg team "$APPLE_TEAM_ID" --arg sha256 "$checksum" \
   '{id, status, teamId: $team, sha256: $sha256}' \
   "$signing_dir/submission.json" > "$binary.notarization.json"
+installer_checksum="$(shasum -a 256 "$installer" | awk '{print $1}')"
+jq --arg team "$APPLE_TEAM_ID" --arg sha256 "$installer_checksum" \
+  --arg binarySha256 "$checksum" --arg architecture "$MACOS_ARCH" --arg version "$RELEASE_VERSION" \
+  '{id, status, teamId: $team, sha256: $sha256, binarySha256: $binarySha256, architecture: $architecture, version: $version}' \
+  "$signing_dir/submission.json" > "$installer.notarization.json"
 echo "Developer ID signing and notarization succeeded."
 phase="complete"

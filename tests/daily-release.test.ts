@@ -53,6 +53,10 @@ const assets = [
   ...archives,
   "tsci-darwin-x64.notarization.json",
   "tsci-darwin-arm64.notarization.json",
+  "tscircuit-standalone-macos-x64.pkg",
+  "tscircuit-standalone-macos-arm64.pkg",
+  "tscircuit-standalone-macos-x64.pkg.notarization.json",
+  "tscircuit-standalone-macos-arm64.pkg.notarization.json",
 ]
 const workflow = Bun.YAML.parse(
   await Bun.file(
@@ -216,6 +220,13 @@ const fixture = async (initialState: FixtureState = {}) => {
       status: "Accepted",
       teamId: "WUQ9WUY75Z",
       sha256: createHash("sha256").update(content).digest("hex"),
+    }))
+    const installer = `tscircuit-standalone-macos-${arch}.pkg`
+    await writeFile(join(root, `${installer}.notarization.json`), JSON.stringify({
+      id: `accepted-${arch}`, status: "Accepted", teamId: "WUQ9WUY75Z",
+      sha256: createHash("sha256").update(await readFile(join(root, installer))).digest("hex"),
+      binarySha256: createHash("sha256").update(content).digest("hex"),
+      architecture: arch, version: releaseVersion,
     }))
     const stage = join(root, `macos-${arch}`)
     await mkdir(stage)
@@ -624,4 +635,37 @@ test("a manual latest release publishes all assets under its unique tag with man
       `https://github.com/fixture/standalone/releases/download/${outputs.tag}/${binary})`,
     )
   }
+})
+
+
+test("installer receipts must match acceptance, team, package bytes, binary, submission, version and architecture", async () => {
+  for (const arch of ["x64", "arm64"]) {
+    for (const change of [
+      { status: "Invalid" }, { status: "In Progress" }, { teamId: "WRONGTEAM1" },
+      { sha256: "0".repeat(64) }, { binarySha256: "0".repeat(64) },
+      { id: "other-submission" }, { architecture: "other" }, { version: "0.0.1" },
+    ]) {
+      const release = await fixture()
+      const path = join(release.root, `tscircuit-standalone-macos-${arch}.pkg.notarization.json`)
+      const receipt = JSON.parse(await readFile(path, "utf8"))
+      await writeFile(path, JSON.stringify({ ...receipt, ...change }))
+      expect(release.run().exitCode).not.toBe(0)
+      expect(await release.mutations()).toEqual([])
+    }
+    const release = await fixture()
+    await writeFile(join(release.root, `tscircuit-standalone-macos-${arch}.pkg`), "Changed installer")
+    expect(release.run().exitCode).not.toBe(0)
+    expect(await release.mutations()).toEqual([])
+  }
+}, 30_000)
+
+test("release notes put the Mac installers before raw binaries and explain installation", async () => {
+  const release = await fixture()
+  expect(release.run().exitCode).toBe(0)
+  const notes = await readFile(join(release.root, "release-notes.md"), "utf8")
+  expect(notes.indexOf("## Download for Mac")).toBeLessThan(notes.indexOf("## Other downloads"))
+  for (const arch of ["arm64", "x64"])
+    expect(notes).toContain(`/tscircuit-standalone-macos-${arch}.pkg)`)
+  expect(notes).toContain("Double-click the installer")
+  expect(notes).toContain("Administrator approval is required")
 })
