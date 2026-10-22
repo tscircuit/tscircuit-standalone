@@ -30,7 +30,7 @@ const command = basename(process.argv[1])
 const args = process.argv.slice(2)
 const failure = process.env.SIGNING_FAILURE
 appendFileSync(process.env.SIGNING_CALLS, JSON.stringify([command, ...args]) + "\n")
-if (command === "uname") console.log("Darwin")
+if (command === "uname") console.log(args.includes("-m") ? "arm64" : "Darwin")
 else if (command === "security") {
   if (args[0] === "list-keychains" && !args.includes("-s")) console.log('    "/Users/fixture/Library/Keychains/login.keychain-db"\n    "/Users/fixture/Shared Keychains/shared.keychain-db"')
   if (args[0] === "import" && failure === "import") process.exit(1)
@@ -40,7 +40,14 @@ else if (command === "security") {
 } else if (command === "codesign") {
   if (args.includes("--sign")) appendFileSync(args.at(-1), "\nDeveloper ID signed\n")
   if (args.includes("--display")) process.stderr.write("TeamIdentifier=WUQ9WUY75Z\nAuthority=Developer ID Application: tscircuit Inc. (WUQ9WUY75Z)\nCodeDirectory flags=0x10000(runtime)\nTimestamp=Oct 22, 2026\n")
-  if (failure === "verification" && args.includes("--check-notarization")) process.exit(1)
+  if (failure === "signature" && args.includes("--verify") && !args.includes("--check-notarization")) process.exit(2)
+  if (args.includes("--check-notarization")) {
+    process.stderr.write("fixture verbose ticket verification\n")
+    if (failure === "verification") process.exit(3)
+  }
+} else if (command === "log") {
+  console.log("fixture notarization system log")
+  if (failure === "log") process.exit(99)
 } else if (command === "ditto") {
   writeFileSync(args.at(-1), "ZIP fixture")
 } else if (command === "xcrun") {
@@ -64,6 +71,7 @@ const fixture = async () => {
     "codesign",
     "ditto",
     "xcrun",
+    "log",
   ]) {
     await writeFile(join(bin, name), appleStub)
     await chmod(join(bin, name), 0o755)
@@ -106,6 +114,16 @@ const fixture = async () => {
         .split("\n")
         .filter(Boolean)
         .map((line) => JSON.parse(line) as string[]),
+    diagnosticFiles: async () => {
+      const base = join(root, "signing-diagnostics")
+      const attempts = await readdir(base).catch(() => [])
+      const files: Record<string, string> = {}
+      for (const attempt of attempts) {
+        for (const name of await readdir(join(base, attempt)))
+          files[name] = await readFile(join(base, attempt, name), "utf8")
+      }
+      return files
+    },
     receiptExists: () => Bun.file(`${binary}.notarization.json`).exists(),
   }
 }
@@ -221,4 +239,54 @@ test("publication waits for both signed artifacts and manual releases forward se
     new URL("../.github/workflows/ci.yml", import.meta.url),
   ).text()
   expect(ci).not.toContain("secrets.")
+})
+
+test("a post-acceptance ticket failure preserves verbose evidence and its original exit status", async () => {
+  const signing = await fixture()
+  const result = signing.run({ SIGNING_FAILURE: "verification" })
+  expect(result.exitCode).toBe(3)
+  expect(await signing.receiptExists()).toBe(false)
+  const files = await signing.diagnosticFiles()
+  expect(files["result.txt"]).toContain("stage=notarization ticket verification")
+  expect(files["result.txt"]).toContain("exit_status=3")
+  expect(JSON.parse(files["submission.json"]!).status).toBe("Accepted")
+  expect(files["notarization-verification.txt"]).toContain("fixture verbose ticket verification")
+  expect(files["signed-binary.sha256"]).toContain(
+    createHash("sha256").update(await readFile(signing.binary)).digest("hex"),
+  )
+  expect(files["final-binary.sha256"]).toBe(files["signed-binary.sha256"])
+  expect(Object.keys(files).sort()).toEqual([
+    "final-binary.sha256", "notarization-system.log", "notarization-verification.txt", "notary-log.json",
+    "result.txt", "runner.txt", "signature-verification.txt", "signature.txt",
+    "signed-binary.sha256", "submission.json",
+  ].sort())
+  const exported = Object.values(files).join("\n") + result.stdout.toString() + result.stderr.toString()
+  for (const secret of ["fixture-p12", "fixture-p8", "fixture-password",
+    Buffer.from("fixture-p12").toString("base64"), Buffer.from("fixture-p8").toString("base64")])
+    expect(exported).not.toContain(secret)
+  const calls = await signing.calls()
+  const checks = calls.filter((call) => call.includes("--check-notarization"))
+  expect(checks).toHaveLength(1)
+  expect(checks[0]).toContain("--verbose=4")
+  const submit = calls.find((call) => call[0] === "xcrun" && call[2] === "submit")!
+  expect(submit).toContain("--wait")
+  expect(submit[submit.indexOf("--timeout") + 1]).toBe("30m")
+  expect(calls.at(-1)?.slice(0, 2)).toEqual(["security", "delete-keychain"])
+})
+
+test("diagnostic collection failures do not turn successful verification into failure", async () => {
+  const signing = await fixture()
+  const result = signing.run({ SIGNING_FAILURE: "log" })
+  expect(result.exitCode).toBe(0)
+  expect(await signing.receiptExists()).toBe(true)
+  expect((await signing.diagnosticFiles())["result.txt"]).toContain("stage=complete")
+})
+
+test("signature failures are distinguished from Apple's acceptance and ticket checks", async () => {
+  const signing = await fixture()
+  expect(signing.run({ SIGNING_FAILURE: "signature" }).exitCode).toBe(2)
+  const files = await signing.diagnosticFiles()
+  expect(files["result.txt"]).toContain("stage=signature integrity verification")
+  expect(files["submission.json"]).toBeUndefined()
+  expect((await signing.calls()).some((call) => call[0] === "xcrun")).toBe(false)
 })

@@ -138,6 +138,7 @@ jobs:
           cmp THIRD_PARTY_NOTICES dist/THIRD_PARTY_NOTICES
           chmod +x dist/tsci
       - name: Sign with Developer ID and require Apple notarization
+        id: signing
         env:
           MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
@@ -145,7 +146,26 @@ jobs:
           APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
           APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
           APPLE_TEAM_ID: WUQ9WUY75Z
+          SIGNING_DIAGNOSTICS_DIR: ${{ runner.temp }}/macos-signing-diagnostics
         run: bash scripts/sign-macos.sh dist/tsci
+      - name: Save signing diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: macos-signing-diagnostics-${{ matrix.arch }}
+          path: ${{ runner.temp }}/macos-signing-diagnostics
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Preserve the binary when signing verification fails
+        if: failure() && steps.signing.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: unverified-macos-${{ matrix.arch }}
+          path: dist/tsci
+          if-no-files-found: warn
+          retention-days: 7
       - name: Verify the signed binary starts on its native architecture
         env:
           EXPECTED_VERSION: ${{ needs.prepare.outputs.version }}
