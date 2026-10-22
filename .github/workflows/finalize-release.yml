@@ -53,6 +53,30 @@ jobs:
           APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
           APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
         run: bun scripts/release-queue.ts plan
+      - name: Restore accepted Mac inputs for the verification runners
+        if: steps.plan.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PLAN_FILE: release-plan.json
+        run: |
+          for arch in x64 arm64; do
+            ARCH="$arch" RELEASE_DIR="dist/$arch" bun scripts/release-queue.ts download
+          done
+      - uses: actions/upload-artifact@v4
+        if: steps.plan.outputs.ready == 'true'
+        with:
+          name: macos-input-${{ inputs.release_tag }}-x64
+          path: dist/x64/*
+          overwrite: true
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: steps.plan.outputs.ready == 'true'
+        with:
+          name: macos-input-${{ inputs.release_tag }}-arm64
+          path: dist/arm64/*
+          overwrite: true
+          retention-days: 7
       - uses: actions/upload-artifact@v4
         if: steps.plan.outputs.ready == 'true'
         with:
@@ -84,18 +108,19 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: release-plan-${{ inputs.release_tag }}
-      - name: Restore the exact saved Mac assets
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          PLAN_FILE: release-plan.json
-          ARCH: ${{ matrix.arch }}
-        run: bun scripts/release-queue.ts download
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-input-${{ inputs.release_tag }}-${{ matrix.arch }}
+          path: dist/release
       - name: Verify Apple's ticket and exercise the signed binary
         env:
           ARCH: ${{ matrix.arch }}
           EXPECTED_VERSION: ${{ needs.inspect.outputs.version }}
         run: |
+          for asset in "tsci-darwin-$ARCH" "tsci-darwin-$ARCH.notices.txt" "tscircuit-standalone-macos-$ARCH.tar.gz"; do
+            expected="$(jq -er --arg asset "$asset" '.manifest.files[$asset]' release-plan.json)"
+            test "$(shasum -a 256 "dist/release/$asset" | cut -d ' ' -f 1)" = "$expected"
+          done
           cp "dist/release/tsci-darwin-$ARCH" dist/tsci
           chmod +x dist/tsci
           codesign --verify --strict --check-notarization -R='notarized' dist/tsci

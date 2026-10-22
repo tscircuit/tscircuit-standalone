@@ -213,6 +213,7 @@ test("only accepted releases reach native verification and publication", async (
   expect(manual.jobs.release.secrets).toBe("inherit")
   expect(JSON.stringify(checker)).not.toContain("MACOS_CERTIFICATE")
   expect(JSON.stringify(finalizer)).not.toContain("MACOS_CERTIFICATE")
+  expect(JSON.stringify(finalizer.jobs["verify-macos"])).not.toContain("GH_TOKEN")
   const ci = await Bun.file(new URL("../.github/workflows/ci.yml", import.meta.url)).text()
   expect(ci).not.toContain("secrets.")
 })
