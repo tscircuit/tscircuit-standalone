@@ -78,6 +78,11 @@ jobs:
               echo "The existing release draft belongs to a different source commit. Rerun its original workflow."
               exit 1
             fi
+            if jq -e 'any(.assets[]?; .name == "release-manifest.json")' release.json > /dev/null; then
+              echo "publish=false" >> "$GITHUB_OUTPUT"
+              echo "$tag is awaiting notarization; use Check pending notarizations to continue."
+              exit 0
+            fi
             version="$(jq -er '.name | select(startswith("tscircuit standalone ")) | ltrimstr("tscircuit standalone ")' release.json)"
           elif grep -q 'HTTP 404' release-error.txt; then
             version="$(curl --fail --silent --show-error --retry 3 "https://registry.npmjs.org/tscircuit/$requested_version" | jq -er '.version')"
@@ -103,19 +108,13 @@ jobs:
     with:
       tscircuit_version: ${{ needs.prepare.outputs.version }}
 
-  sign-macos:
+
+  draft:
     needs: [prepare, build]
     if: needs.prepare.outputs.publish == 'true'
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: x64
-            runner: macos-15-intel
-          - arch: arm64
-            runner: macos-15
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -125,11 +124,64 @@ jobs:
           bun-version: 1.3.14
       - uses: actions/download-artifact@v4
         with:
+          pattern: tscircuit-standalone-*
+          path: dist/release
+          merge-multiple: true
+      - name: Save the draft and non-Mac assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: bun scripts/release-queue.ts init
+
+  sign-macos:
+    needs: [prepare, build, draft]
+    if: needs.prepare.outputs.publish == 'true'
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: write
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: macos-15-intel
+          - arch: arm64
+            runner: macos-15
+    env:
+      ARCH: ${{ matrix.arch }}
+      RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+      RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+      SOURCE_SHA: ${{ github.sha }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - name: Recover a submission saved by an earlier attempt
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: submitted-macos-${{ matrix.arch }}
+          path: dist/release
+      - name: Restore an existing signed submission on retries
+        id: restore
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bun scripts/release-queue.ts restore-macos
+      - uses: actions/download-artifact@v4
+        if: steps.restore.outputs.reused != 'true'
+        with:
           name: tscircuit-standalone-bun-darwin-${{ matrix.arch }}
           path: unsigned
       - name: Restore the qualified executable and license inventory
-        env:
-          ARCH: ${{ matrix.arch }}
+        if: steps.restore.outputs.reused != 'true'
         run: |
           mkdir -p dist
           tar -xzf "unsigned/tscircuit-standalone-macos-$ARCH.tar.gz" -C dist
@@ -137,7 +189,8 @@ jobs:
           cmp LICENSE dist/LICENSE
           cmp THIRD_PARTY_NOTICES dist/THIRD_PARTY_NOTICES
           chmod +x dist/tsci
-      - name: Sign with Developer ID and require Apple notarization
+      - name: Sign and submit to Apple without waiting
+        if: steps.restore.outputs.reused != 'true'
         env:
           MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
@@ -146,92 +199,46 @@ jobs:
           APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
           APPLE_TEAM_ID: WUQ9WUY75Z
         run: bash scripts/sign-macos.sh dist/tsci
-      - name: Verify the signed binary starts on its native architecture
-        env:
-          EXPECTED_VERSION: ${{ needs.prepare.outputs.version }}
-        run: |
-          test "$(./dist/tsci --version)" = "$EXPECTED_VERSION"
-          ./dist/tsci --help
-          # Exercise JavaScriptCore, the embedded worker and WASM rendering
-          # under the release signature's hardened-runtime entitlements.
-          ./dist/tsci build examples/led-resistor.circuit.tsx --ignore-errors --concurrency 2 --pcb-png
       - name: Install GNU tar for deterministic archives
+        if: steps.restore.outputs.reused != 'true'
         run: |
           brew install gnu-tar
           echo "$(brew --prefix gnu-tar)/libexec/gnubin" >> "$GITHUB_PATH"
-      - name: Package the signed executable and notarization receipt
+      - name: Package the signed executable and submission
+        if: steps.restore.outputs.reused != 'true'
         env:
           BUN_BUILD_TARGET: bun-darwin-${{ matrix.arch }}
-          ARCH: ${{ matrix.arch }}
         run: |
           bun scripts/package-release.ts
           cp dist/tsci.notarization.json "dist/release/tsci-darwin-$ARCH.notarization.json"
-      - uses: actions/upload-artifact@v4
+      - name: Save a recovery copy before uploading the draft
+        if: steps.restore.outputs.reused != 'true'
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
-          name: signed-macos-${{ matrix.arch }}
+          name: submitted-macos-${{ matrix.arch }}
           path: dist/release/*
-          if-no-files-found: error
-          retention-days: 3
+          overwrite: true
+          retention-days: 30
+      - name: Persist the signed files and Apple submission ID
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bun scripts/release-queue.ts save-macos
 
-  publish:
-    needs: [prepare, build, sign-macos]
+  stage:
+    needs: [prepare, draft, sign-macos]
     if: needs.prepare.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
         with:
-          pattern: tscircuit-standalone-*
-          path: dist/release
-          merge-multiple: true
-      # Replace both unsigned macOS inputs with the accepted, signed artifacts.
-      # Exact artifact names make a missing architecture a download failure.
-      - uses: actions/download-artifact@v4
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
         with:
-          name: signed-macos-x64
-          path: dist/release
-      - uses: actions/download-artifact@v4
-        with:
-          name: signed-macos-arm64
-          path: dist/release
-      - name: Verify the release assets and generate checksums
-        working-directory: dist/release
-        run: |
-          assets=(
-            tsci-linux-x64
-            tsci-linux-arm64
-            tsci-darwin-x64
-            tsci-darwin-arm64
-            tsci-windows-x64.exe
-            tsci-linux-x64.notices.txt
-            tsci-linux-arm64.notices.txt
-            tsci-darwin-x64.notices.txt
-            tsci-darwin-arm64.notices.txt
-            tsci-windows-x64.notices.txt
-            tscircuit-standalone-linux-x64.tar.gz
-            tscircuit-standalone-linux-arm64.tar.gz
-            tscircuit-standalone-macos-x64.tar.gz
-            tscircuit-standalone-macos-arm64.tar.gz
-            tscircuit-standalone-windows-x64.zip
-            tsci-darwin-x64.notarization.json
-            tsci-darwin-arm64.notarization.json
-          )
-          for asset in "${assets[@]}"; do
-            test -s "$asset"
-          done
-          for arch in x64 arm64; do
-            binary="tsci-darwin-$arch"
-            checksum="$(sha256sum "$binary" | cut -d ' ' -f 1)"
-            jq -e --arg checksum "$checksum" \
-              '.status == "Accepted" and .teamId == "WUQ9WUY75Z" and .sha256 == $checksum and (.id | type == "string" and length > 0)' \
-              "$binary.notarization.json" > /dev/null
-            test "$(tar -xOzf "tscircuit-standalone-macos-$arch.tar.gz" tsci | sha256sum | cut -d ' ' -f 1)" = "$checksum"
-          done
-          sha256sum "${assets[@]}" > SHA256SUMS
-          sha256sum --check SHA256SUMS
-      - name: Publish the complete daily prerelease
-        working-directory: dist/release
+          bun-version: 1.3.14
+      - name: Mark the complete draft as awaiting notarization
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -240,85 +247,17 @@ jobs:
           SOURCE_SHA: ${{ github.sha }}
           BUILD_KIND: ${{ inputs.manual_release && 'Manual' || 'Daily' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          download_url="https://github.com/$GH_REPO/releases/download/$RELEASE_TAG"
-          cat > release-notes.md <<EOF
-          ${BUILD_KIND:-Daily} development build of tscircuit standalone, based on tscircuit $RELEASE_VERSION.
+        run: bun scripts/release-queue.ts seal
 
-          ## Download a binary
-
-          Download a binary and its notices file. Archives are optional. On macOS/Linux,
-          rename the binary to tsci and run chmod +x tsci.
-
-          | Platform | Binary | Notices |
-          | --- | --- | --- |
-          | Linux x64 | [tsci-linux-x64]($download_url/tsci-linux-x64) | [Notices]($download_url/tsci-linux-x64.notices.txt) |
-          | Linux arm64 | [tsci-linux-arm64]($download_url/tsci-linux-arm64) | [Notices]($download_url/tsci-linux-arm64.notices.txt) |
-          | macOS Intel | [tsci-darwin-x64]($download_url/tsci-darwin-x64) | [Notices]($download_url/tsci-darwin-x64.notices.txt) |
-          | macOS Apple Silicon | [tsci-darwin-arm64]($download_url/tsci-darwin-arm64) | [Notices]($download_url/tsci-darwin-arm64.notices.txt) |
-          | Windows x64 | [tsci-windows-x64.exe]($download_url/tsci-windows-x64.exe) | [Notices]($download_url/tsci-windows-x64.notices.txt) |
-
-          Version: $RELEASE_VERSION
-          Source commit: $SOURCE_SHA
-          [Build and qualification results]($RUN_URL)
-
-          ### macOS terminal installation
-
-          Both macOS binaries are signed with tscircuit Inc.'s Developer ID and
-          accepted by Apple's notarization service. Browser downloads can retain
-          quarantine metadata; leave it in place so Gatekeeper can verify them.
-          The checksum-verified terminal installer is also available:
-
-          ~~~sh
-          curl --fail --location --silent --show-error https://raw.githubusercontent.com/$GH_REPO/$SOURCE_SHA/scripts/install-macos.sh | sh -s -- $RELEASE_TAG
-          ./tscircuit-standalone-$RELEASE_TAG/tsci --version
-          ~~~
-
-          The installer selects Apple Silicon or Intel automatically. No Apple
-          account, Bun/Node or sudo is required. Standalone executables cannot
-          have notarization tickets stapled to them, so the first Gatekeeper
-          check needs internet access. Older unsigned releases are unchanged.
-          See [macOS download verification](https://github.com/$GH_REPO/blob/$SOURCE_SHA/docs/releases.md#macos-download-quarantine).
-
-          Each archive contains tsci, project licenses and generated dependency notices.
-          Compiled dependency versions are recorded in licenses.json and the companion notices.
-          SHA256SUMS covers all binaries, notices and archives. The same build-time datasheet catalog and
-          UI bundle are embedded in every target. Runtime part imports, circuit builds
-          and the local UI use the embedded resources without outbound requests.
-
-          Linux x64 passes native and browser qualification. Both macOS targets
-          pass native startup checks after signing and notarization. Linux arm64
-          and Windows artifacts have cross-compilation coverage.
-          EOF
-          if gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" > tag-ref.json 2> tag-error.txt; then
-            while [ "$(jq -er '.object.type' tag-ref.json)" = "tag" ]; do
-              tag_sha="$(jq -er '.object.sha' tag-ref.json)"
-              gh api "repos/$GH_REPO/git/tags/$tag_sha" > tag-ref.json
-            done
-            if ! jq -e --arg sha "$SOURCE_SHA" '.object.type == "commit" and .object.sha == $sha' tag-ref.json > /dev/null; then
-              echo "The release tag points to a different source commit; refusing to publish."
-              exit 1
-            fi
-          elif ! grep -q 'HTTP 404' tag-error.txt; then
-            cat tag-error.txt
-            exit 1
-          fi
-          if gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > existing-release.json 2> release-error.txt; then
-            if jq -e '.draft == false' existing-release.json > /dev/null; then
-              echo "$RELEASE_TAG is already published; leaving it unchanged."
-              exit 0
-            fi
-            jq -e --arg sha "$SOURCE_SHA" --arg name "tscircuit standalone $RELEASE_VERSION" '.draft == true and .target_commitish == $sha and .name == $name' existing-release.json > /dev/null
-          elif grep -q 'HTTP 404' release-error.txt; then
-            gh release create "$RELEASE_TAG" --target "$SOURCE_SHA" --draft --prerelease \
-              --title "tscircuit standalone $RELEASE_VERSION" --notes-file release-notes.md
-          else
-            cat release-error.txt
-            exit 1
-          fi
-          assets=()
-          while read -r checksum asset; do
-            assets+=("$asset")
-          done < SHA256SUMS
-          gh release upload "$RELEASE_TAG" "${assets[@]}" SHA256SUMS --clobber
-          gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false --notes-file release-notes.md
+  check:
+    needs: [prepare, stage]
+    uses: ./.github/workflows/check-notarization.yml
+    permissions:
+      contents: write
+      actions: read
+    with:
+      release_tag: ${{ needs.prepare.outputs.tag }}
+    secrets:
+      APPLE_NOTARY_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARY_KEY_P8_BASE64 }}
+      APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+      APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}

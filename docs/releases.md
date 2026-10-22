@@ -74,13 +74,19 @@ and private key (`.p12`) and an App Store Connect team API key (`.p8`):
 
 ## Release publication
 
+Signed binaries and Apple submission IDs are saved in a draft release without
+waiting for notarization. **Check pending notarizations** runs every 15 minutes
+and can also be started manually. Once both submissions are accepted,
+**Finalize notarized release** verifies and tests the saved binaries, then
+publishes them. Rejected submissions leave a blocked draft with Apple's logs.
+
 Assets are uploaded to a draft before it becomes public. Published dates are
 skipped on reruns. A failed upload leaves a draft that the original workflow
 can retry for the same source commit and npm version, even on a later day. The
 draft's title preserves its selected version, and the tag uses the original
 run's creation date. Existing tags must resolve to the expected source commit,
-including annotated tags. Daily workflows run serially, and only
-the publishing job receives permission to write releases.
+including annotated tags. Submission runs serialize; finalization runs serialize
+per release tag.
 
 These are development prereleases. Linux x64 has native/browser execution
 coverage; macOS Intel and Apple Silicon have native startup checks after

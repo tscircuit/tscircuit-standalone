@@ -84,25 +84,13 @@ grep -E '^Timestamp=.' "$signing_dir/signature.txt"
 # A standalone executable cannot have a ticket stapled to it.
 ditto -c -k --keepParent "$binary" "$signing_dir/submission.zip"
 auth=(--key "$signing_dir/notary.p8" --key-id "$APPLE_NOTARY_KEY_ID" --issuer "$APPLE_NOTARY_ISSUER_ID")
-submit_status=0
+# Return after the upload. The durable draft and scheduled checker own the wait.
 xcrun notarytool submit "$signing_dir/submission.zip" "${auth[@]}" \
-  --wait --timeout 30m --output-format json > "$signing_dir/submission.json" || submit_status=$?
+  --output-format json > "$signing_dir/submission.json"
 cat "$signing_dir/submission.json"
-submission_id="$(jq -r '.id // empty' "$signing_dir/submission.json")"
-if [ -n "$submission_id" ]; then
-  xcrun notarytool log "$submission_id" "${auth[@]}" "$signing_dir/notary-log.json" || true
-  if [ -s "$signing_dir/notary-log.json" ]; then
-    cat "$signing_dir/notary-log.json"
-  fi
-fi
-if [ "$submit_status" -ne 0 ] || ! jq -e '.status == "Accepted" and (.id | type == "string" and length > 0)' "$signing_dir/submission.json" >/dev/null; then
-  echo "Apple did not accept the executable; refusing to release it." >&2
-  exit 1
-fi
-# Unlike spctl's app assessment, this supports standalone command-line code.
-codesign --verify --strict --check-notarization -R='notarized' "$binary"
+jq -e '.id | test("^[0-9a-fA-F-]{36}$")' "$signing_dir/submission.json" > /dev/null
 checksum="$(shasum -a 256 "$binary" | awk '{print $1}')"
-jq --arg team "$APPLE_TEAM_ID" --arg sha256 "$checksum" \
-  '{id, status, teamId: $team, sha256: $sha256}' \
+jq --arg checksum "$checksum" --arg team "$APPLE_TEAM_ID" \
+  '{id, status: "In Progress", teamId: $team, sha256: $checksum}' \
   "$signing_dir/submission.json" > "$binary.notarization.json"
-echo "Developer ID signing and notarization succeeded."
+echo "Signed and submitted; notarization will be checked separately."
