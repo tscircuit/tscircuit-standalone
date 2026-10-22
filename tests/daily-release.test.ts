@@ -12,7 +12,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 type GitObject = { type: "commit" | "tag" | "tree"; sha: string }
-type Release = { draft: boolean; target_commitish: string; name: string }
+type Release = { draft: boolean; target_commitish: string; name: string; assets?: { name: string }[] }
 type FixtureState = {
   ref?: { object: GitObject }
   tagObjects?: Record<string, { object: GitObject }>
@@ -51,6 +51,7 @@ const assets = [
   ...binaries,
   ...binaries.map((name) => `${name.replace(/\.exe$/, "")}.notices.txt`),
   ...archives,
+  "release-manifest.json",
   "tsci-darwin-x64.notarization.json",
   "tsci-darwin-arm64.notarization.json",
 ]
@@ -61,15 +62,17 @@ const workflow = Bun.YAML.parse(
 ) as {
   jobs: {
     prepare: { steps: { name?: string; run?: string }[] }
-    publish: { steps: { name?: string; run?: string }[] }
   }
 }
-const publishScript = workflow.jobs.publish.steps.find(
+const publication = Bun.YAML.parse(
+  await Bun.file(new URL("../.github/workflows/finalize-release.yml", import.meta.url)).text(),
+) as { jobs: { publish: { steps: { name?: string; run?: string }[] } } }
+const publishScript = publication.jobs.publish.steps.find(
   (step) => step.name === "Publish the complete daily prerelease",
 )?.run
 if (!publishScript)
   throw new Error("The daily release publication step is missing")
-const verifyScript = workflow.jobs.publish.steps.find(
+const verifyScript = publication.jobs.publish.steps.find(
   (step) => step.name === "Verify the release assets and generate checksums",
 )?.run
 if (!verifyScript)
@@ -509,6 +512,18 @@ test("preparation preserves a same-source draft version after npm latest changes
 test("preparation skips a published date without querying the npm registry", async () => {
   const release = await fixture({
     release: { draft: false, target_commitish: sourceSha, name: releaseName },
+    npmError: true,
+  })
+  expect(release.prepare().exitCode).toBe(0)
+  expect(await release.outputs()).toEqual({ tag: releaseTag, publish: "false" })
+  expect(await release.curlCalls()).toEqual([])
+  expect(await release.mutations()).toEqual([])
+})
+
+test("a complete pending draft is left for the checker without rebuilding or resubmitting", async () => {
+  const release = await fixture({
+    release: { draft: true, target_commitish: sourceSha, name: releaseName,
+      assets: [{ name: "release-manifest.json" }] },
     npmError: true,
   })
   expect(release.prepare().exitCode).toBe(0)

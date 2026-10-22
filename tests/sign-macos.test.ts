@@ -45,8 +45,8 @@ else if (command === "security") {
   writeFileSync(args.at(-1), "ZIP fixture")
 } else if (command === "xcrun") {
   if (args[1] === "submit") {
-    console.log(JSON.stringify({id:"fixture-submission", status: failure === "rejected" ? "Invalid" : failure === "timeout" ? "In Progress" : "Accepted"}))
-    if (failure === "timeout") process.exit(75)
+    console.log(JSON.stringify({id:"11111111-2222-3333-4444-555555555555", status: "In Progress"}))
+    if (failure === "upload") process.exit(75)
   } else if (args[1] === "log") writeFileSync(args.at(-1), JSON.stringify({issues:[]}))
   else throw new Error("Unexpected notary command")
 } else throw new Error("Unexpected fixture command")
@@ -110,14 +110,14 @@ const fixture = async () => {
   }
 }
 
-test("accepted notarization records the final signed bytes and removes private material", async () => {
+test("submission returns without waiting, records the signed bytes and removes private material", async () => {
   const signing = await fixture()
   const result = signing.run()
   expect(result.exitCode).toBe(0)
   const receipt = await Bun.file(`${signing.binary}.notarization.json`).json()
   expect(receipt).toEqual({
-    id: "fixture-submission",
-    status: "Accepted",
+    id: "11111111-2222-3333-4444-555555555555",
+    status: "In Progress",
     teamId: "WUQ9WUY75Z",
     sha256: createHash("sha256")
       .update(await readFile(signing.binary))
@@ -134,7 +134,10 @@ test("accepted notarization records the final signed bytes and removes private m
       (call) =>
         call.includes("--check-notarization") && call.includes("-R=notarized"),
     ),
-  ).toBe(true)
+  ).toBe(false)
+  const submission = calls.find((call) => call[0] === "xcrun" && call[2] === "submit")!
+  expect(submission).not.toContain("--wait")
+  expect(submission).not.toContain("--timeout")
   expect(calls.at(-1)?.slice(0, 2)).toEqual(["security", "delete-keychain"])
   const searchLists = calls.filter(
     (call) =>
@@ -163,21 +166,19 @@ test("missing credentials fail before importing any identity", async () => {
   expect(await signing.receiptExists()).toBe(false)
 })
 
-test("a failed retry removes a previous acceptance receipt", async () => {
+test("a failed upload removes a previous submission receipt", async () => {
   const signing = await fixture()
   expect(signing.run().exitCode).toBe(0)
   expect(await signing.receiptExists()).toBe(true)
-  expect(signing.run({ SIGNING_FAILURE: "rejected" }).exitCode).not.toBe(0)
+  expect(signing.run({ SIGNING_FAILURE: "upload" }).exitCode).not.toBe(0)
   expect(await signing.receiptExists()).toBe(false)
 })
 
-test("import failures, wrong teams, rejection, timeout and failed ticket verification cannot produce a receipt", async () => {
+test("import failures, wrong teams and failed uploads cannot produce a submission receipt", async () => {
   for (const failure of [
     "import",
     "team",
-    "rejected",
-    "timeout",
-    "verification",
+    "upload",
   ]) {
     const signing = await fixture()
     const result = signing.run({ SIGNING_FAILURE: failure })
@@ -196,29 +197,22 @@ test("import failures, wrong teams, rejection, timeout and failed ticket verific
   }
 }, 30_000)
 
-test("publication waits for both signed artifacts and manual releases forward secrets", async () => {
-  const daily = Bun.YAML.parse(
-    await Bun.file(
-      new URL("../.github/workflows/daily-release.yml", import.meta.url),
-    ).text(),
+test("only accepted releases reach native verification and publication", async () => {
+  const load = async (file: string) => Bun.YAML.parse(
+    await Bun.file(new URL("../.github/workflows/" + file, import.meta.url)).text(),
   ) as any
-  const manual = Bun.YAML.parse(
-    await Bun.file(
-      new URL("../.github/workflows/manual-release.yml", import.meta.url),
-    ).text(),
-  ) as any
-  expect(daily.jobs.publish.needs).toContain("sign-macos")
-  expect(daily.jobs["sign-macos"].needs).toEqual(["prepare", "build"])
-  const downloads = daily.jobs.publish.steps.filter(
-    (step: any) => step.uses === "actions/download-artifact@v4",
-  )
-  expect(downloads.map((step: any) => step.with.name).filter(Boolean)).toEqual([
-    "signed-macos-x64",
-    "signed-macos-arm64",
-  ])
+  const daily = await load("daily-release.yml")
+  const finalizer = await load("finalize-release.yml")
+  const checker = await load("check-notarization.yml")
+  const manual = await load("manual-release.yml")
+  expect(daily.jobs.stage.needs).toContain("sign-macos")
+  expect(daily.jobs.publish).toBeUndefined()
+  expect(finalizer.jobs.publish.needs).toContain("verify-macos")
+  expect(finalizer.jobs["verify-macos"].if).toBe("needs.inspect.outputs.ready == 'true'")
+  expect(checker.jobs.finalize.uses).toBe("./.github/workflows/finalize-release.yml")
   expect(manual.jobs.release.secrets).toBe("inherit")
-  const ci = await Bun.file(
-    new URL("../.github/workflows/ci.yml", import.meta.url),
-  ).text()
+  expect(JSON.stringify(checker)).not.toContain("MACOS_CERTIFICATE")
+  expect(JSON.stringify(finalizer)).not.toContain("MACOS_CERTIFICATE")
+  const ci = await Bun.file(new URL("../.github/workflows/ci.yml", import.meta.url)).text()
   expect(ci).not.toContain("secrets.")
 })
