@@ -20,11 +20,8 @@ release's `SHA256SUMS`, and keeps the executable and license notices together.
 An optional second argument sets the destination directory; existing directories
 are left untouched. No Apple account, Bun/Node installation or `sudo` is needed.
 
-Browser downloads can acquire macOS quarantine metadata and trigger an
-“Apple could not verify” warning because these binaries are ad hoc signed and
-not notarized. The terminal installer downloads with `curl`, which does not add
-that metadata. For an existing browser download, see the
-[macOS quarantine instructions](docs/releases.md#macos-download-quarantine).
+macOS releases are signed with tscircuit Inc.'s Developer ID and notarized by
+Apple. See [macOS download verification](docs/releases.md#macos-download-quarantine).
 
 ## Build from source
 

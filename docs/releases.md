@@ -18,7 +18,8 @@ installation and compiles the same qualified catalog and UI bundle.
 The workflow reuses the normal CI checks: frozen installation, typechecks,
 tests, compiled-binary smoke, browser qualification and native network tracing.
 It then compiles all five targets from the same qualified catalog and UI bundle.
-No release is published if a check, target build or packaging step fails.
+Both macOS binaries are signed and notarized before publication. No release is
+published if a check, target build, signing, notarization or packaging step fails.
 
 Release assets:
 
@@ -43,38 +44,33 @@ versions. Put the binary on your PATH to use `tsci import ESP32-S3R8`,
 
 The release includes `SHA256SUMS` for all assets. Compare `sha256sum <file>` on
 Linux or `shasum -a 256 <file>` on macOS with the matching entry in `SHA256SUMS`.
+Each macOS `.notarization.json` records Apple's acceptance and the binary's checksum.
 
 ## macOS download quarantine
 
-The macOS binaries are ad hoc signed, without an Apple Developer ID or
-notarization. Browsers such as Chrome add `com.apple.quarantine` metadata to
-downloads; Archive Utility can propagate it to the extracted binary. This
-metadata is added on the user's Mac, not by the build or release archive, so
-changing release packaging cannot prevent it on browser downloads.
+New macOS releases are signed with tscircuit Inc.'s Developer ID and notarized by
+Apple. Keep browser quarantine metadata intact. The first Gatekeeper check needs
+internet access because tickets cannot be stapled to standalone executables.
+Older releases remain ad hoc signed.
 
-For installation without browser quarantine, use the [terminal installer](../README.md#download-and-run-on-macos).
-It selects the native architecture, downloads the specified release and verifies
-its archive against `SHA256SUMS` before extracting it. It does not remove
-quarantine from existing files or change system security settings.
-
-For an archive already downloaded through a browser, verify its checksum first.
-If you trust the release, enter its extracted directory and run:
+Verify a downloaded executable with:
 
 ```sh
-xattr -d com.apple.quarantine ./tsci
-./tsci --version
+codesign --verify --strict --check-notarization -R='notarized' ./tsci
 ```
 
-This removes the download quarantine check for that executable. If `xattr`
-reports that the attribute does not exist, it has already been cleared or was
-never attached. Alternatively, use **System Settings → Privacy & Security →
-Open Anyway** after the blocked launch, as described by
-[Apple](https://support.apple.com/102445).
+## macOS signing setup
 
-Wi-Fi does not need to be disabled to launch the binary. Offline qualification
-tests are separate from Gatekeeper's download checks. Developer ID signing and
-notarization would be needed for a release that passes the normal Gatekeeper
-checks after a browser download.
+Configure repository Actions secrets using a Developer ID Application certificate
+and private key (`.p12`) and an App Store Connect team API key (`.p8`):
+
+| Secret | Value |
+| --- | --- |
+| `MACOS_CERTIFICATE_P12_BASE64` | Base64-encoded `.p12` |
+| `MACOS_CERTIFICATE_PASSWORD` | `.p12` password |
+| `APPLE_NOTARY_KEY_P8_BASE64` | Base64-encoded `.p8` |
+| `APPLE_NOTARY_KEY_ID` | API key ID |
+| `APPLE_NOTARY_ISSUER_ID` | Issuer ID |
 
 ## Release publication
 
@@ -87,8 +83,8 @@ including annotated tags. Daily workflows run serially, and only
 the publishing job receives permission to write releases.
 
 These are development prereleases. Linux x64 has native/browser execution
-coverage; the other four targets currently have cross-compilation coverage.
+coverage; macOS Intel and Apple Silicon have native startup checks after
+signing and notarization. Linux arm64 and Windows have cross-compilation coverage.
 The archives retain the dependency inventory and collected redistribution
 notices, including the existing license-review follow-ups. Official release
-qualification, additional native platform tests and signing remain separate
-work.
+qualification and additional native platform tests remain separate work.
