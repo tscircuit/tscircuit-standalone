@@ -20,14 +20,8 @@ release's `SHA256SUMS`, and keeps the executable and license notices together.
 An optional second argument sets the destination directory; existing directories
 are left untouched. No Apple account, Bun/Node installation or `sudo` is needed.
 
-The release workflow signs both macOS architectures with tscircuit Inc.'s
-Developer ID and requires Apple's notarization acceptance before publishing.
-Keep browser quarantine metadata intact so Gatekeeper can verify the download.
-Standalone executables cannot carry a stapled ticket, so the first Gatekeeper
-check needs internet access. Earlier unsigned releases are unchanged; see
-[macOS download verification](docs/releases.md#macos-download-quarantine).
-Maintainers must configure the [signing credentials](docs/releases.md#macos-signing-setup)
-before the first signed release.
+macOS releases are signed with tscircuit Inc.'s Developer ID and notarized by
+Apple. See [macOS download verification](docs/releases.md#macos-download-quarantine).
 
 ## Build from source
 

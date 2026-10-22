@@ -18,12 +18,8 @@ installation and compiles the same qualified catalog and UI bundle.
 The workflow reuses the normal CI checks: frozen installation, typechecks,
 tests, compiled-binary smoke, browser qualification and native network tracing.
 It then compiles all five targets from the same qualified catalog and UI bundle.
-After qualification, separate native macOS jobs sign the Intel and Apple Silicon
-executables with tscircuit Inc.'s Developer ID and submit each to Apple for
-notarization. They check Apple's ticket and run the signed executable before
-repackaging it. No release is published if a check, target build, signing,
-notarization or packaging step fails. Pull request CI does not receive signing
-credentials.
+Both macOS binaries are signed and notarized before publication. No release is
+published if a check, target build, signing, notarization or packaging step fails.
 
 Release assets:
 
@@ -48,72 +44,33 @@ versions. Put the binary on your PATH to use `tsci import ESP32-S3R8`,
 
 The release includes `SHA256SUMS` for all assets. Compare `sha256sum <file>` on
 Linux or `shasum -a 256 <file>` on macOS with the matching entry in `SHA256SUMS`.
-The macOS `.notarization.json` receipts record Apple's submission ID, acceptance,
-team ID and the SHA-256 of the signed executable. Publication also verifies that
-the executable inside each macOS archive matches its direct download.
+Each macOS `.notarization.json` records Apple's acceptance and the binary's checksum.
 
 ## macOS download quarantine
 
-Signed releases use **Developer ID Application: tscircuit Inc. (WUQ9WUY75Z)**,
-a secure timestamp, hardened runtime and JavaScriptCore JIT entitlements.
-Browsers can add `com.apple.quarantine` to downloads and extracted files; leave
-that metadata intact. Gatekeeper uses the signature and Apple's notarization
-ticket to check the executable. Signing addresses the unverified-developer and
-malware-verification block; macOS may still show its normal first-open prompt.
+New macOS releases are signed with tscircuit Inc.'s Developer ID and notarized by
+Apple. Keep browser quarantine metadata intact. The first Gatekeeper check needs
+internet access because tickets cannot be stapled to standalone executables.
+Older releases remain ad hoc signed.
 
-On macOS 10.15 or later, verify a downloaded executable with:
+Verify a downloaded executable with:
 
 ```sh
-codesign --verify --strict --verbose=2 ./tsci
 codesign --verify --strict --check-notarization -R='notarized' ./tsci
-codesign --display --verbose=4 ./tsci
 ```
-
-Apple cannot staple tickets to standalone Mach-O executables, ZIP files or tar
-archives. The first Gatekeeper check therefore requires access to Apple's
-servers; subsequent circuit work can use the embedded offline resources.
-See [Apple's notarization workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow).
-For an offline first installation, a separately notarized and stapled installer
-package or disk image would be needed.
-
-Earlier releases without these notarization receipts remain ad hoc signed.
-Download a signed release to use normal Gatekeeper verification. The
-[terminal installer](../README.md#download-and-run-on-macos) continues to select
-the native architecture and verify the archive against `SHA256SUMS`.
 
 ## macOS signing setup
 
-The account holder creates a **Developer ID Application** certificate using the
-G2 intermediary in the [Apple Developer account](https://developer.apple.com/account/resources/certificates/list).
-Export that certificate and its private key together as a password-protected
-PKCS#12 file. Create an App Store Connect **team** API key with the **Developer**
-role for notarization. Keep its private `.p8` file and note the key ID and issuer
-ID. These credentials authorize signing as tscircuit Inc. and notarization;
-the API key also has Developer access to the team's App Store Connect apps.
-
-Configure these encrypted Actions secrets only in `tscircuit/tscircuit-standalone`:
+Configure repository Actions secrets using a Developer ID Application certificate
+and private key (`.p12`) and an App Store Connect team API key (`.p8`):
 
 | Secret | Value |
 | --- | --- |
-| `MACOS_CERTIFICATE_P12_BASE64` | Base64 encoding of the certificate and private key PKCS#12 |
-| `MACOS_CERTIFICATE_PASSWORD` | Password used to export that PKCS#12 |
-| `APPLE_NOTARY_KEY_P8_BASE64` | Base64 encoding of the notarization API private key |
-| `APPLE_NOTARY_KEY_ID` | App Store Connect API key ID |
-| `APPLE_NOTARY_ISSUER_ID` | App Store Connect team issuer ID |
-
-Never commit these files or secret values. The signing script imports the
-identity into a temporary keychain and deletes it and the decoded credentials
-on success or failure. Only the signing step receives the secrets; build and
-pull request jobs remain independent of them. Manual releases forward the same
-secrets to the daily release workflow. Missing or invalid credentials fail the
-release instead of silently producing unsigned downloads.
-
-After merging the signing workflow and configuring the secrets, run **Manual
-standalone release** from `main`. Check both signing jobs for an accepted Apple
-submission. Download each binary through a browser on a fresh Mac, retain its
-quarantine metadata, and run it from Terminal with internet available to verify
-the user experience. A CI ticket check is useful but does not replace this
-end-to-end Gatekeeper test.
+| `MACOS_CERTIFICATE_P12_BASE64` | Base64-encoded `.p12` |
+| `MACOS_CERTIFICATE_PASSWORD` | `.p12` password |
+| `APPLE_NOTARY_KEY_P8_BASE64` | Base64-encoded `.p8` |
+| `APPLE_NOTARY_KEY_ID` | API key ID |
+| `APPLE_NOTARY_ISSUER_ID` | Issuer ID |
 
 ## Release publication
 
