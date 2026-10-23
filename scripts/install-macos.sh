@@ -1,5 +1,5 @@
 #!/bin/sh
-# Install a published release without a browser adding download quarantine.
+# Install the signed macOS package, or extract an archive to an explicit directory.
 set -eu
 
 fail() {
@@ -42,15 +42,21 @@ if [ "$release_tag" = latest ]; then
   validate_release_tag "$release_tag"
 fi
 
-destination=${2:-tscircuit-standalone-$release_tag}
-# Prefix relative paths so options cannot be interpreted by mkdir or mv.
-case "$destination" in
-  /*) ;;
-  *) destination=./$destination ;;
-esac
-[ ! -e "$destination" ] && [ ! -L "$destination" ] || fail "Destination already exists: $destination"
-
-archive=tscircuit-standalone-macos-$architecture.tar.gz
+destination=${2-}
+if [ -n "$destination" ]; then
+  # An explicit directory retains the portable, unprivileged archive installation.
+  case "$destination" in
+    /*) ;;
+    *) destination=./$destination ;;
+  esac
+  [ ! -e "$destination" ] && [ ! -L "$destination" ] || fail "Destination already exists: $destination"
+  archive=tscircuit-standalone-macos-$architecture.tar.gz
+else
+  for tool in pkgutil spctl sudo; do
+    command -v "$tool" >/dev/null 2>&1 || fail "Required command not found: $tool"
+  done
+  archive=tscircuit-standalone-macos-$architecture.pkg
+fi
 release_url=https://github.com/tscircuit/tscircuit-standalone/releases/download/$release_tag
 # curl does not add the quarantine metadata attached by browser downloads.
 curl --fail --location --silent --show-error --connect-timeout 15 --max-time 300 --retry 3 \
@@ -62,6 +68,17 @@ curl --fail --location --silent --show-error --connect-timeout 15 --max-time 300
 awk -v name="$archive" '$2 == name { print; count++ } END { if (count != 1) exit 1 }' \
   "$staging/SHA256SUMS" > "$staging/selected-checksum" || fail "Missing or duplicate archive checksum."
 (cd "$staging" && shasum -a 256 --check selected-checksum) || fail "Archive checksum verification failed."
+
+if [ -z "$destination" ]; then
+  signature=$(pkgutil --check-signature "$staging/$archive") || fail "Installer signature verification failed."
+  printf '%s\n' "$signature" | grep -Fq 'Developer ID Installer: tscircuit Inc. (WUQ9WUY75Z)' ||
+    fail "Unexpected installer signing identity."
+  spctl --assess --type install "$staging/$archive" || fail "Apple Gatekeeper did not accept the installer."
+  printf 'Installing tsci to /usr/local/bin. Administrator approval may be required.\n'
+  sudo /usr/sbin/installer -pkg "$staging/$archive" -target /
+  printf 'Installed tsci. Run: tsci --version\n'
+  exit 0
+fi
 
 mkdir "$staging/extracted"
 tar -xzf "$staging/$archive" -C "$staging/extracted" \

@@ -73,25 +73,13 @@ export async function buildMacosInstaller({
       "--package", join(stage, "component.pkg"), distribution])
     const xml = await readFile(distribution, "utf8")
     if (!/<installer-gui-script\b[^>]*>/.test(xml)) throw new Error("Missing Installer distribution")
-    await writeFile(distribution, xml.replace(/<installer-gui-script\b[^>]*>/, `$&
-    <title>tscircuit ${version}</title>
-    <domains enable_localSystem="true" enable_currentUserHome="false" enable_anywhere="false"/>
-    <readme file="ReadMe.html" mime-type="text/html"/>
-    <conclusion file="Conclusion.html" mime-type="text/html"/>`))
-    const resources = join(stage, "resources")
-    await mkdir(resources)
-    await writeFile(join(resources, "ReadMe.html"), `<!doctype html><html><body>
-<h1>tscircuit ${version}</h1><p>Install the tscircuit command-line tool for ${architecture === "arm64" ? "Apple Silicon" : "Intel"} Macs.</p>
-<p>This installer installs or replaces <code>/usr/local/bin/tsci</code>. Administrator approval is required.</p>
-<p>After installation, open Terminal and run <code>tsci --version</code>. Bun and Node.js are not required.</p>
-</body></html>`)
-    await writeFile(join(resources, "Conclusion.html"), `<!doctype html><html><body>
-<h1>tscircuit is installed</h1><p>Open Terminal and run:</p><pre>tsci --version\ntsci --help</pre>
-<p>The command is installed at <code>/usr/local/bin/tsci</code>. Licenses are in <code>/usr/local/share/tscircuit-standalone</code>.</p>
-</body></html>`)
+    // Explicit domains show a redundant destination page even with one option.
+    await writeFile(distribution, xml
+      .replace(/<installer-gui-script\b[^>]*>/, `$&\n    <title>tscircuit ${version}</title>`)
+      .replace(/<options\b/, '<options rootVolumeOnly="true"'))
     const temporaryOutput = join(stage, "unsigned.pkg")
     run(["productbuild", "--distribution", distribution, "--package-path", stage,
-      "--resources", resources, temporaryOutput])
+      temporaryOutput])
     await rename(temporaryOutput, destination)
     return destination
   } finally {

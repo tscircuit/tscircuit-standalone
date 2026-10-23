@@ -29,7 +29,10 @@ const fixture = async (architecture = "arm64", releaseTag = "daily-2026-10-15") 
   const archive = `tscircuit-standalone-macos-${architecture === "x86_64" ? "x64" : "arm64"}.tar.gz`
   expect(Bun.spawnSync(["tar", "-czf", join(release, archive), "-C", payload, ...Object.keys(files)]).exitCode).toBe(0)
   const hash = new Bun.CryptoHasher("sha256").update(await Bun.file(join(release, archive)).arrayBuffer()).digest("hex")
-  const manifest = `${hash}  ${archive}\n${"0".repeat(64)}  tscircuit-standalone-linux-x64.tar.gz\n`
+  const pkg = archive.replace(/\.tar\.gz$/, ".pkg")
+  await writeFile(join(release, pkg), "Fixture signed installer\n")
+  const pkgHash = new Bun.CryptoHasher("sha256").update(await Bun.file(join(release, pkg)).arrayBuffer()).digest("hex")
+  const manifest = `${hash}  ${archive}\n${pkgHash}  ${pkg}\n${"0".repeat(64)}  tscircuit-standalone-linux-x64.tar.gz\n`
   await writeFile(join(release, "SHA256SUMS"), manifest)
   await writeFile(join(bin, "uname"), `#!/bin/sh\nif [ "$1" = -s ]; then printf '%s\\n' "\${FIXTURE_OS:-Darwin}"; else printf '%s\\n' '${architecture}'; fi\n`)
   // Serve the official script, release metadata and assets without network access.
@@ -54,6 +57,33 @@ if (!url?.startsWith("https://github.com/tscircuit/tscircuit-standalone/releases
 copyFileSync(process.env.FIXTURE_RELEASE + "/" + url.split("/").at(-1), args[args.indexOf("-o") + 1])
 `)
   for (const name of ["uname", "curl"]) await chmod(join(bin, name), 0o755)
+  const installerCalls = join(root, "installer-calls")
+  await writeFile(installerCalls, "")
+  // Never run privileged installation in tests: record and simulate these tools.
+  for (const name of ["pkgutil", "spctl", "sudo", "installer"]) {
+    await writeFile(join(bin, name), `#!${process.execPath}\n` + String.raw`
+import { appendFileSync, readFileSync } from "node:fs"
+import { basename } from "node:path"
+import { spawnSync } from "node:child_process"
+const tool = basename(process.argv[1])
+const args = process.argv.slice(2)
+appendFileSync(process.env.FIXTURE_INSTALLER_CALLS, JSON.stringify({ tool, args }) + "\n")
+if (process.env.FIXTURE_FAIL_TOOL === tool) process.exit(1)
+if (tool === "pkgutil") {
+  console.log("Status: signed by a certificate trusted by macOS\n1. " +
+    (process.env.FIXTURE_SIGNER ?? "Developer ID Installer: tscircuit Inc. (WUQ9WUY75Z)"))
+}
+if (tool === "sudo") {
+  if (args[0] !== "/usr/sbin/installer") process.exit(1)
+  process.exit(spawnSync("installer", args.slice(1), { stdio: "inherit" }).status ?? 1)
+}
+if (tool === "installer") {
+  if (args.length !== 4 || args[0] !== "-pkg" || args[2] !== "-target" || args[3] !== "/") process.exit(1)
+  if (readFileSync(args[1], "utf8") !== "Fixture signed installer\n") process.exit(1)
+}
+`)
+    await chmod(join(bin, name), 0o755)
+  }
   // macOS exercises the real system parser; Linux CI supplies its boundary stub.
   if (process.platform !== "darwin") {
     await writeFile(join(bin, "plutil"), `#!${process.execPath}\n` + String.raw`
@@ -80,12 +110,15 @@ try {
         FIXTURE_CALLS: calls,
         FIXTURE_TAG: releaseTag,
         FIXTURE_INSTALLER: installer,
+        FIXTURE_INSTALLER_CALLS: installerCalls,
         ...env,
       },
     })
   const run = (args = [releaseTag, destination], env: Record<string, string> = {}) =>
     runCommand(["/bin/sh", installer, ...args], env)
-  return { root, release, archive, manifest, destination, files, run, runCommand, calls, temporary }
+  const tools = async () => (await readFile(installerCalls, "utf8")).trim().split("\n").filter(Boolean)
+    .map((line) => JSON.parse(line) as { tool: string; args: string[] })
+  return { root, release, archive, pkg, pkgHash, manifest, destination, files, run, runCommand, tools, calls, temporary }
 }
 
 for (const architecture of ["arm64", "x86_64"]) {
@@ -104,10 +137,13 @@ for (const architecture of ["arm64", "x86_64"]) {
   })
 }
 
-test("installer uses a release-specific default destination", async () => {
+test("a pinned release installs the signed package by default", async () => {
   const f = await fixture()
-  expect(f.run(["daily-2026-10-15"]).exitCode).toBe(0)
-  expect(await Bun.file(join(f.root, "tscircuit-standalone-daily-2026-10-15/tsci")).exists()).toBe(true)
+  const result = f.run(["daily-2026-10-15"])
+  expect(result.exitCode).toBe(0)
+  expect(result.stdout.toString()).toContain("Run: tsci --version")
+  expect((await f.tools()).map(({ tool }) => tool)).toEqual(["pkgutil", "spctl", "sudo", "installer"])
+  expect(await readFile(f.calls, "utf8")).not.toContain("api.github.com")
 })
 
 for (const architecture of ["arm64", "x86_64"]) {
@@ -116,13 +152,15 @@ for (const architecture of ["arm64", "x86_64"]) {
     const f = await fixture(architecture, tag)
     const result = f.run([])
     expect(result.exitCode).toBe(0)
-    expect(result.stdout.toString()).toContain(`tscircuit-standalone-${tag}/tsci`)
-    expect(await Bun.file(join(f.root, `tscircuit-standalone-${tag}/tsci`)).exists()).toBe(true)
+    expect(result.stdout.toString()).toContain("Run: tsci --version")
+    expect((await f.tools()).map(({ tool }) => tool)).toEqual(["pkgutil", "spctl", "sudo", "installer"])
+    expect((await f.tools()).at(-1)?.args).toEqual(["-pkg", expect.stringContaining(f.pkg), "-target", "/"])
     expect((await readFile(f.calls, "utf8")).trim().split("\n")).toEqual([
       "https://api.github.com/repos/tscircuit/tscircuit-standalone/releases?per_page=1",
-      `https://github.com/tscircuit/tscircuit-standalone/releases/download/${tag}/${f.archive}`,
+      `https://github.com/tscircuit/tscircuit-standalone/releases/download/${tag}/${f.pkg}`,
       `https://github.com/tscircuit/tscircuit-standalone/releases/download/${tag}/SHA256SUMS`,
     ])
+    expect(await Array.fromAsync(new Bun.Glob("tscircuit-standalone-*").scan(f.root))).toEqual([])
     expect(await Array.fromAsync(new Bun.Glob("*").scan(f.temporary))).toEqual([])
   })
 }
@@ -133,13 +171,41 @@ test("the README curl command installs the latest release without arguments", as
   const command = readme.match(/^curl .*\/scripts\/install-macos\.sh \| sh$/m)?.[0]
   expect(command).toBeDefined()
   expect(f.runCommand(["/bin/sh", "-c", command!]).exitCode).toBe(0)
-  expect(await Bun.file(join(f.root, "tscircuit-standalone-daily-2026-10-15/tsci")).exists()).toBe(true)
+  expect((await f.tools()).at(-1)?.tool).toBe("installer")
 })
 
 test("latest accepts a custom destination", async () => {
   const f = await fixture()
   expect(f.run(["latest", f.destination]).exitCode).toBe(0)
   expect(await Bun.file(join(f.destination, "tsci")).exists()).toBe(true)
+  expect(await f.tools()).toEqual([])
+})
+
+test("system installation rejects a changed package before verification or administrator approval", async () => {
+  const f = await fixture()
+  await writeFile(join(f.release, f.pkg), "Changed installer")
+  expect(f.run([]).exitCode).not.toBe(0)
+  expect(await f.tools()).toEqual([])
+  expect(await Array.fromAsync(new Bun.Glob("*").scan(f.temporary))).toEqual([])
+})
+
+test("an unexpected installer signer cannot reach privileged installation", async () => {
+  const f = await fixture()
+  expect(f.run([], { FIXTURE_SIGNER: "Developer ID Installer: Another Company (OTHERTEAM1)" }).exitCode).not.toBe(0)
+  expect((await f.tools()).map(({ tool }) => tool)).toEqual(["pkgutil"])
+})
+
+test("signature, Gatekeeper, authorization and installation failures cannot report success", async () => {
+  for (const tool of ["pkgutil", "spctl", "sudo", "installer"]) {
+    const f = await fixture()
+    const result = f.run([], { FIXTURE_FAIL_TOOL: tool })
+    expect(result.exitCode).not.toBe(0)
+    expect(result.stdout.toString()).not.toContain("Installed tsci.")
+    const tools = (await f.tools()).map(({ tool }) => tool)
+    expect(tools.at(-1)).toBe(tool)
+    if (tool === "pkgutil" || tool === "spctl") expect(tools).not.toContain("sudo")
+    expect(await Array.fromAsync(new Bun.Glob("*").scan(f.temporary))).toEqual([])
+  }
 })
 
 test("missing, malformed and unsafe latest release metadata fail before asset downloads", async () => {

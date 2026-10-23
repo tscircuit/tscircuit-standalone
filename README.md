@@ -19,11 +19,11 @@ Install the latest published release on macOS:
 curl -fsSL https://raw.githubusercontent.com/tscircuit/tscircuit-standalone/main/scripts/install-macos.sh | sh
 ```
 
-The installer selects Apple Silicon or Intel, verifies `SHA256SUMS`, and prints
-the command to run. It includes development prereleases and installs into
-`./tscircuit-standalone-<release-tag>/` without modifying PATH. No Bun, Node.js or
-`sudo` is needed. To choose a release and destination, use
-`sh -s -- <release-tag> [destination]` instead of `sh`.
+Then run `tsci --version` from any folder. The installer selects Apple Silicon or
+Intel, verifies the checksum and Apple signature, and installs `/usr/local/bin/tsci`
+with administrator approval. No Bun, Node.js or shell configuration changes are needed.
+Latest includes development prereleases. To extract a portable copy without `sudo`,
+use `sh -s -- latest ./tsci` instead of `sh`, then run `./tsci/tsci`.
 
 macOS releases are signed with tscircuit Inc.'s Developer ID and notarized by
 Apple. See [macOS download verification](docs/releases.md#macos-download-quarantine).

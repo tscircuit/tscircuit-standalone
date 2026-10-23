@@ -335,13 +335,13 @@ jobs:
 
           ~~~sh
           curl --fail --location --silent --show-error https://raw.githubusercontent.com/$GH_REPO/$SOURCE_SHA/scripts/install-macos.sh | sh -s -- $RELEASE_TAG
-          ./tscircuit-standalone-$RELEASE_TAG/tsci --version
+          tsci --version
           ~~~
 
-          The installer selects Apple Silicon or Intel automatically. No Apple
-          account, Bun/Node or sudo is required. Standalone executables cannot
-          have notarization tickets stapled to them, so the first Gatekeeper
-          check needs internet access. Older unsigned releases are unchanged.
+          The installer selects Apple Silicon or Intel automatically and installs
+          /usr/local/bin/tsci with administrator approval. No Apple account, Bun or
+          Node.js is required. It verifies the package checksum, signing identity
+          and Apple's approval before installation. Older unsigned releases are unchanged.
           See [macOS download verification](https://github.com/$GH_REPO/blob/$SOURCE_SHA/docs/releases.md#macos-download-quarantine).
 
           Each archive contains tsci, project licenses and generated dependency notices.

@@ -73,8 +73,11 @@ test.skipIf(process.platform !== "darwin")("native package preserves the executa
   const distribution = await readFile(join(expanded, "Distribution"), "utf8")
   expect(distribution).toContain(`hostArchitectures="${process.arch === "arm64" ? "arm64" : "x86_64"}"`)
   expect(distribution).toContain("<allowed-os-versions>")
-  expect(distribution).toContain('enable_currentUserHome="false"')
-  expect(distribution).toContain("Conclusion.html")
+  expect(distribution).toContain('rootVolumeOnly="true"')
+  expect(distribution).not.toContain("<domains")
+  expect(distribution).toContain('customize="never"')
+  expect(distribution).not.toMatch(/<(?:welcome|readme|license|conclusion)\b/)
+  expect(await readdir(expanded)).not.toContain("Resources")
   expect((await readdir(root)).some((name) => name.startsWith(".installer-"))).toBe(false)
 }, 30_000)
 
