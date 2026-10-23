@@ -97,18 +97,28 @@ security import "$signing_dir/installer.p12" -k "$keychain" \
   -P "$MACOS_INSTALLER_CERTIFICATE_PASSWORD" -T /usr/bin/productsign -T /usr/bin/security
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
   -k "$keychain_password" "$keychain" >/dev/null
+# A PKCS#12 export can already include the public chain. Only tolerate Apple's
+# duplicate-item error; private identity imports and other errors still fail.
+import_public_certificate() {
+  if ! security import "$1" -k "$keychain" 2> "$signing_dir/certificate-import-error.txt"; then
+    if ! grep -Fq 'The specified item already exists in the keychain' "$signing_dir/certificate-import-error.txt"; then
+      cat "$signing_dir/certificate-import-error.txt" >&2
+      return 1
+    fi
+  fi
+}
 # The G2 intermediate is public; importing it does not change system trust.
 curl --fail --silent --show-error --retry 3 \
   https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer \
   -o "$signing_dir/DeveloperIDG2CA.cer"
-security import "$signing_dir/DeveloperIDG2CA.cer" -k "$keychain"
+import_public_certificate "$signing_dir/DeveloperIDG2CA.cer"
 # Some Macs keep Apple roots in the system trust store rather than the
 # certificate keychain searched by codesign. Supply the public chain without
 # adding or overriding any trust settings.
 curl --fail --silent --show-error --retry 3 \
   https://www.apple.com/appleca/AppleIncRootCertificate.cer \
   -o "$signing_dir/AppleRootCA.cer"
-security import "$signing_dir/AppleRootCA.cer" -k "$keychain"
+import_public_certificate "$signing_dir/AppleRootCA.cer"
 identity="$(security find-identity -v -p codesigning "$keychain" |
   awk -v team="($APPLE_TEAM_ID)" '/Developer ID Application:/ && index($0, team) {print $2}')"
 if [[ ! "$identity" =~ ^[0-9A-Fa-f]{40}$ ]]; then

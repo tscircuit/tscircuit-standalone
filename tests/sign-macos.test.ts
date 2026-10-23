@@ -34,6 +34,16 @@ if (command === "uname") console.log(args.includes("-m") ? "arm64" : "Darwin")
 else if (command === "security") {
   if (args[0] === "list-keychains" && !args.includes("-s")) console.log('    "/Users/fixture/Library/Keychains/login.keychain-db"\n    "/Users/fixture/Shared Keychains/shared.keychain-db"')
   if (args[0] === "import" && failure === "import") process.exit(1)
+  if (args[0] === "import" && args[1].endsWith("DeveloperIDG2CA.cer")) {
+    if (failure === "included-intermediate") {
+      process.stderr.write("security: SecKeychainItemImport: The specified item already exists in the keychain.\n")
+      process.exit(1)
+    }
+    if (failure === "intermediate-error") {
+      process.stderr.write("security: public certificate import denied\n")
+      process.exit(1)
+    }
+  }
   if (args[0] === "find-identity") {
     const installer = !args.includes("-p")
     const wrongTeam = failure === "team" || installer && failure === "installer-team"
@@ -245,6 +255,7 @@ test("import failures, wrong teams, rejection, timeout and failed ticket verific
     "staple",
     "staple-validation",
     "gatekeeper",
+    "intermediate-error",
   ]) {
     const signing = await fixture()
     const result = signing.run({ SIGNING_FAILURE: failure })
@@ -258,7 +269,7 @@ test("import failures, wrong teams, rejection, timeout and failed ticket verific
         name.startsWith("tsci-signing."),
       ),
     ).toBe(false)
-    if (["import", "team", "installer-team", "installer-signing", "installer-signature"].includes(failure)) {
+    if (["import", "team", "installer-team", "installer-signing", "installer-signature", "intermediate-error"].includes(failure)) {
       expect(calls.some((call) => call[0] === "xcrun")).toBe(false)
     }
   }
@@ -289,6 +300,13 @@ test("publication waits for both signed artifacts and manual releases forward se
     new URL("../.github/workflows/ci.yml", import.meta.url),
   ).text()
   expect(ci).not.toContain("secrets.")
+})
+
+test("an intermediate already included in the PKCS#12 export does not block signing", async () => {
+  const signing = await fixture()
+  expect(signing.run({ SIGNING_FAILURE: "included-intermediate" }).exitCode).toBe(0)
+  expect(await signing.receiptExists()).toBe(true)
+  expect(await Bun.file(`${signing.binary}.pkg.notarization.json`).exists()).toBe(true)
 })
 
 test("a post-acceptance ticket failure preserves verbose evidence and its original exit status", async () => {
