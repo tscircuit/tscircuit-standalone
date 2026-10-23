@@ -13,19 +13,17 @@ or manual permission changes are needed.
 
 ### Terminal installation
 
-The terminal installer is also available, including for development prereleases:
+Install the latest published release on macOS:
 
 ```sh
-release_tag=$(curl --fail --location --silent --show-error 'https://api.github.com/repos/tscircuit/tscircuit-standalone/releases?per_page=1' |
-  plutil -extract 0.tag_name raw -o - -)
-curl --fail --location --silent --show-error https://raw.githubusercontent.com/tscircuit/tscircuit-standalone/main/scripts/install-macos.sh | sh -s -- "$release_tag"
-./tscircuit-standalone-"$release_tag"/tsci --version
+curl -fsSL https://raw.githubusercontent.com/tscircuit/tscircuit-standalone/main/scripts/install-macos.sh | sh
 ```
 
-The installer selects Apple Silicon or Intel, checks the archive against the
-release's `SHA256SUMS`, and keeps the executable and license notices together.
-An optional second argument sets the destination directory; existing directories
-are left untouched. No Apple account, Bun/Node installation or `sudo` is needed.
+The installer selects Apple Silicon or Intel, verifies `SHA256SUMS`, and prints
+the command to run. It includes development prereleases and installs into
+`./tscircuit-standalone-<release-tag>/` without modifying PATH. No Bun, Node.js or
+`sudo` is needed. To choose a release and destination, use
+`sh -s -- <release-tag> [destination]` instead of `sh`.
 
 macOS releases are signed with tscircuit Inc.'s Developer ID and notarized by
 Apple. See [macOS download verification](docs/releases.md#macos-download-quarantine).
