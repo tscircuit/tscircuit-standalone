@@ -200,12 +200,35 @@ if [ "$verification_status" -ne 0 ]; then
   echo "Apple accepted the submission, but local ticket verification failed (exit $verification_status)." >&2
   exit "$verification_status"
 fi
-phase="installer stapling and Gatekeeper verification"
-xcrun stapler staple "$installer" > "$signing_dir/installer-stapling.txt" 2>&1
-xcrun stapler validate "$installer" >> "$signing_dir/installer-stapling.txt" 2>&1
-cat "$signing_dir/installer-stapling.txt"
-spctl --assess --type install --verbose=4 "$installer" > "$signing_dir/installer-gatekeeper.txt" 2>&1
+stapler_with_retry() {
+  local action="$1" attempt status delay
+  for attempt in 1 2 3; do
+    printf 'stapler %s: attempt %s/3\n' "$action" "$attempt" | tee -a "$signing_dir/installer-stapling.txt"
+    status=0
+    xcrun stapler "$action" "$installer" > "$signing_dir/stapler-attempt.txt" 2>&1 || status=$?
+    tee -a "$signing_dir/installer-stapling.txt" < "$signing_dir/stapler-attempt.txt"
+    if [ "$status" -eq 0 ]; then return 0; fi
+    # Error 68 also covers permanent ticket errors. Retry only when Apple's
+    # output identifies a transient URL transport failure, never TLS or trust errors.
+    if [ "$attempt" -eq 3 ] || [ "$status" -ne 68 ] ||
+      ! grep -Eq 'Error Domain=NSURLErrorDomain Code=-(1001|1003|1004|1005|1006|1009)([^0-9]|$)' "$signing_dir/stapler-attempt.txt"; then
+      return "$status"
+    fi
+    delay=$((attempt * 10))
+    printf 'Apple ticket service network failure; retrying %s in %s seconds.\n' "$action" "$delay" |
+      tee -a "$signing_dir/installer-stapling.txt"
+    sleep "$delay"
+  done
+}
+phase="installer ticket stapling"
+stapler_with_retry staple
+phase="installer ticket validation"
+stapler_with_retry validate
+phase="installer Gatekeeper verification"
+gatekeeper_status=0
+spctl --assess --type install --verbose=4 "$installer" > "$signing_dir/installer-gatekeeper.txt" 2>&1 || gatekeeper_status=$?
 cat "$signing_dir/installer-gatekeeper.txt"
+if [ "$gatekeeper_status" -ne 0 ]; then exit "$gatekeeper_status"; fi
 phase="acceptance receipt"
 checksum="$(shasum -a 256 "$binary" | awk '{print $1}')"
 jq --arg team "$APPLE_TEAM_ID" --arg sha256 "$checksum" \
