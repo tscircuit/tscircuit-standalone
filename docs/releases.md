@@ -18,10 +18,17 @@ installation and compiles the same qualified catalog and UI bundle.
 The workflow reuses the normal CI checks: frozen installation, typechecks,
 tests, compiled-binary smoke, browser qualification and native network tracing.
 It then compiles all five targets from the same qualified catalog and UI bundle.
-Both macOS binaries are signed and notarized before publication. No release is
+Both macOS binaries and installers are signed and notarized before publication. No release is
 published if a check, target build, signing, notarization or packaging step fails.
 
-Release assets:
+For macOS, use `tscircuit-standalone-macos-arm64.pkg` (Apple Silicon) or
+`tscircuit-standalone-macos-x64.pkg` (Intel). Double-click the installer, approve
+installation, then run `tsci --version` in Terminal. It installs `/usr/local/bin/tsci`
+and licenses in `/usr/local/share/tscircuit-standalone`. An existing `tsci` at that
+path is replaced. Both architectures use the package identifier `com.tscircuit.tsci`
+for upgrades. Installer versions use the upstream version's three numeric components.
+
+Other release assets:
 
 | Target | Primary binary | Optional archive |
 | --- | --- | --- |
@@ -44,14 +51,18 @@ versions. Put the binary on your PATH to use `tsci import ESP32-S3R8`,
 
 The release includes `SHA256SUMS` for all assets. Compare `sha256sum <file>` on
 Linux or `shasum -a 256 <file>` on macOS with the matching entry in `SHA256SUMS`.
-Each macOS `.notarization.json` records Apple's acceptance and the binary's checksum.
+Each macOS `.notarization.json` records Apple's acceptance and the asset's checksum.
+Installer receipts also identify the included binary, version and architecture.
+Checksums are calculated after stapling the installer's approval ticket.
 
 ## macOS download quarantine
 
 New macOS releases are signed with tscircuit Inc.'s Developer ID and notarized by
-Apple. Keep browser quarantine metadata intact. The first Gatekeeper check needs
-internet access because tickets cannot be stapled to standalone executables.
-Older releases remain ad hoc signed.
+Apple. Keep browser quarantine metadata intact. Installers have Apple's approval
+ticket stapled to them. Standalone binaries and archives should be run from Terminal;
+[Finder can block a notarized command-line tool](https://developer.apple.com/forums/thread/706379).
+Their first notarization check needs internet because standalone executables cannot
+have tickets stapled to them. Older releases remain ad hoc signed.
 
 Verify a downloaded executable with:
 
@@ -62,12 +73,16 @@ codesign --verify --strict --check-notarization -R='notarized' ./tsci
 ## macOS signing setup
 
 Configure repository Actions secrets using a Developer ID Application certificate
-and private key (`.p12`) and an App Store Connect team API key (`.p8`):
+and a separate Developer ID Installer certificate and private key (`.p12`), plus
+an App Store Connect team API key (`.p8`). Configure the installer secrets before
+merging this workflow; missing credentials prevent publication:
 
 | Secret | Value |
 | --- | --- |
-| `MACOS_CERTIFICATE_P12_BASE64` | Base64-encoded `.p12` |
-| `MACOS_CERTIFICATE_PASSWORD` | `.p12` password |
+| `MACOS_CERTIFICATE_P12_BASE64` | Base64-encoded Developer ID Application `.p12` |
+| `MACOS_CERTIFICATE_PASSWORD` | Application `.p12` password |
+| `MACOS_INSTALLER_CERTIFICATE_P12_BASE64` | Base64-encoded Developer ID Installer `.p12` |
+| `MACOS_INSTALLER_CERTIFICATE_PASSWORD` | Installer `.p12` password |
 | `APPLE_NOTARY_KEY_P8_BASE64` | Base64-encoded `.p8` |
 | `APPLE_NOTARY_KEY_ID` | API key ID |
 | `APPLE_NOTARY_ISSUER_ID` | Issuer ID |

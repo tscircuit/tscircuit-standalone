@@ -19,6 +19,10 @@ on:
         required: true
       MACOS_CERTIFICATE_PASSWORD:
         required: true
+      MACOS_INSTALLER_CERTIFICATE_P12_BASE64:
+        required: true
+      MACOS_INSTALLER_CERTIFICATE_PASSWORD:
+        required: true
       APPLE_NOTARY_KEY_P8_BASE64:
         required: true
       APPLE_NOTARY_KEY_ID:
@@ -142,6 +146,10 @@ jobs:
         env:
           MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_INSTALLER_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_INSTALLER_CERTIFICATE_P12_BASE64 }}
+          MACOS_INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_INSTALLER_CERTIFICATE_PASSWORD }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          MACOS_ARCH: ${{ matrix.arch }}
           APPLE_NOTARY_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARY_KEY_P8_BASE64 }}
           APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
           APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
@@ -166,15 +174,24 @@ jobs:
           path: dist/tsci
           if-no-files-found: warn
           retention-days: 7
-      - name: Verify the signed binary starts on its native architecture
+      - name: Install and verify the notarized package
+        run: |
+          sudo installer -pkg dist/tsci.pkg -target /
+          cmp dist/tsci /usr/local/bin/tsci
+          test "$(stat -f '%u:%g:%Lp' /usr/local/bin/tsci)" = "0:0:755"
+          for notice in LICENSE THIRD_PARTY_NOTICES licenses.json THIRD_PARTY_NOTICES.txt; do
+            cmp "dist/$notice" "/usr/local/share/tscircuit-standalone/$notice"
+          done
+          codesign --verify --strict /usr/local/bin/tsci
+      - name: Verify the installed binary starts on its native architecture
         env:
           EXPECTED_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          test "$(./dist/tsci --version)" = "$EXPECTED_VERSION"
-          ./dist/tsci --help
+          test "$(env PATH=/usr/local/bin:/usr/bin:/bin tsci --version)" = "$EXPECTED_VERSION"
+          /usr/local/bin/tsci --help
           # Exercise JavaScriptCore, the embedded worker and WASM rendering
           # under the release signature's hardened-runtime entitlements.
-          ./dist/tsci build examples/led-resistor.circuit.tsx --ignore-errors --concurrency 2 --pcb-png
+          /usr/local/bin/tsci build examples/led-resistor.circuit.tsx --ignore-errors --concurrency 2 --pcb-png
       - name: Install GNU tar for deterministic archives
         run: |
           brew install gnu-tar
@@ -186,6 +203,8 @@ jobs:
         run: |
           bun scripts/package-release.ts
           cp dist/tsci.notarization.json "dist/release/tsci-darwin-$ARCH.notarization.json"
+          cp dist/tsci.pkg "dist/release/tscircuit-standalone-macos-$ARCH.pkg"
+          cp dist/tsci.pkg.notarization.json "dist/release/tscircuit-standalone-macos-$ARCH.pkg.notarization.json"
       - uses: actions/upload-artifact@v4
         with:
           name: signed-macos-${{ matrix.arch }}
@@ -217,6 +236,8 @@ jobs:
           path: dist/release
       - name: Verify the release assets and generate checksums
         working-directory: dist/release
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           assets=(
             tsci-linux-x64
@@ -236,6 +257,10 @@ jobs:
             tscircuit-standalone-windows-x64.zip
             tsci-darwin-x64.notarization.json
             tsci-darwin-arm64.notarization.json
+            tscircuit-standalone-macos-x64.pkg
+            tscircuit-standalone-macos-arm64.pkg
+            tscircuit-standalone-macos-x64.pkg.notarization.json
+            tscircuit-standalone-macos-arm64.pkg.notarization.json
           )
           for asset in "${assets[@]}"; do
             test -s "$asset"
@@ -247,6 +272,13 @@ jobs:
               '.status == "Accepted" and .teamId == "WUQ9WUY75Z" and .sha256 == $checksum and (.id | type == "string" and length > 0)' \
               "$binary.notarization.json" > /dev/null
             test "$(tar -xOzf "tscircuit-standalone-macos-$arch.tar.gz" tsci | sha256sum | cut -d ' ' -f 1)" = "$checksum"
+            installer="tscircuit-standalone-macos-$arch.pkg"
+            installer_checksum="$(sha256sum "$installer" | cut -d ' ' -f 1)"
+            submission_id="$(jq -er '.id' "$binary.notarization.json")"
+            jq -e --arg checksum "$installer_checksum" --arg binary "$checksum" \
+              --arg id "$submission_id" --arg arch "$arch" --arg version "$RELEASE_VERSION" \
+              '.status == "Accepted" and .teamId == "WUQ9WUY75Z" and .sha256 == $checksum and .binarySha256 == $binary and .id == $id and .architecture == $arch and .version == $version' \
+              "$installer.notarization.json" > /dev/null
           done
           sha256sum "${assets[@]}" > SHA256SUMS
           sha256sum --check SHA256SUMS
@@ -265,10 +297,21 @@ jobs:
           cat > release-notes.md <<EOF
           ${BUILD_KIND:-Daily} development build of tscircuit standalone, based on tscircuit $RELEASE_VERSION.
 
-          ## Download a binary
+          ## Download for Mac
+
+          | Mac | Installer |
+          | --- | --- |
+          | Apple Silicon (M1 or later) | [Download for Apple Silicon]($download_url/tscircuit-standalone-macos-arm64.pkg) |
+          | Intel | [Download for Intel]($download_url/tscircuit-standalone-macos-x64.pkg) |
+
+          Double-click the installer and follow the prompts, then open Terminal and run tsci --version.
+          No Bun, Node.js or manual permission changes are needed. Administrator approval is required.
+
+          ## Other downloads
 
           Download a binary and its notices file. Archives are optional. On macOS/Linux,
-          rename the binary to tsci and run chmod +x tsci.
+          rename the binary to tsci and run chmod +x tsci. Run macOS binaries from Terminal;
+          double-clicking a standalone CLI in Finder can be blocked even after notarization.
 
           | Platform | Binary | Notices |
           | --- | --- | --- |
@@ -284,8 +327,9 @@ jobs:
 
           ### macOS terminal installation
 
-          Both macOS binaries are signed with tscircuit Inc.'s Developer ID and
-          accepted by Apple's notarization service. Browser downloads can retain
+          Both macOS installers and their binaries are signed with tscircuit Inc.'s Developer ID,
+          notarized by Apple, and verified after installation. Approval tickets are stapled
+          to the installers. Browser downloads can retain
           quarantine metadata; leave it in place so Gatekeeper can verify them.
           The checksum-verified terminal installer is also available:
 
@@ -302,7 +346,7 @@ jobs:
 
           Each archive contains tsci, project licenses and generated dependency notices.
           Compiled dependency versions are recorded in licenses.json and the companion notices.
-          SHA256SUMS covers all binaries, notices and archives. The same build-time datasheet catalog and
+          SHA256SUMS covers all binaries, notices, archives and installers. The same build-time datasheet catalog and
           UI bundle are embedded in every target. Runtime part imports, circuit builds
           and the local UI use the embedded resources without outbound requests.
 

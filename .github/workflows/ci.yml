@@ -84,6 +84,9 @@ jobs:
         run: bun scripts/compile-binary.ts
         env:
           BUN_BUILD_TARGET: ${{ matrix.target }}
+      - name: Test native macOS installer packaging
+        if: runner.os == 'macOS'
+        run: bun test tests/build-macos-installer.test.ts
       - name: Verify the macOS binary starts
         if: runner.os == 'macOS'
         run: |

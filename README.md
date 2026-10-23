@@ -5,8 +5,15 @@ the JS CDN packages requested by RunFrame's `internal-dynamic-import` calls.
 
 ## Download and run on macOS
 
-Download the newest published [release](https://github.com/tscircuit/tscircuit-standalone/releases),
-including development prereleases, with the terminal installer:
+Open the newest published [release](https://github.com/tscircuit/tscircuit-standalone/releases)
+and download the **Apple Silicon** or **Intel** `.pkg` installer. Double-click it,
+follow the prompts, then open Terminal and run `tsci --version`. The installer
+requires administrator approval and installs the command on PATH; no Bun, Node.js
+or manual permission changes are needed.
+
+### Terminal installation
+
+The terminal installer is also available, including for development prereleases:
 
 ```sh
 release_tag=$(curl --fail --location --silent --show-error 'https://api.github.com/repos/tscircuit/tscircuit-standalone/releases?per_page=1' |

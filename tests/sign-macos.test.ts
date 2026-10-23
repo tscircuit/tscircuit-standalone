@@ -24,7 +24,7 @@ afterEach(async () => {
 const appleStub =
   `#!${process.execPath}\n` +
   String.raw`
-import { appendFileSync, writeFileSync } from "node:fs"
+import { appendFileSync, writeFileSync, copyFileSync } from "node:fs"
 import { basename } from "node:path"
 const command = basename(process.argv[1])
 const args = process.argv.slice(2)
@@ -34,7 +34,21 @@ if (command === "uname") console.log(args.includes("-m") ? "arm64" : "Darwin")
 else if (command === "security") {
   if (args[0] === "list-keychains" && !args.includes("-s")) console.log('    "/Users/fixture/Library/Keychains/login.keychain-db"\n    "/Users/fixture/Shared Keychains/shared.keychain-db"')
   if (args[0] === "import" && failure === "import") process.exit(1)
-  if (args[0] === "find-identity") console.log('  1) ' + 'A'.repeat(40) + ' "Developer ID Application: tscircuit Inc. (' + (failure === "team" ? "WRONGTEAM1" : "WUQ9WUY75Z") + ')"')
+  if (args[0] === "import" && args[1].endsWith("DeveloperIDG2CA.cer")) {
+    if (failure === "included-intermediate") {
+      process.stderr.write("security: SecKeychainItemImport: The specified item already exists in the keychain.\n")
+      process.exit(1)
+    }
+    if (failure === "intermediate-error") {
+      process.stderr.write("security: public certificate import denied\n")
+      process.exit(1)
+    }
+  }
+  if (args[0] === "find-identity") {
+    const installer = !args.includes("-p")
+    const wrongTeam = failure === "team" || installer && failure === "installer-team"
+    console.log('  1) ' + (installer ? 'B' : 'A').repeat(40) + ' "Developer ID ' + (installer ? 'Installer' : 'Application') + ': tscircuit Inc. (' + (wrongTeam ? "WRONGTEAM1" : "WUQ9WUY75Z") + ')"')
+  }
 } else if (command === "curl") {
   writeFileSync(args[args.indexOf("-o") + 1], "Public intermediate")
 } else if (command === "codesign") {
@@ -48,10 +62,25 @@ else if (command === "security") {
 } else if (command === "log") {
   console.log("fixture notarization system log")
   if (failure === "log") process.exit(99)
-} else if (command === "ditto") {
-  writeFileSync(args.at(-1), "ZIP fixture")
+} else if (command === "bun") {
+  writeFileSync(args.at(-1), "Unsigned installer fixture")
+} else if (command === "productsign") {
+  if (failure === "installer-signing") process.exit(4)
+  copyFileSync(args.at(-2), args.at(-1))
+  appendFileSync(args.at(-1), "\nInstaller signed\n")
+} else if (command === "pkgutil") {
+  console.log("Developer ID Installer: tscircuit Inc. (WUQ9WUY75Z)\nSigned with a trusted timestamp")
+  if (failure === "installer-signature") process.exit(5)
+} else if (command === "spctl") {
+  console.log("accepted, source=Notarized Developer ID")
+  if (failure === "gatekeeper") process.exit(6)
 } else if (command === "xcrun") {
-  if (args[1] === "submit") {
+  if (args[0] === "stapler") {
+    if (failure === "staple") process.exit(7)
+    if (args[1] === "staple") appendFileSync(args.at(-1), "\nApple ticket stapled\n")
+    if (args[1] === "validate" && failure === "staple-validation") process.exit(8)
+    console.log("Stapler succeeded")
+  } else if (args[1] === "submit") {
     console.log(JSON.stringify({id:"fixture-submission", status: failure === "rejected" ? "Invalid" : failure === "timeout" ? "In Progress" : "Accepted"}))
     if (failure === "timeout") process.exit(75)
   } else if (args[1] === "log") writeFileSync(args.at(-1), JSON.stringify({issues:[]}))
@@ -69,7 +98,10 @@ const fixture = async () => {
     "security",
     "curl",
     "codesign",
-    "ditto",
+    "bun",
+    "productsign",
+    "pkgutil",
+    "spctl",
     "xcrun",
     "log",
   ]) {
@@ -95,6 +127,10 @@ const fixture = async () => {
           MACOS_CERTIFICATE_P12_BASE64:
             Buffer.from("fixture-p12").toString("base64"),
           MACOS_CERTIFICATE_PASSWORD: "fixture-password",
+          MACOS_INSTALLER_CERTIFICATE_P12_BASE64: Buffer.from("fixture-installer-p12").toString("base64"),
+          MACOS_INSTALLER_CERTIFICATE_PASSWORD: "fixture-installer-password",
+          RELEASE_VERSION: "0.0.3003",
+          MACOS_ARCH: "arm64",
           APPLE_NOTARY_KEY_P8_BASE64:
             Buffer.from("fixture-p8").toString("base64"),
           APPLE_NOTARY_KEY_ID: "FIXTUREKEY",
@@ -133,6 +169,13 @@ test("accepted notarization records the final signed bytes and removes private m
   const result = signing.run()
   expect(result.exitCode).toBe(0)
   const receipt = await Bun.file(`${signing.binary}.notarization.json`).json()
+  const installerReceipt = await Bun.file(`${signing.binary}.pkg.notarization.json`).json()
+  expect(installerReceipt).toMatchObject({
+    id: "fixture-submission", status: "Accepted", teamId: "WUQ9WUY75Z",
+    binarySha256: receipt.sha256, architecture: "arm64", version: "0.0.3003",
+    sha256: createHash("sha256").update(await readFile(`${signing.binary}.pkg`)).digest("hex"),
+  })
+  expect(await readFile(`${signing.binary}.pkg`, "utf8")).toContain("Apple ticket stapled")
   expect(receipt).toEqual({
     id: "fixture-submission",
     status: "Accepted",
@@ -142,6 +185,14 @@ test("accepted notarization records the final signed bytes and removes private m
       .digest("hex"),
   })
   const calls = await signing.calls()
+  const submissions = calls.filter((call) => call[0] === "xcrun" && call[2] === "submit")
+  expect(submissions).toHaveLength(1)
+  expect(submissions[0]?.[3]).toBe(`${signing.binary}.pkg`)
+  const installerSigning = calls.find((call) => call[0] === "productsign")!
+  expect(installerSigning).toContain("--timestamp")
+  expect(installerSigning[installerSigning.indexOf("--sign") + 1]).toBe("B".repeat(40))
+  expect(calls.findIndex((call) => call[0] === "productsign")).toBeLessThan(calls.indexOf(submissions[0]!))
+  expect(calls.findIndex((call) => call[0] === "spctl")).toBeGreaterThan(calls.findIndex((call) => call[0] === "xcrun" && call[2] === "validate"))
   const codesign = calls.find(
     (call) => call[0] === "codesign" && call.includes("--sign"),
   )!
@@ -174,7 +225,8 @@ test("accepted notarization records the final signed bytes and removes private m
 
 test("missing credentials fail before importing any identity", async () => {
   const signing = await fixture()
-  expect(signing.run({ MACOS_CERTIFICATE_PASSWORD: "" }).exitCode).not.toBe(0)
+  for (const name of ["MACOS_CERTIFICATE_PASSWORD", "MACOS_INSTALLER_CERTIFICATE_P12_BASE64", "MACOS_INSTALLER_CERTIFICATE_PASSWORD"])
+    expect(signing.run({ [name]: "" }).exitCode).not.toBe(0)
   expect((await signing.calls()).some((call) => call[0] === "security")).toBe(
     false,
   )
@@ -187,6 +239,7 @@ test("a failed retry removes a previous acceptance receipt", async () => {
   expect(await signing.receiptExists()).toBe(true)
   expect(signing.run({ SIGNING_FAILURE: "rejected" }).exitCode).not.toBe(0)
   expect(await signing.receiptExists()).toBe(false)
+  expect(await Bun.file(`${signing.binary}.pkg.notarization.json`).exists()).toBe(false)
 })
 
 test("import failures, wrong teams, rejection, timeout and failed ticket verification cannot produce a receipt", async () => {
@@ -196,11 +249,19 @@ test("import failures, wrong teams, rejection, timeout and failed ticket verific
     "rejected",
     "timeout",
     "verification",
+    "installer-team",
+    "installer-signing",
+    "installer-signature",
+    "staple",
+    "staple-validation",
+    "gatekeeper",
+    "intermediate-error",
   ]) {
     const signing = await fixture()
     const result = signing.run({ SIGNING_FAILURE: failure })
     expect(result.exitCode).not.toBe(0)
     expect(await signing.receiptExists()).toBe(false)
+    expect(await Bun.file(`${signing.binary}.pkg.notarization.json`).exists()).toBe(false)
     const calls = await signing.calls()
     expect(calls.at(-1)?.slice(0, 2)).toEqual(["security", "delete-keychain"])
     expect(
@@ -208,7 +269,7 @@ test("import failures, wrong teams, rejection, timeout and failed ticket verific
         name.startsWith("tsci-signing."),
       ),
     ).toBe(false)
-    if (["import", "team"].includes(failure)) {
+    if (["import", "team", "installer-team", "installer-signing", "installer-signature", "intermediate-error"].includes(failure)) {
       expect(calls.some((call) => call[0] === "xcrun")).toBe(false)
     }
   }
@@ -241,6 +302,13 @@ test("publication waits for both signed artifacts and manual releases forward se
   expect(ci).not.toContain("secrets.")
 })
 
+test("an intermediate already included in the PKCS#12 export does not block signing", async () => {
+  const signing = await fixture()
+  expect(signing.run({ SIGNING_FAILURE: "included-intermediate" }).exitCode).toBe(0)
+  expect(await signing.receiptExists()).toBe(true)
+  expect(await Bun.file(`${signing.binary}.pkg.notarization.json`).exists()).toBe(true)
+})
+
 test("a post-acceptance ticket failure preserves verbose evidence and its original exit status", async () => {
   const signing = await fixture()
   const result = signing.run({ SIGNING_FAILURE: "verification" })
@@ -258,10 +326,11 @@ test("a post-acceptance ticket failure preserves verbose evidence and its origin
   expect(Object.keys(files).sort()).toEqual([
     "final-binary.sha256", "notarization-system.log", "notarization-verification.txt", "notary-log.json",
     "result.txt", "runner.txt", "signature-verification.txt", "signature.txt",
-    "signed-binary.sha256", "submission.json",
+    "signed-binary.sha256", "submission.json", "final-installer.sha256", "installer-signature.txt",
   ].sort())
   const exported = Object.values(files).join("\n") + result.stdout.toString() + result.stderr.toString()
-  for (const secret of ["fixture-p12", "fixture-p8", "fixture-password",
+  for (const secret of ["fixture-p12", "fixture-p8", "fixture-password", "fixture-installer-p12", "fixture-installer-password",
+    Buffer.from("fixture-installer-p12").toString("base64"),
     Buffer.from("fixture-p12").toString("base64"), Buffer.from("fixture-p8").toString("base64")])
     expect(exported).not.toContain(secret)
   const calls = await signing.calls()
