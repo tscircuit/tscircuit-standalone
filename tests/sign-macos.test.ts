@@ -24,7 +24,7 @@ afterEach(async () => {
 const appleStub =
   `#!${process.execPath}\n` +
   String.raw`
-import { appendFileSync, writeFileSync, copyFileSync } from "node:fs"
+import { appendFileSync, writeFileSync, copyFileSync, readFileSync } from "node:fs"
 import { basename } from "node:path"
 const command = basename(process.argv[1])
 const args = process.argv.slice(2)
@@ -62,6 +62,8 @@ else if (command === "security") {
 } else if (command === "log") {
   console.log("fixture notarization system log")
   if (failure === "log") process.exit(99)
+} else if (command === "sleep") {
+  // Record retry backoff without slowing the fixture down.
 } else if (command === "bun") {
   writeFileSync(args.at(-1), "Unsigned installer fixture")
 } else if (command === "productsign") {
@@ -76,6 +78,21 @@ else if (command === "security") {
   if (failure === "gatekeeper") process.exit(6)
 } else if (command === "xcrun") {
   if (args[0] === "stapler") {
+    const counter = process.env.SIGNING_CALLS + ".stapler-" + args[1]
+    let attempt = 1
+    try { attempt += Number(readFileSync(counter, "utf8")) } catch {}
+    writeFileSync(counter, String(attempt))
+    const networkFailure = failure === "staple-network" && args[1] === "staple" && attempt === 1 ||
+      failure === "validation-network" && args[1] === "validate" && attempt === 1 ||
+      failure === "validation-network-exhausted" && args[1] === "validate"
+    if (networkFailure) {
+      process.stderr.write('error is Error Domain=NSURLErrorDomain Code=-1005 "The network connection was lost."\nThe validate action failed! Error 68.\n')
+      process.exit(68)
+    }
+    if (["validation-permanent", "validation-tls"].includes(failure) && args[1] === "validate") {
+      process.stderr.write(failure === "validation-tls" ? 'Error Domain=NSURLErrorDomain Code=-1202 "Untrusted certificate"\n' : "Ticket contents are invalid.\n")
+      process.exit(68)
+    }
     if (failure === "staple") process.exit(7)
     if (args[1] === "staple") appendFileSync(args.at(-1), "\nApple ticket stapled\n")
     if (args[1] === "validate" && failure === "staple-validation") process.exit(8)
@@ -104,6 +121,7 @@ const fixture = async () => {
     "spctl",
     "xcrun",
     "log",
+    "sleep",
   ]) {
     await writeFile(join(bin, name), appleStub)
     await chmod(join(bin, name), 0o755)
@@ -358,4 +376,55 @@ test("signature failures are distinguished from Apple's acceptance and ticket ch
   expect(files["result.txt"]).toContain("stage=signature integrity verification")
   expect(files["submission.json"]).toBeUndefined()
   expect((await signing.calls()).some((call) => call[0] === "xcrun")).toBe(false)
+})
+
+for (const action of ["staple", "validate"]) {
+  test(`a temporary Apple network failure retries only stapler ${action}`, async () => {
+    const signing = await fixture()
+    const result = signing.run({ SIGNING_FAILURE: action === "staple" ? "staple-network" : "validation-network" })
+    expect(result.exitCode).toBe(0)
+    const calls = await signing.calls()
+    expect(calls.filter((call) => call[0] === "xcrun" && call[1] === "stapler" && call[2] === action)).toHaveLength(2)
+    expect(calls.filter((call) => call[0] === "xcrun" && call[2] === "submit")).toHaveLength(1)
+    expect(calls.filter((call) => call[0] === "productsign")).toHaveLength(1)
+    expect(calls.filter((call) => call[0] === "sleep").map((call) => call[1])).toEqual(["10"])
+    expect(result.stdout.toString()).toContain("The network connection was lost.")
+    expect(result.stdout.toString()).toContain(`stapler ${action}: attempt 2/3`)
+    const log = (await signing.diagnosticFiles())["installer-stapling.txt"]!
+    expect(log).toContain("Code=-1005")
+    expect(log).toContain("Stapler succeeded")
+    expect(await signing.receiptExists()).toBe(true)
+    expect(await Bun.file(`${signing.binary}.pkg.notarization.json`).exists()).toBe(true)
+  })
+}
+
+test("repeated Apple network failures stop after three attempts and preserve exit 68", async () => {
+  const signing = await fixture()
+  const result = signing.run({ SIGNING_FAILURE: "validation-network-exhausted" })
+  expect(result.exitCode).toBe(68)
+  const calls = await signing.calls()
+  expect(calls.filter((call) => call[0] === "xcrun" && call[1] === "stapler" && call[2] === "validate")).toHaveLength(3)
+  expect(calls.filter((call) => call[0] === "sleep").map((call) => call[1])).toEqual(["10", "20"])
+  expect(calls.filter((call) => call[0] === "xcrun" && call[2] === "submit")).toHaveLength(1)
+  expect(calls.some((call) => call[0] === "spctl")).toBe(false)
+  expect(await signing.receiptExists()).toBe(false)
+  expect(await Bun.file(`${signing.binary}.pkg.notarization.json`).exists()).toBe(false)
+  const files = await signing.diagnosticFiles()
+  expect(files["result.txt"]).toContain("stage=installer ticket validation")
+  expect(files["result.txt"]).toContain("exit_status=68")
+  expect(files["installer-stapling.txt"]?.match(/Code=-1005/g)).toHaveLength(3)
+  expect(calls.at(-1)?.slice(0, 2)).toEqual(["security", "delete-keychain"])
+})
+
+test("invalid tickets and TLS trust failures are never retried", async () => {
+  for (const failure of ["validation-permanent", "validation-tls"]) {
+    const signing = await fixture()
+    const result = signing.run({ SIGNING_FAILURE: failure })
+    expect(result.exitCode).toBe(68)
+    const calls = await signing.calls()
+    expect(calls.filter((call) => call[0] === "xcrun" && call[1] === "stapler" && call[2] === "validate")).toHaveLength(1)
+    expect(calls.some((call) => call[0] === "sleep" || call[0] === "spctl")).toBe(false)
+    expect(await signing.receiptExists()).toBe(false)
+    expect(await Bun.file(`${signing.binary}.pkg.notarization.json`).exists()).toBe(false)
+  }
 })
