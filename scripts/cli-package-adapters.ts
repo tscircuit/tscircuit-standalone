@@ -2,16 +2,11 @@ import { readFile, realpath } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { findUiPackageRoot } from "./ui-package-adapters"
-import { adaptStandaloneInit } from "./standalone-init-adapters"
 
 /** Include build-time dependencies that normally resolve files from node_modules. */
 export const cliPackageAdapters: Bun.BunPlugin = {
   name: "standalone-cli-packages",
   setup(build) {
-    build.onLoad({ filter: /cli\/init\/register\.ts$/ }, async ({ path }) => ({
-      contents: adaptStandaloneInit(await readFile(path, "utf8")),
-      loader: "ts",
-    }))
     // The pinned GitHub dependency includes CLI source, before its npm build.
     const cliEntries: Record<string, string> = {
       "@tscircuit/cli": "main.ts",
