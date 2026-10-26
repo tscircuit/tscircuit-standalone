@@ -41,7 +41,7 @@ let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined
 try {
   assert.equal(run(["--version"]).trim(), packageMetadata.version)
   assert.match(run(["--help"]), /CLI for developing tscircuit packages/)
-  run(["init", "initialized", "--yes"])
+  run(["init", "initialized", "--yes", "--no-install"])
   for (const skillPath of [".claude/skills/tscircuit", ".agents/skills/tscircuit"]) {
     assert.ok(!existsSync(join(projectDir, "initialized", skillPath)))
   }
