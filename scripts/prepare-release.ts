@@ -1,9 +1,8 @@
-import { readFile, rm, writeFile } from "node:fs/promises"
+import { readFile, writeFile } from "node:fs/promises"
 import { join, resolve } from "node:path"
 
 type Manifest = Record<string, unknown> & {
   dependencies?: Record<string, string>
-  overrides?: Record<string, string>
 }
 
 export interface PrepareReleaseOptions {
@@ -59,15 +58,12 @@ const dependencyMinimum = (
 }
 
 const installDependencies = async (projectRoot: string): Promise<void> => {
-  const installation = Bun.spawn(
-    [process.execPath, "install", "--ignore-scripts"],
-    {
-      cwd: projectRoot,
-      stdin: "ignore",
-      stdout: "inherit",
-      stderr: "inherit",
-    },
-  )
+  const installation = Bun.spawn([process.execPath, "install"], {
+    cwd: projectRoot,
+    stdin: "ignore",
+    stdout: "inherit",
+    stderr: "inherit",
+  })
   if ((await installation.exited) !== 0) {
     throw new Error("Installing the selected tscircuit release failed")
   }
@@ -102,59 +98,20 @@ export async function prepareRelease(options: PrepareReleaseOptions = {}) {
   const coreVersion = dependencyMinimum(dependencies, "@tscircuit/core")
   const evalVersion = dependencyMinimum(dependencies, "@tscircuit/eval")
   const propsVersion = dependencyMinimum(dependencies, "@tscircuit/props")
-  const compilerDependencies = {
-    "@tscircuit/core": coreVersion,
-    "@tscircuit/eval": evalVersion,
-    "@tscircuit/props": propsVersion,
-    "@tscircuit/checks": dependencyMinimum(dependencies, "@tscircuit/checks"),
-    "@tscircuit/circuit-json-util": dependencyMinimum(
-      dependencies,
-      "@tscircuit/circuit-json-util",
-    ),
-  }
-
   const packagePath = join(projectRoot, "package.json")
-  const uiPackagePath = join(projectRoot, "ui/package.json")
   const root = object(
     JSON.parse(await readFile(packagePath, "utf8")),
     "root manifest",
   ) as Manifest
-  const ui = object(
-    JSON.parse(await readFile(uiPackagePath, "utf8")),
-    "UI manifest",
-  ) as Manifest
   object(root.dependencies, "root dependencies")
-  object(ui.dependencies, "UI dependencies")
-  if (root.overrides !== undefined) object(root.overrides, "root overrides")
-  const dependencyVersionsChanged = Object.entries(compilerDependencies).some(
-    ([name, version]) => root.overrides?.[name] !== version,
-  )
-
-  // Eval supplies the core implementation for authored imports of tscircuit.
-  // Keep that lean alias and align every evaluator/core graph with the selected
-  // npm release instead of installing the umbrella package's CLI dependencies.
+  // Install the published package so its runtime dependency graph is retained.
   root.version = metadata.version
   root.dependencies = {
     ...root.dependencies,
-    ...compilerDependencies,
-    tscircuit: `npm:@tscircuit/core@${coreVersion}`,
-  }
-  ui.dependencies = { ...ui.dependencies, "@tscircuit/eval": evalVersion }
-  // Core's wildcard peers can otherwise pick older viewer dependencies that lack
-  // exports required by its checks. Share the selected compiler and peer helpers
-  // across the UI worker and native binary.
-  root.overrides = {
-    ...root.overrides,
-    ...compilerDependencies,
+    tscircuit: metadata.version,
   }
   await writeFile(packagePath, `${JSON.stringify(root, null, 2)}\n`)
-  await writeFile(uiPackagePath, `${JSON.stringify(ui, null, 2)}\n`)
   if (options.install !== false) {
-    // Bun 1.3.12 can retain invalid workspace Git resolutions when overrides
-    // change. Resolve the changed graph afresh, then share its frozen lockfile.
-    if (dependencyVersionsChanged) {
-      await rm(join(projectRoot, "bun.lock"), { force: true })
-    }
     await (options.install ?? installDependencies)(projectRoot)
   }
   return { version: metadata.version, coreVersion, evalVersion, propsVersion }

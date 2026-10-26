@@ -1,6 +1,6 @@
 {
   "name": "@tscircuit/standalone",
-  "version": "0.0.2839",
+  "version": "0.0.3020",
   "private": true,
   "description": "Offline tscircuit platform and standalone binary preparation",
   "type": "module",
@@ -19,42 +19,36 @@
     "typecheck:ui": "tsc --noEmit -p ui/tsconfig.json"
   },
   "dependencies": {
-    "@flatten-js/core": "1.6.12",
-    "@rollup/wasm-node": "4.64.6",
-    "@tscircuit/checks": "0.0.247",
-    "@tscircuit/circuit-json-util": "0.0.121",
-    "@tscircuit/cli": "github:tscircuit/cli#26ad42c8bcb4db73c6a3cdb2ed2a00f141018e65",
-    "@tscircuit/core": "0.0.2132",
-    "@tscircuit/eval": "0.0.1596",
-    "@tscircuit/footprinter": "0.0.437",
-    "@tscircuit/krt-wasm": "0.1.6",
-    "@tscircuit/math-utils": "0.0.36",
-    "@tscircuit/props": "0.0.700",
-    "circuit-json": "0.0.525",
-    "circuit-to-svg": "0.0.447",
+    "@flatten-js/core": "1.6.15",
+    "@rollup/wasm-node": "4.65.1",
+    "@tscircuit/checks": "0.0.264",
+    "@tscircuit/circuit-json-util": "0.0.129",
+    "@tscircuit/cli": "0.1.2410",
+    "@tscircuit/core": "0.0.2203",
+    "@tscircuit/eval": "0.0.1660",
+    "@tscircuit/footprinter": "0.0.444",
+    "@tscircuit/krt-wasm": "0.1.9",
+    "@tscircuit/math-utils": "0.0.38",
+    "@tscircuit/props": "0.0.710",
+    "circuit-json": "0.0.535",
+    "circuit-to-svg": "0.0.453",
     "fflate": "0.8.3",
-    "kicad-to-circuit-json": "0.0.142",
-    "kicadts": "0.0.58",
-    "react": "19.2.7",
-    "sucrase": "3.35.0",
-    "tscircuit": "npm:@tscircuit/core@0.0.2132",
+    "kicad-to-circuit-json": "0.0.145",
+    "kicadts": "0.0.59",
+    "react": "19.3.1",
+    "sucrase": "3.35.1",
+    "tscircuit": "0.0.3020",
     "typescript": "5.9.3"
   },
   "devDependencies": {
-    "@types/bun": "1.3.12",
-    "playwright": "1.61.1",
-    "@types/node": "22.20.5"
+    "@types/bun": "1.4.4",
+    "playwright": "1.64.1",
+    "@types/node": "26.6.5"
   },
   "workspaces": [
     "ui"
   ],
-  "overrides": {
-    "altiumts": "0.0.59",
-    "@tscircuit/core": "0.0.2132",
-    "@tscircuit/eval": "0.0.1596",
-    "@tscircuit/props": "0.0.700",
-    "@tscircuit/checks": "0.0.247",
-    "@tscircuit/circuit-json-util": "0.0.121"
-  },
-  "trustedDependencies": []
+  "trustedDependencies": [
+    "altiumts"
+  ]
 }

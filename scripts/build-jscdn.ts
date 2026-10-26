@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises"
 import { createRequire } from "node:module"
 import { basename, dirname, join, relative, resolve, sep } from "node:path"
 import ts from "typescript"
@@ -101,13 +101,13 @@ export async function buildJscdn() {
   const { getImportUrl, getModuleName } = await import(
     uiRequire.resolve("@tscircuit/internal-dynamic-import")
   )
-  const cliRequire = createRequire(
-    join(projectRoot, "node_modules/@tscircuit/cli/package.json"),
+  const runtimeRequire = createRequire(
+    await realpath(join(projectRoot, "node_modules/tscircuit/package.json")),
   )
   const adapters = await createUiPackageAdapters({ findPackageRoot })
   // Follow the same RunFrame dependency graph that the shared CLI serves.
   const runframe = await Bun.build({
-    entrypoints: [cliRequire.resolve("@tscircuit/runframe")],
+    entrypoints: [runtimeRequire.resolve("@tscircuit/runframe")],
     target: "browser",
     metafile: true,
     plugins: [
