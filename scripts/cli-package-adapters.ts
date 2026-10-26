@@ -35,6 +35,18 @@ export function embedCliEvalWorker(source: string, workerBase64: string) {
   )
 }
 
+function preferBundledRuntimeModules(source: string) {
+  const header =
+    "async function importFromUserLand(moduleName, projectDir = process.cwd()) {"
+  if (source.split(header).length !== 2)
+    throw new Error("Published CLI runtime module loader has changed")
+  return source.replace(
+    header,
+    `${header}
+  if (moduleName === "tscircuit" || moduleName === "react") return import(moduleName);`,
+  )
+}
+
 /** Include build-time dependencies that normally resolve files from node_modules. */
 export const cliPackageAdapters: Bun.BunPlugin = {
   name: "standalone-cli-packages",
@@ -52,9 +64,12 @@ export const cliPackageAdapters: Bun.BunPlugin = {
         ),
       }),
     )
-    // The npm CLI embeds RunFrame as a string; localize its worker placeholder.
+    // Adapt both sequential execution and the embedded parallel workers.
     build.onLoad(
-      { filter: /@tscircuit\/cli\/dist\/cli\/main\.js$/ },
+      {
+        filter:
+          /@tscircuit\/cli\/dist\/cli\/(?:main|build\/build\.worker|snapshot\/snapshot\.worker)\.js$/,
+      },
       async ({ path }) => {
         const runtimeRequire = createRequire(
           await realpath(resolve("node_modules/tscircuit/package.json")),
@@ -69,8 +84,14 @@ export const cliPackageAdapters: Bun.BunPlugin = {
           (_call, _quote, specifier: string) =>
             `require(${JSON.stringify(runtimeRequire.resolve(specifier))})`,
         )
+        // Compiled Bun cannot load the project's import-only package exports.
+        // Keep the CLI and authored TSX on the same registered engine/React.
+        const adapted = preferBundledRuntimeModules(source)
         return {
-          contents: embedCliEvalWorker(source, worker),
+          // Only the main entry embeds RunFrame as a JavaScript string.
+          contents: path.endsWith("/main.js")
+            ? embedCliEvalWorker(adapted, worker)
+            : adapted,
           loader: "js",
         }
       },

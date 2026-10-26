@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { existsSync } from "node:fs"
-import { copyFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { chromium } from "playwright"
@@ -62,6 +62,24 @@ try {
   // Exercise the shared CLI's sequential and embedded worker paths.
   for (const concurrency of ["1", "2"])
     run(["build", "index.tsx", "--ignore-errors", "--concurrency", concurrency])
+  // `init` normally installs packages. The compiled CLI must still use its
+  // registered engine and React, rather than import those packages by file URL.
+  for (const name of ["tscircuit", "react"]) {
+    const directory = join(projectDir, "node_modules", name)
+    await mkdir(directory, { recursive: true })
+    await writeFile(
+      join(directory, "package.json"),
+      JSON.stringify({ name, type: "module", exports: { import: "./index.js" } }),
+    )
+    await writeFile(
+      join(directory, "index.js"),
+      `throw new Error("Standalone loaded project ${name} instead of its bundled runtime")`,
+    )
+  }
+  run(["build", "initialized/index.circuit.tsx"])
+  for (const concurrency of ["1", "2"])
+    run(["build", "index.tsx", "--ignore-errors", "--concurrency", concurrency])
+  await rm(join(projectDir, "node_modules"), { recursive: true })
   run(["build", "index.tsx", "--site", "--pcb-png", "--ignore-errors"])
   assert.equal(
     (await readFile(join(projectDir, "dist/index/pcb.png")))
