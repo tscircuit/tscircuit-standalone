@@ -31,8 +31,15 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           Expand-Archive -LiteralPath unsigned/tscircuit-standalone-windows-x64.zip -DestinationPath dist
-          foreach ($pair in @(@("unsigned/tsci-windows-x64.exe", "dist/tsci.exe"), @("LICENSE", "dist/LICENSE"), @("THIRD_PARTY_NOTICES", "dist/THIRD_PARTY_NOTICES"))) {
-            if ((Get-FileHash $pair[0]).Hash -cne (Get-FileHash $pair[1]).Hash) { throw "Qualified input mismatch: $($pair[0])" }
+          if ((Get-FileHash unsigned/tsci-windows-x64.exe).Hash -cne (Get-FileHash dist/tsci.exe).Hash) {
+            throw "Qualified executable mismatch"
+          }
+          # Compare committed bytes; Windows checkout may convert text to CRLF.
+          foreach ($notice in @("LICENSE", "THIRD_PARTY_NOTICES")) {
+            $expected = git rev-parse "HEAD:$notice"
+            if ($LASTEXITCODE -ne 0) { throw "Missing committed notice: $notice" }
+            $actual = git hash-object --no-filters "dist/$notice"
+            if ($LASTEXITCODE -ne 0 -or $actual -cne $expected) { throw "Qualified input mismatch: $notice" }
           }
       - name: Authenticate to Azure with GitHub OIDC
         uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
