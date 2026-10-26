@@ -58,6 +58,7 @@ const assets = [
   "tscircuit-standalone-macos-arm64.pkg",
   "tscircuit-standalone-macos-x64.pkg.notarization.json",
   "tscircuit-standalone-macos-arm64.pkg.notarization.json",
+  "tsci-windows-x64.signing.json",
 ]
 const workflow = Bun.YAML.parse(
   await Bun.file(
@@ -235,6 +236,19 @@ const fixture = async (initialState: FixtureState = {}) => {
     const packed = Bun.spawnSync(["tar", "-czf", join(root, `tscircuit-standalone-macos-${arch}.tar.gz`), "-C", stage, "tsci"])
     if (packed.exitCode !== 0) throw new Error(packed.stderr.toString())
   }
+  const windowsBinary = await readFile(join(root, "tsci-windows-x64.exe"))
+  await writeFile(join(root, "tsci-windows-x64.signing.json"), JSON.stringify({
+    status: "Verified", provider: "Azure Artifact Signing", signatureType: "Authenticode",
+    publisher: "tscircuit Inc", version: releaseVersion, sourceCommit: sourceSha, runId: "123",
+    sha256: createHash("sha256").update(windowsBinary).digest("hex"),
+    certificateThumbprint: "fixture-signing-certificate", timestampThumbprint: "fixture-timestamp-certificate",
+  }))
+  const windowsStage = join(root, "windows-x64")
+  await mkdir(windowsStage)
+  await writeFile(join(windowsStage, "tsci.exe"), windowsBinary)
+  await rm(join(root, "tscircuit-standalone-windows-x64.zip"))
+  const windowsZip = Bun.spawnSync(["zip", "-q", join(root, "tscircuit-standalone-windows-x64.zip"), "tsci.exe"], { cwd: windowsStage })
+  if (windowsZip.exitCode !== 0) throw new Error(windowsZip.stderr.toString())
   const runScript = (script: string, env: Record<string, string> = {}) =>
     Bun.spawnSync(["/bin/bash", "-eo", "pipefail", "-c", script], {
       cwd: root,
@@ -339,6 +353,29 @@ test("an archive containing a different executable cannot publish", async () => 
   const release = await fixture()
   await writeFile(join(release.root, "macos-arm64/tsci"), "Old unsigned binary")
   const packed = Bun.spawnSync(["tar", "-czf", join(release.root, "tscircuit-standalone-macos-arm64.tar.gz"), "-C", join(release.root, "macos-arm64"), "tsci"])
+  expect(packed.exitCode).toBe(0)
+  expect(release.run().exitCode).not.toBe(0)
+  expect(await release.mutations()).toEqual([])
+})
+
+test("Windows publication requires matching verified publisher, timestamp, source, version and signed bytes", async () => {
+  for (const change of [
+    { status: "Invalid" }, { provider: "Other" }, { signatureType: "Catalog" },
+    { publisher: "Other company" }, { version: "0.0.1" }, { sourceCommit: otherSha },
+    { runId: "456" }, { sha256: "0".repeat(64) }, { certificateThumbprint: "" },
+    { timestampThumbprint: "" },
+  ]) {
+    const release = await fixture()
+    const path = join(release.root, "tsci-windows-x64.signing.json")
+    const receipt = JSON.parse(await readFile(path, "utf8"))
+    await writeFile(path, JSON.stringify({ ...receipt, ...change }))
+    expect(release.run().exitCode).not.toBe(0)
+    expect(await release.mutations()).toEqual([])
+  }
+  const release = await fixture()
+  await writeFile(join(release.root, "windows-x64/tsci.exe"), "Old unsigned executable")
+  await rm(join(release.root, "tscircuit-standalone-windows-x64.zip"))
+  const packed = Bun.spawnSync(["zip", "-q", join(release.root, "tscircuit-standalone-windows-x64.zip"), "tsci.exe"], { cwd: join(release.root, "windows-x64") })
   expect(packed.exitCode).toBe(0)
   expect(release.run().exitCode).not.toBe(0)
   expect(await release.mutations()).toEqual([])

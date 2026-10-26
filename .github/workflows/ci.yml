@@ -9,6 +9,11 @@ on:
         description: Optional upstream version to qualify without publishing
         required: false
         type: string
+      windows_signing_test:
+        description: Sign and verify the Windows build using the protected signing environment
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     inputs:
       tscircuit_version:
@@ -20,6 +25,8 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -31,6 +38,11 @@ jobs:
           TSCIRCUIT_VERSION: ${{ inputs.tscircuit_version }}
         run: bun scripts/prepare-release.ts "$TSCIRCUIT_VERSION"
       - run: bun install --frozen-lockfile
+      - name: Record the selected version
+        id: version
+        run: |
+          version="$(bun -p 'require("./package.json").version')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - run: bun run check
       - name: Install the qualification browser
         run: bunx playwright install --with-deps chromium
@@ -56,6 +68,16 @@ jobs:
             build/jscdn-metafile.json
           if-no-files-found: error
           retention-days: 3
+
+  sign-windows-test:
+    if: github.event_name == 'workflow_dispatch' && inputs.windows_signing_test
+    needs: [check, build-targets]
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/sign-windows.yml
+    with:
+      version: ${{ needs.check.outputs.version }}
   build-targets:
     needs: check
     runs-on: ${{ matrix.runner || 'ubuntu-latest' }}
