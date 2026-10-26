@@ -1,5 +1,5 @@
 import * as tscircuit from "tscircuit"
-// @ts-expect-error Resolved to the existing UI dependency by the build plugin.
+// @ts-ignore Resolved to the existing UI dependency by the build plugin when not hoisted.
 import { initWasm } from "@resvg/resvg-wasm"
 import { jscdnAssets } from "./generated-jscdn-assets"
 

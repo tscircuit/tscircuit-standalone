@@ -26,6 +26,10 @@ export async function setupStandaloneEnvironment() {
     return root
   }
   process.env.TSCIRCUIT_STANDALONE = "1"
+  process.env.TSCI_SKIP_CLI_UPDATE = "true"
+  process.env.TSCI_TELEMETRY_DISABLED = "true"
+  process.env.TSCI_SKIP_SKILL_SETUP = "true"
+  process.env.TSCI_SKIP_ACCOUNT_FETCH = "true"
   process.env.TSCIRCUIT_JSCDN_DIR = await extractAssets(jscdnAssets, "jscdn")
   process.env.TSCIRCUIT_BAKED_ASSET_SERVER_DIR = await extractAssets(
     bakedAssets,
