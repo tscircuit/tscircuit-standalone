@@ -41,6 +41,11 @@ jobs:
             $actual = git hash-object --no-filters "dist/$notice"
             if ($LASTEXITCODE -ne 0 -or $actual -cne $expected) { throw "Qualified input mismatch: $notice" }
           }
+      - name: Verify the unsigned executable and embedded worker run on Windows
+        shell: pwsh
+        env:
+          EXPECTED_VERSION: ${{ inputs.version }}
+        run: ./tests/windows-cli.ps1 -Path ./dist/tsci.exe -ExpectedVersion $env:EXPECTED_VERSION
       - name: Authenticate to Azure with GitHub OIDC
         uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
@@ -66,15 +71,7 @@ jobs:
         shell: pwsh
         env:
           EXPECTED_VERSION: ${{ inputs.version }}
-        run: |
-          $ErrorActionPreference = "Stop"
-          $binary = (Resolve-Path dist/tsci.exe).Path
-          $version = & $binary --version
-          if ($LASTEXITCODE -ne 0 -or "$version".Trim() -cne $env:EXPECTED_VERSION) { throw "Signed executable version mismatch" }
-          & $binary --help
-          if ($LASTEXITCODE -ne 0) { throw "Signed executable could not start" }
-          & $binary build examples/led-resistor.circuit.tsx --ignore-errors --concurrency 2 --pcb-png
-          if ($LASTEXITCODE -ne 0) { throw "Signed executable worker/WASM check failed" }
+        run: ./tests/windows-cli.ps1 -Path ./dist/tsci.exe -ExpectedVersion $env:EXPECTED_VERSION
       - name: Package the verified signed executable
         shell: pwsh
         env:

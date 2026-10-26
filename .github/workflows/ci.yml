@@ -104,12 +104,8 @@ jobs:
     runs-on: ${{ matrix.runner || 'ubuntu-latest' }}
     strategy:
       matrix:
-        target: [bun-linux-x64, bun-linux-arm64, bun-darwin-x64, bun-darwin-arm64, bun-windows-x64]
-        include:
-          - target: bun-darwin-x64
-            runner: macos-15-intel
-          - target: bun-darwin-arm64
-            runner: macos-15
+        target: ${{ fromJSON(inputs.windows_signing_test && '["bun-windows-x64"]' || '["bun-linux-x64", "bun-linux-arm64", "bun-darwin-x64", "bun-darwin-arm64", "bun-windows-x64"]') }}
+        include: ${{ fromJSON(inputs.windows_signing_test && '[]' || '[{"target":"bun-darwin-x64","runner":"macos-15-intel"},{"target":"bun-darwin-arm64","runner":"macos-15"}]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
