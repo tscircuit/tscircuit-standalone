@@ -37,15 +37,15 @@ const fixture = async () => {
     scripts: { check: "bun test" },
     workspaces: ["ui"],
     dependencies: {
+      "@tscircuit/cli": "0.1.2410",
       "@tscircuit/core": "0.0.2116",
-      tscircuit: "npm:@tscircuit/core@0.0.2116",
+      tscircuit: "0.0.2838",
       "@tscircuit/eval": "0.0.1569",
       "@tscircuit/props": "0.0.697",
       "@tscircuit/footprinter": "0.0.437",
       react: "19.2.7",
     },
     devDependencies: { typescript: "5.9.3" },
-    overrides: { altiumts: "0.0.59", "@tscircuit/core": "0.0.2116" },
     trustedDependencies: [],
   }
   const ui = {
@@ -73,7 +73,7 @@ const fixture = async () => {
   return { projectRoot, root, ui, files, assertUnchanged }
 }
 
-test("preparation selects the npm version and aligns every core/eval graph while preserving unrelated pins", async () => {
+test("preparation installs the published npm package and preserves CLI and UI pins", async () => {
   const { projectRoot, root, ui } = await fixture()
   let installed = false
   const release = await prepareRelease({
@@ -84,7 +84,9 @@ test("preparation selects the npm version and aligns every core/eval graph while
     },
     install: async (installedRoot) => {
       expect(installedRoot).toBe(projectRoot)
-      expect(await Bun.file(join(projectRoot, "bun.lock")).exists()).toBe(false)
+      expect(await Bun.file(join(projectRoot, "bun.lock")).text()).toBe(
+        "fixture lock must not change when installation is disabled\n",
+      )
       expect(
         (await Bun.file(join(projectRoot, "package.json")).json()).version,
       ).toBe(npmMetadata.version)
@@ -103,26 +105,15 @@ test("preparation selects the npm version and aligns every core/eval graph while
     version: npmMetadata.version,
     dependencies: {
       ...root.dependencies,
-      "@tscircuit/core": "0.0.2132",
-      tscircuit: "npm:@tscircuit/core@0.0.2132",
-      "@tscircuit/eval": "0.0.1596",
-      "@tscircuit/props": "0.0.700",
-      "@tscircuit/checks": "0.0.247",
-      "@tscircuit/circuit-json-util": "0.0.121",
-    },
-    overrides: {
-      ...root.overrides,
-      "@tscircuit/core": "0.0.2132",
-      "@tscircuit/eval": "0.0.1596",
-      "@tscircuit/props": "0.0.700",
-      "@tscircuit/checks": "0.0.247",
-      "@tscircuit/circuit-json-util": "0.0.121",
+      tscircuit: npmMetadata.version,
     },
   })
-  expect(await Bun.file(join(projectRoot, "ui/package.json")).json()).toEqual({
-    ...ui,
-    dependencies: { ...ui.dependencies, "@tscircuit/eval": "0.0.1596" },
-  })
+  expect(await Bun.file(join(projectRoot, "ui/package.json")).json()).toEqual(
+    ui,
+  )
+  expect(
+    await Bun.file(join(projectRoot, "package.json")).json(),
+  ).not.toHaveProperty("overrides")
 })
 
 test("an exact requested npm version is used and must match the response", async () => {
@@ -150,65 +141,6 @@ test("an exact requested npm version is used and must match the response", async
   ).toBe(fixtureData.files["bun.lock"])
 })
 
-test("release preparation installs core runtime helpers from the selected npm release", async () => {
-  const { projectRoot, root, ui } = await fixture()
-  await prepareRelease({
-    projectRoot,
-    fetch: async () => Response.json(npmMetadata),
-    install: false,
-  })
-  const runtimeDependencies = {
-    "@tscircuit/infer-cable-insertion-point": "0.0.4",
-    "@tscircuit/copper-pour-solver": "0.0.67",
-    "@tscircuit/miniflex": "0.0.4",
-    minicssgrid: "0.0.9",
-    spicey: "0.0.14",
-  }
-  await prepareRelease({
-    projectRoot,
-    fetch: async () =>
-      Response.json({
-        ...npmMetadata,
-        dependencies: {
-          ...npmMetadata.dependencies,
-          ...Object.fromEntries(
-            Object.entries(runtimeDependencies).map(([name, version]) => [
-              name,
-              `^${version}`,
-            ]),
-          ),
-        },
-      }),
-    install: async () => {
-      expect(await Bun.file(join(projectRoot, "bun.lock")).exists()).toBe(false)
-      const prepared = await Bun.file(join(projectRoot, "package.json")).json()
-      expect(prepared.dependencies).toMatchObject(runtimeDependencies)
-      expect(prepared.overrides).toMatchObject(runtimeDependencies)
-      expect(prepared.dependencies["@tscircuit/footprinter"]).toBe(
-        root.dependencies["@tscircuit/footprinter"],
-      )
-      expect(await Bun.file(join(projectRoot, "ui/package.json")).json())
-        .toMatchObject({ dependencies: { react: ui.dependencies.react } })
-    },
-  })
-})
-
-test("invalid runtime helper versions fail before changing release inputs", async () => {
-  const { projectRoot, assertUnchanged } = await fixture()
-  await expect(
-    prepareRelease({
-      projectRoot,
-      fetch: async () =>
-        Response.json({
-          ...npmMetadata,
-          dependencies: { ...npmMetadata.dependencies, spicey: "latest" },
-        }),
-      install: false,
-    }),
-  ).rejects.toThrow("Unsupported tscircuit dependency range for spicey")
-  await assertUnchanged()
-})
-
 test("invalid npm metadata and missing or unsupported dependency ranges fail before changing manifests", async () => {
   for (const metadata of [
     null,
@@ -220,16 +152,12 @@ test("invalid npm metadata and missing or unsupported dependency ranges fail bef
     { ...npmMetadata, version: "latest" },
     { ...npmMetadata, dependencies: undefined },
     { ...npmMetadata, dependencies: [] },
-    ...[
-      "@tscircuit/core",
-      "@tscircuit/eval",
-      "@tscircuit/props",
-      "@tscircuit/checks",
-      "@tscircuit/circuit-json-util",
-    ].map((name) => ({
-      ...npmMetadata,
-      dependencies: { ...npmMetadata.dependencies, [name]: undefined },
-    })),
+    ...["@tscircuit/core", "@tscircuit/eval", "@tscircuit/props"].map(
+      (name) => ({
+        ...npmMetadata,
+        dependencies: { ...npmMetadata.dependencies, [name]: undefined },
+      }),
+    ),
     {
       ...npmMetadata,
       dependencies: {

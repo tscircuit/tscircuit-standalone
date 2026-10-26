@@ -1,9 +1,27 @@
-import type { RootCircuit } from "@tscircuit/core"
 import type { AnyCircuitElement } from "circuit-json"
 import { bundledCatalog, getBundledPart } from "./catalog"
 
-/** Inspect authored providers before core starts any render effects. */
-export const validateAuthoredCircuit = (circuit: RootCircuit) => {
+interface AuthoredComponent {
+  children: AuthoredComponent[]
+  props: {
+    partsEngine?: unknown
+    autorouter?:
+      | string
+      | {
+          preset?: string
+          local?: boolean
+          serverUrl?: string
+          serverMode?: unknown
+          serverCacheEnabled?: boolean
+        }
+  }
+  getDisplayName(): string
+}
+
+/** Inspect authored providers across the evaluator's independently resolved core. */
+export const validateAuthoredCircuit = (circuit: {
+  children: AuthoredComponent[]
+}) => {
   const components = [...circuit.children]
   while (components.length > 0) {
     const component = components.pop()!

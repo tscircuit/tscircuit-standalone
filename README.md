@@ -31,7 +31,7 @@ Apple. See [macOS download verification](docs/releases.md#macos-download-quarant
 ## Build from source
 
 ```sh
-bun install --frozen-lockfile --ignore-scripts
+bun install --frozen-lockfile
 bun run build
 ./dist/tsci --help
 ./dist/tsci dev examples/led-resistor.circuit.tsx

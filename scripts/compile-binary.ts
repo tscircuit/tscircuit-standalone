@@ -44,7 +44,7 @@ export async function compileBinary(): Promise<string> {
       outfile,
       ...(target ? { target: target as (typeof binaryTargets)[number] } : {}),
     },
-    tsconfig: "node_modules/@tscircuit/cli/tsconfig.json",
+    tsconfig: "tsconfig.json",
     minify: true,
     metafile: true,
     plugins: [cliPackageAdapters],

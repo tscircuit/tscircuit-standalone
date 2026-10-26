@@ -30,7 +30,7 @@ jobs:
         env:
           TSCIRCUIT_VERSION: ${{ inputs.tscircuit_version }}
         run: bun scripts/prepare-release.ts "$TSCIRCUIT_VERSION"
-      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun install --frozen-lockfile
       - run: bun run check
       - name: Install the qualification browser
         run: bunx playwright install --with-deps chromium
@@ -76,10 +76,7 @@ jobs:
         with:
           name: standalone-build-inputs
           path: .
-      - run: bun install --frozen-lockfile --ignore-scripts
-      - name: Install the pinned shared CLI build dependencies
-        run: bun install --frozen-lockfile --ignore-scripts
-        working-directory: node_modules/@tscircuit/cli
+      - run: bun install --frozen-lockfile
       - name: Compile the qualified inputs for this target
         run: bun scripts/compile-binary.ts
         env:
