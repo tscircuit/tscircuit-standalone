@@ -11,7 +11,7 @@ import {
   writeFile,
 } from "node:fs/promises"
 import { join, resolve } from "node:path"
-import { validateBinaryTarget } from "./compile-binary"
+import { validateBinaryTarget } from "./binary-targets"
 
 const releaseTargets = {
   "bun-linux-x64": "linux-x64",
