@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { existsSync } from "node:fs"
 import { copyFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
@@ -13,7 +14,6 @@ const env = {
   PATH: projectDir,
   HOME: projectDir,
   TSCIRCUIT_CONFIG_DIR: join(projectDir, "config"),
-  TSCI_SKIP_CLI_UPDATE: "true",
   BUN_INSTALL_AUTO: "disable",
 }
 const run = (args: string[]) => {
@@ -41,6 +41,20 @@ let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined
 try {
   assert.equal(run(["--version"]).trim(), packageMetadata.version)
   assert.match(run(["--help"]), /CLI for developing tscircuit packages/)
+  run(["init", "initialized", "--yes"])
+  const skillFiles = [...new Bun.Glob("**/*").scanSync({ cwd: "build/skill", onlyFiles: true })]
+  assert.ok(skillFiles.includes("SKILL.md"))
+  assert.ok(skillFiles.includes("LICENSE"))
+  for (const skillPath of [".claude/skills/tscircuit", ".agents/skills/tscircuit"]) {
+    for (const file of skillFiles) {
+      assert.deepEqual(
+        await readFile(join(projectDir, "initialized", skillPath, file)),
+        await readFile(join("build/skill", file)),
+      )
+    }
+  }
+  assert.ok(await Bun.file(join(projectDir, "initialized/index.circuit.tsx")).exists())
+  assert.ok(!existsSync(join(projectDir, "initialized/node_modules")))
   await writeFile(join(projectDir, "package.json"), "{}")
   // A locally generated 2 x 3 x 2 mm solid exercises the viewer's STEP loader,
   // rather than allowing procedural footprint CAD to hide an OCCT failure.

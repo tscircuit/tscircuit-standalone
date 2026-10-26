@@ -51,6 +51,8 @@ jobs:
             bun.lock
             lib/generated-jscdn-assets.ts
             lib/generated-baked-assets.ts
+            lib/generated-skill-assets.ts
+            build/skill
             build/baked-asset-server
             build/jscdn
             build/jscdn-metafile.json

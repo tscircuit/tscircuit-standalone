@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { jscdnAssets } from "./generated-jscdn-assets"
 import { bakedAssets } from "./generated-baked-assets"
+import { skillAssets } from "./generated-skill-assets"
 
 export async function setupStandaloneEnvironment() {
   // Bun 1.3's embedded files are readable individually, but not as a directory.
@@ -26,6 +27,9 @@ export async function setupStandaloneEnvironment() {
     return root
   }
   process.env.TSCIRCUIT_STANDALONE = "1"
+  process.env.TSCI_SKIP_CLI_UPDATE = "true"
+  process.env.TSCI_TELEMETRY_DISABLED = "true"
+  process.env.TSCIRCUIT_STANDALONE_SKILL_DIR = await extractAssets(skillAssets, "skill")
   process.env.TSCIRCUIT_JSCDN_DIR = await extractAssets(jscdnAssets, "jscdn")
   process.env.TSCIRCUIT_BAKED_ASSET_SERVER_DIR = await extractAssets(
     bakedAssets,

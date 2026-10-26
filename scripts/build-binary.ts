@@ -1,6 +1,7 @@
 import { compileBinary, validateBinaryTarget } from "./compile-binary"
 import { buildJscdn } from "./build-jscdn"
 import { buildBakedAssets } from "./build-baked-assets"
+import { buildSkillAssets } from "./build-skill-assets"
 
 validateBinaryTarget(process.env.BUN_BUILD_TARGET)
 // The GitHub CLI pin contains source; install its locked build dependencies.
@@ -15,4 +16,5 @@ const cliInstall = Bun.spawnSync(
 if (cliInstall.exitCode !== 0) process.exit(cliInstall.exitCode)
 await buildJscdn()
 await buildBakedAssets()
+await buildSkillAssets()
 await compileBinary()
