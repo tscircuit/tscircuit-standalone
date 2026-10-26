@@ -102,7 +102,7 @@ CI runs this browser check with only loopback networking.
 Set `BUN_BUILD_TARGET` to `bun-linux-x64`, `bun-linux-arm64`, `bun-darwin-x64`,
 `bun-darwin-arm64`, or `bun-windows-x64` to cross-compile. The build emits the
 binary, compiler graphs, `dist/licenses.json` and `dist/THIRD_PARTY_NOTICES.txt`.
-Keep the notices with redistributed binaries. Use the CI-pinned Bun 1.3.14 to
+Keep the notices with redistributed binaries. Use the CI-pinned Bun versions to
 match the vendored runtime notices; cross-compilation does not establish native
 runtime support on each target.
 

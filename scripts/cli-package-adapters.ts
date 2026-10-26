@@ -47,17 +47,6 @@ function preferBundledRuntimeModules(source: string) {
   )
 }
 
-export function useCompiledCliWorkerUrls(source: string) {
-  for (const kind of ["build", "snapshot"]) {
-    const fallback = new RegExp(`return \\w+\\.join\\(import\\.meta\\.dir, "${kind}\\.worker\\.js"\\);`, "g")
-    if ([...source.matchAll(fallback)].length !== 1)
-      throw new Error(`Published CLI ${kind} worker fallback has changed`)
-    // File URLs preserve Bun's embedded filesystem paths on Windows.
-    source = source.replace(fallback, `return new URL("./${kind}.worker.js", import.meta.url);`)
-  }
-  return source
-}
-
 /** Include build-time dependencies that normally resolve files from node_modules. */
 export const cliPackageAdapters: Bun.BunPlugin = {
   name: "standalone-cli-packages",
@@ -101,7 +90,7 @@ export const cliPackageAdapters: Bun.BunPlugin = {
         return {
           // Only the main entry embeds RunFrame as a JavaScript string.
           contents: path.endsWith("/main.js")
-            ? embedCliEvalWorker(useCompiledCliWorkerUrls(adapted), worker)
+            ? embedCliEvalWorker(adapted, worker)
             : adapted,
           loader: "js",
         }
