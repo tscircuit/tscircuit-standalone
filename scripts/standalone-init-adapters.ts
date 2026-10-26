@@ -6,7 +6,6 @@ const replaceOnce = (source: string, original: string, replacement: string) => {
 }
 
 export function adaptStandaloneInit(source: string) {
-  source = replaceOnce(source, "const account = await fetchAccount()", "const account = null")
   return replaceOnce(
     source,
     "await setupTsciProject(projectDir, options?.install ? undefined : [])",
