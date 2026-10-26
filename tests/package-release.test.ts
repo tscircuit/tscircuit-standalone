@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test"
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { basename, join } from "node:path"
+import { basename, join, resolve } from "node:path"
 import { packageRelease } from "../scripts/package-release"
 
 const directories: string[] = []
@@ -27,6 +27,37 @@ const fixture = async () => {
     await writeFile(join(root, path), content)
   return { root, files }
 }
+
+test("packaging entrypoint runs without installed build dependencies", async () => {
+  const { root, files } = await fixture()
+  await mkdir(join(root, "scripts"))
+  for (const name of ["package-release.ts", "binary-targets.ts"]) {
+    await copyFile(
+      resolve(import.meta.dir, "../scripts", name),
+      join(root, "scripts", name),
+    )
+  }
+  const result = Bun.spawnSync(
+    [process.execPath, "scripts/package-release.ts"],
+    {
+      cwd: root,
+      env: {
+        PATH: process.env.PATH ?? "",
+        HOME: root,
+        BUN_INSTALL_AUTO: "disable",
+        BUN_BUILD_TARGET: "bun-windows-x64",
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+  )
+  expect(result.stderr.toString()).toBe("")
+  expect(result.exitCode).toBe(0)
+  expect(result.stdout.toString()).toContain("Packaged release:")
+  expect(await readFile(join(root, "dist/release/tsci-windows-x64.exe"))).toEqual(
+    Buffer.from(files["dist/tsci.exe"]),
+  )
+})
 
 test("Linux and macOS archives include usable executables and every notice", async () => {
   const { root, files } = await fixture()

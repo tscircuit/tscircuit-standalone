@@ -1,4 +1,5 @@
-import { compileBinary, validateBinaryTarget } from "./compile-binary"
+import { compileBinary } from "./compile-binary"
+import { validateBinaryTarget } from "./binary-targets"
 import { buildJscdn } from "./build-jscdn"
 import { buildBakedAssets } from "./build-baked-assets"
 
