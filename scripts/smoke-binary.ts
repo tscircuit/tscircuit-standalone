@@ -42,16 +42,8 @@ try {
   assert.equal(run(["--version"]).trim(), packageMetadata.version)
   assert.match(run(["--help"]), /CLI for developing tscircuit packages/)
   run(["init", "initialized", "--yes"])
-  const skillFiles = [...new Bun.Glob("**/*").scanSync({ cwd: "build/skill", onlyFiles: true })]
-  assert.ok(skillFiles.includes("SKILL.md"))
-  assert.ok(skillFiles.includes("LICENSE"))
   for (const skillPath of [".claude/skills/tscircuit", ".agents/skills/tscircuit"]) {
-    for (const file of skillFiles) {
-      assert.deepEqual(
-        await readFile(join(projectDir, "initialized", skillPath, file)),
-        await readFile(join("build/skill", file)),
-      )
-    }
+    assert.ok(!existsSync(join(projectDir, "initialized", skillPath)))
   }
   assert.ok(await Bun.file(join(projectDir, "initialized/index.circuit.tsx")).exists())
   assert.ok(!existsSync(join(projectDir, "initialized/node_modules")))
