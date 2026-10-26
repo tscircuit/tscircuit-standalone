@@ -150,6 +150,65 @@ test("an exact requested npm version is used and must match the response", async
   ).toBe(fixtureData.files["bun.lock"])
 })
 
+test("release preparation installs core runtime helpers from the selected npm release", async () => {
+  const { projectRoot, root, ui } = await fixture()
+  await prepareRelease({
+    projectRoot,
+    fetch: async () => Response.json(npmMetadata),
+    install: false,
+  })
+  const runtimeDependencies = {
+    "@tscircuit/infer-cable-insertion-point": "0.0.4",
+    "@tscircuit/copper-pour-solver": "0.0.67",
+    "@tscircuit/miniflex": "0.0.4",
+    minicssgrid: "0.0.9",
+    spicey: "0.0.14",
+  }
+  await prepareRelease({
+    projectRoot,
+    fetch: async () =>
+      Response.json({
+        ...npmMetadata,
+        dependencies: {
+          ...npmMetadata.dependencies,
+          ...Object.fromEntries(
+            Object.entries(runtimeDependencies).map(([name, version]) => [
+              name,
+              `^${version}`,
+            ]),
+          ),
+        },
+      }),
+    install: async () => {
+      expect(await Bun.file(join(projectRoot, "bun.lock")).exists()).toBe(false)
+      const prepared = await Bun.file(join(projectRoot, "package.json")).json()
+      expect(prepared.dependencies).toMatchObject(runtimeDependencies)
+      expect(prepared.overrides).toMatchObject(runtimeDependencies)
+      expect(prepared.dependencies["@tscircuit/footprinter"]).toBe(
+        root.dependencies["@tscircuit/footprinter"],
+      )
+      expect(await Bun.file(join(projectRoot, "ui/package.json")).json())
+        .toMatchObject({ dependencies: { react: ui.dependencies.react } })
+    },
+  })
+})
+
+test("invalid runtime helper versions fail before changing release inputs", async () => {
+  const { projectRoot, assertUnchanged } = await fixture()
+  await expect(
+    prepareRelease({
+      projectRoot,
+      fetch: async () =>
+        Response.json({
+          ...npmMetadata,
+          dependencies: { ...npmMetadata.dependencies, spicey: "latest" },
+        }),
+      install: false,
+    }),
+  ).rejects.toThrow("Unsupported tscircuit dependency range for spicey")
+  await assertUnchanged()
+})
+
 test("invalid npm metadata and missing or unsupported dependency ranges fail before changing manifests", async () => {
   for (const metadata of [
     null,

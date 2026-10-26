@@ -102,7 +102,7 @@ export async function prepareRelease(options: PrepareReleaseOptions = {}) {
   const coreVersion = dependencyMinimum(dependencies, "@tscircuit/core")
   const evalVersion = dependencyMinimum(dependencies, "@tscircuit/eval")
   const propsVersion = dependencyMinimum(dependencies, "@tscircuit/props")
-  const compilerDependencies = {
+  const compilerDependencies: Record<string, string> = {
     "@tscircuit/core": coreVersion,
     "@tscircuit/eval": evalVersion,
     "@tscircuit/props": propsVersion,
@@ -111,6 +111,19 @@ export async function prepareRelease(options: PrepareReleaseOptions = {}) {
       dependencies,
       "@tscircuit/circuit-json-util",
     ),
+  }
+  // Core externalizes these runtime imports but publishes them only as dev
+  // dependencies. The umbrella release provides their compatible versions.
+  for (const name of [
+    "@tscircuit/infer-cable-insertion-point",
+    "@tscircuit/copper-pour-solver",
+    "@tscircuit/miniflex",
+    "minicssgrid",
+    "spicey",
+  ]) {
+    if (name in dependencies) {
+      compilerDependencies[name] = dependencyMinimum(dependencies, name)
+    }
   }
 
   const packagePath = join(projectRoot, "package.json")
