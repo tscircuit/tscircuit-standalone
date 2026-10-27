@@ -1,7 +1,7 @@
 param([Parameter(Mandatory)][string]$Path)
 
 $ErrorActionPreference = 'Stop'
-# Match the module installed by the pinned Azure signing action.
+# Shared by CLI, installer and uninstaller signing.
 Import-Module ArtifactSigning -RequiredVersion 0.1.8
 $parameters = @{
     Endpoint = $env:AZURE_SIGNING_ENDPOINT
