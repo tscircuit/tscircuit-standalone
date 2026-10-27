@@ -255,6 +255,7 @@ jobs:
             tscircuit-standalone-macos-x64.tar.gz
             tscircuit-standalone-macos-arm64.tar.gz
             tscircuit-standalone-windows-x64.zip
+            tscircuit-standalone-windows-x64-setup.exe
             tsci-darwin-x64.notarization.json
             tsci-darwin-arm64.notarization.json
             tscircuit-standalone-macos-x64.pkg
@@ -307,6 +308,14 @@ jobs:
           Double-click the installer and follow the prompts, then open Terminal and run tsci --version.
           No Bun, Node.js or manual permission changes are needed. Administrator approval is required.
 
+          ## Download for Windows
+
+          [Download the Windows x64 installer]($download_url/tscircuit-standalone-windows-x64-setup.exe).
+          Run setup for your account, confirm any existing-command warning, then open a new terminal.
+          Use tscircuit standalone by running tscircuit or tsci.
+          No Node.js, Bun or administrator access is needed. Existing npm packages stay installed.
+          The Windows installer is unsigned; Windows may show an unknown-publisher warning.
+
           ## Other downloads
 
           Download a binary and its notices file. Archives are optional. On macOS/Linux,
@@ -351,8 +360,9 @@ jobs:
           and the local UI use the embedded resources without outbound requests.
 
           Linux x64 passes native and browser qualification. Both macOS targets
-          pass native startup checks after signing and notarization. Linux arm64
-          and Windows artifacts have cross-compilation coverage.
+          pass native startup checks after signing and notarization. Windows x64 passes native
+          installer checks (install, command conflicts, upgrades, rollback and uninstall).
+          Linux arm64 has cross-compilation coverage.
           EOF
           if gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" > tag-ref.json 2> tag-error.txt; then
             while [ "$(jq -er '.object.type' tag-ref.json)" = "tag" ]; do

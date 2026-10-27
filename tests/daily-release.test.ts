@@ -51,6 +51,7 @@ const assets = [
   ...binaries,
   ...binaries.map((name) => `${name.replace(/\.exe$/, "")}.notices.txt`),
   ...archives,
+  "tscircuit-standalone-windows-x64-setup.exe",
   "tsci-darwin-x64.notarization.json",
   "tsci-darwin-arm64.notarization.json",
   "tscircuit-standalone-macos-x64.pkg",
@@ -668,4 +669,15 @@ test("release notes put the Mac installers before raw binaries and explain insta
     expect(notes).toContain(`/tscircuit-standalone-macos-${arch}.pkg)`)
   expect(notes).toContain("Double-click the installer")
   expect(notes).toContain("Administrator approval is required")
+})
+
+
+test("release notes link the Windows installer before portable binaries", async () => {
+  const release = await fixture()
+  expect(release.run().exitCode).toBe(0)
+  const notes = await readFile(join(release.root, "release-notes.md"), "utf8")
+  expect(notes).toContain("tscircuit-standalone-windows-x64-setup.exe")
+  expect(notes.indexOf("## Download for Windows")).toBeLessThan(notes.indexOf("## Other downloads"))
+  expect(notes).toContain("Existing npm packages stay installed")
+  expect(notes).toContain("Windows installer is unsigned")
 })

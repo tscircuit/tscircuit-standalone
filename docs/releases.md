@@ -28,7 +28,67 @@ and licenses in `/usr/local/share/tscircuit-standalone`. An existing `tsci` at t
 path is replaced. Both architectures use the package identifier `com.tscircuit.tsci`
 for upgrades. Installer versions use the upstream version's three numeric components.
 
-Other release assets:
+## Windows installer
+
+Use `tscircuit-standalone-windows-x64-setup.exe` on Windows x64. It uses Inno
+Setup's standard modern Windows 11 wizard and stock graphics, with automatic
+light/dark mode. Setup installs in `%LOCALAPPDATA%\Programs\tscircuit-standalone`
+for the current user, with no administrator access or runtime downloads.
+
+Use tscircuit standalone by running `tscircuit` or `tsci`. Setup exposes both
+names and prepends its directory to user PATH. When an existing command is
+found, a standard setup checkbox requires explicit confirmation before standalone
+becomes the default. There is no third command for standalone. Existing npm
+packages and their `.cmd`/`.ps1` launchers are never removed or overwritten.
+Uninstall restores their availability by removing only the PATH entry setup added.
+
+A machine PATH entry can take priority over user PATH. Setup checks resolution
+of both commands and reports a conflict rather than claiming takeover succeeded.
+PowerShell profile aliases/functions are outside this check; inspect
+`Get-Command tsci, tscircuit -All`. Open a new terminal after installation;
+restart VS Code for its terminal. Remove standalone from Windows Settings >
+Apps > Installed apps. Uninstall preserves other PATH entries and later edits.
+A future CLI change can warn when a later npm global installation is shadowed
+by standalone; that warning is outside this installer change.
+
+For unattended installation, run the setup executable with
+`/VERYSILENT /SUPPRESSMSGBOXES`. Existing-command takeover requires explicit
+consent through `/TASKS=replacecommands`; without it, a conflicting unattended
+installation fails. Installation itself does not require network access.
+
+The Windows installer is unsigned; Windows may show an unknown-publisher warning.
+`SHA256SUMS` covers the setup executable alongside the portable ZIP and binary.
+
+### Build and test on Windows
+
+Extract the qualified Windows release ZIP into `dist`, including `tsci.exe` and
+all four redistribution files. When building from source instead, copy `LICENSE`
+and `THIRD_PARTY_NOTICES` beside `dist/tsci.exe` and its generated license inventory:
+
+```powershell
+./scripts/windows-installer/install-compiler.ps1 -Destination "$env:TEMP/InnoSetup"
+$env:ISCC = "$env:TEMP/InnoSetup/ISCC.exe"
+$version = & ./dist/tsci.exe --version
+bun scripts/build-windows-installer.ts dist/tsci.exe "$version" dist/release/tscircuit-standalone-windows-x64-setup.exe
+```
+
+The compiler bootstrap pins Inno Setup 7.1.0 and verifies the official download's
+SHA-256. Its [compiler licensing terms](https://www.innosetup.com/license.php)
+apply. Packaging includes the qualified executable and all four redistribution
+files from the same input directory byte-for-byte (including original line
+endings), and does not prepare or download new runtime dependencies. Repository
+checkout copies are not substituted for the qualified release notices.
+
+CI builds setup on `windows-latest` from the qualified Windows archive and checks
+installation, npm command conflict consent and takeover, repeated installation,
+installed binary/notice bytes, PATH rollback on failure and uninstallation.
+Run `scripts/windows-installer/smoke.ps1` only on a disposable Windows account;
+it temporarily changes that account's PATH and refuses an existing installation.
+The release workflow requires this job, publishes the setup asset and includes
+it in checksums for both manual and daily releases.
+
+## Portable release assets
+
 
 | Target | Primary binary | Optional archive |
 | --- | --- | --- |
@@ -99,7 +159,8 @@ the publishing job receives permission to write releases.
 
 These are development prereleases. Linux x64 has native/browser execution
 coverage; macOS Intel and Apple Silicon have native startup checks after
-signing and notarization. Linux arm64 and Windows have cross-compilation coverage.
+signing and notarization. Windows x64 has native startup and installer lifecycle
+coverage; Linux arm64 has cross-compilation coverage.
 The archives retain the dependency inventory and collected redistribution
 notices, including the existing license-review follow-ups. Official release
 qualification and additional native platform tests remain separate work.
