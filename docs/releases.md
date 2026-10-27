@@ -51,10 +51,21 @@ Apps > Installed apps. Uninstall preserves other PATH entries and later edits.
 A future CLI change can warn when a later npm global installation is shadowed
 by standalone; that warning is outside this installer change.
 
-For unattended installation, run the setup executable with
-`/VERYSILENT /SUPPRESSMSGBOXES`. Existing-command takeover requires explicit
-consent through `/TASKS=replacecommands`; without it, a conflicting unattended
-installation fails. Installation itself does not require network access.
+### Terminal installation
+
+The macOS curl installer remains available. Windows has a curl-compatible
+PowerShell bootstrap that verifies `SHA256SUMS` before launching the GUI:
+
+```powershell
+curl.exe -fsSL https://raw.githubusercontent.com/tscircuit/tscircuit-standalone/main/scripts/install-windows.ps1 -o install-windows.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./install-windows.ps1
+```
+
+Pass `-Release TAG` to select a published release. For unattended installation,
+use `-Silent`; to explicitly replace existing commands, also pass
+`-ReplaceExisting`. Without this consent, an unattended conflicting install fails.
+The downloaded installer can also be run with `/VERYSILENT /SUPPRESSMSGBOXES
+/TASKS=replacecommands`. Installation itself does not require network access.
 
 The Windows installer is unsigned; Windows may show an unknown-publisher warning.
 `SHA256SUMS` covers the setup executable alongside the portable ZIP and binary.
