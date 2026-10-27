@@ -42,8 +42,12 @@ const args = process.argv.slice(2)
 const url = args.find((arg) => arg.startsWith("https://"))
 appendFileSync(process.env.FIXTURE_CALLS, url + "\n")
 if (process.env.FIXTURE_DOWNLOAD_FAILURE) process.exit(22)
-if (url === "https://raw.githubusercontent.com/tscircuit/tscircuit-standalone/main/scripts/install-macos.sh") {
-  process.stdout.write(readFileSync(process.env.FIXTURE_INSTALLER))
+if (url === "https://raw.githubusercontent.com/tscircuit/tscircuit-standalone/main/scripts/install.sh" ||
+    url === "https://raw.githubusercontent.com/tscircuit/tscircuit-standalone/main/scripts/install-macos.sh") {
+  const source = url.endsWith("/install.sh") ? process.env.FIXTURE_ENTRY : process.env.FIXTURE_INSTALLER
+  const content = readFileSync(source)
+  if (args.includes("-o")) writeFileSync(args[args.indexOf("-o") + 1], content)
+  else process.stdout.write(content)
   process.exit(0)
 }
 if (url === "https://api.github.com/repos/tscircuit/tscircuit-standalone/releases?per_page=1") {
@@ -110,6 +114,7 @@ try {
         FIXTURE_CALLS: calls,
         FIXTURE_TAG: releaseTag,
         FIXTURE_INSTALLER: installer,
+        FIXTURE_ENTRY: resolve(import.meta.dir, "../scripts/install.sh"),
         FIXTURE_INSTALLER_CALLS: installerCalls,
         ...env,
       },
@@ -168,7 +173,7 @@ for (const architecture of ["arm64", "x86_64"]) {
 test("the README curl command installs the latest release without arguments", async () => {
   const f = await fixture()
   const readme = await readFile(resolve(import.meta.dir, "../README.md"), "utf8")
-  const command = readme.match(/^curl .*\/scripts\/install-macos\.sh \| sh$/m)?.[0]
+  const command = readme.match(/^curl .*\/scripts\/install\.sh \| sh$/m)?.[0]
   expect(command).toBeDefined()
   expect(f.runCommand(["/bin/sh", "-c", command!]).exitCode).toBe(0)
   expect((await f.tools()).at(-1)?.tool).toBe("installer")

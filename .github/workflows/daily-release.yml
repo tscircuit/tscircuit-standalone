@@ -322,78 +322,38 @@ jobs:
           RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
           SOURCE_SHA: ${{ github.sha }}
-          BUILD_KIND: ${{ inputs.manual_release && 'Manual' || 'Daily' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           download_url="https://github.com/$GH_REPO/releases/download/$RELEASE_TAG"
           cat > release-notes.md <<EOF
-          ${BUILD_KIND:-Daily} development build of tscircuit standalone, based on tscircuit $RELEASE_VERSION.
+          ## Downloads
 
-          ## Download for Mac
-
-          | Mac | Installer |
+          | Platform | Download |
           | --- | --- |
-          | Apple Silicon (M1 or later) | [Download for Apple Silicon]($download_url/tscircuit-standalone-macos-arm64.pkg) |
-          | Intel | [Download for Intel]($download_url/tscircuit-standalone-macos-x64.pkg) |
+          | macOS Apple Silicon | [Installer (.pkg)]($download_url/tscircuit-standalone-macos-arm64.pkg) |
+          | macOS Intel | [Installer (.pkg)]($download_url/tscircuit-standalone-macos-x64.pkg) |
+          | Windows x64 | [Installer (.exe)]($download_url/tscircuit-standalone-windows-x64-setup.exe) |
+          | Linux x64 | [Archive (.tar.gz)]($download_url/tscircuit-standalone-linux-x64.tar.gz) |
+          | Linux arm64 | [Archive (.tar.gz)]($download_url/tscircuit-standalone-linux-arm64.tar.gz) |
 
-          Double-click the installer and follow the prompts, then open Terminal and run tsci --version.
-          No Bun, Node.js or manual permission changes are needed. Administrator approval is required.
+          - **macOS / Windows:** Run the installer, open a new terminal, then run \`tsci --version\`.
+          - **Linux:** Extract the archive and run \`./tsci --version\`.
 
-          ## Download for Windows
+          ### Install latest
 
-          [Download the Windows x64 installer]($download_url/tscircuit-standalone-windows-x64-setup.exe).
-          Run setup for your account, confirm any existing-command warning, then open a new terminal.
-          Use tscircuit standalone by running tscircuit or tsci.
-          No Node.js, Bun or administrator access is needed. Existing npm packages stay installed.
-          The installer and its included executables are signed as tscircuit Inc and timestamped.
-
-          ## Other downloads
-
-          Download a binary and its notices file. Archives are optional. On macOS/Linux,
-          rename the binary to tsci and run chmod +x tsci. Run macOS binaries from Terminal;
-          double-clicking a standalone CLI in Finder can be blocked even after notarization.
-
-          | Platform | Binary | Notices |
-          | --- | --- | --- |
-          | Linux x64 | [tsci-linux-x64]($download_url/tsci-linux-x64) | [Notices]($download_url/tsci-linux-x64.notices.txt) |
-          | Linux arm64 | [tsci-linux-arm64]($download_url/tsci-linux-arm64) | [Notices]($download_url/tsci-linux-arm64.notices.txt) |
-          | macOS Intel | [tsci-darwin-x64]($download_url/tsci-darwin-x64) | [Notices]($download_url/tsci-darwin-x64.notices.txt) |
-          | macOS Apple Silicon | [tsci-darwin-arm64]($download_url/tsci-darwin-arm64) | [Notices]($download_url/tsci-darwin-arm64.notices.txt) |
-          | Windows x64 | [tsci-windows-x64.exe]($download_url/tsci-windows-x64.exe) | [Notices]($download_url/tsci-windows-x64.notices.txt) |
-
-          Version: $RELEASE_VERSION
-          Source commit: $SOURCE_SHA
-          [Build and qualification results]($RUN_URL)
-
-          ### macOS terminal installation
-
-          Both macOS installers and their binaries are signed with tscircuit Inc.'s Developer ID,
-          notarized by Apple, and verified after installation. Approval tickets are stapled
-          to the installers. Browser downloads can retain
-          quarantine metadata; leave it in place so Gatekeeper can verify them.
-          The checksum-verified terminal installer is also available:
+          **macOS / Linux**
 
           ~~~sh
-          curl --fail --location --silent --show-error https://raw.githubusercontent.com/$GH_REPO/$SOURCE_SHA/scripts/install-macos.sh | sh -s -- $RELEASE_TAG
-          tsci --version
+          curl -fsSL https://raw.githubusercontent.com/$GH_REPO/main/scripts/install.sh | sh
           ~~~
 
-          The installer selects Apple Silicon or Intel automatically and installs
-          /usr/local/bin/tsci with administrator approval. No Apple account, Bun or
-          Node.js is required. It verifies the package checksum, signing identity
-          and Apple's approval before installation. Older unsigned releases are unchanged.
-          See [macOS download verification](https://github.com/$GH_REPO/blob/$SOURCE_SHA/docs/releases.md#macos-download-quarantine).
+          **Windows (PowerShell)**
 
-          Each archive contains tsci, project licenses and generated dependency notices.
-          Compiled dependency versions are recorded in licenses.json and the companion notices.
-          SHA256SUMS covers all binaries, notices, archives and installers. The same build-time datasheet catalog and
-          UI bundle are embedded in every target. Runtime part imports, circuit builds
-          and the local UI use the embedded resources without outbound requests.
+          ~~~powershell
+          curl.exe -fsSL https://raw.githubusercontent.com/$GH_REPO/main/scripts/install-windows.ps1 | Out-String | iex
+          ~~~
 
-          Linux x64 passes native and browser qualification. Both macOS targets
-          pass native startup checks after signing and notarization. Windows x64 passes native
-          installer checks (install, command conflicts, upgrades, rollback and uninstall).
-          Linux arm64 has cross-compilation coverage.
+          [Installation guide](https://github.com/$GH_REPO/blob/$SOURCE_SHA/README.md) · [Checksums]($download_url/SHA256SUMS) · [Build]($RUN_URL)
           EOF
           if gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" > tag-ref.json 2> tag-error.txt; then
             while [ "$(jq -er '.object.type' tag-ref.json)" = "tag" ]; do

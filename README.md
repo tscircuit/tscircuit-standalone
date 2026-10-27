@@ -3,6 +3,27 @@
 A compiled Bun executable that launches the shared `@tscircuit/cli` and embeds
 the JS CDN packages requested by RunFrame's `internal-dynamic-import` calls.
 
+## Terminal installation
+
+**macOS / Linux**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/tscircuit/tscircuit-standalone/main/scripts/install.sh | sh
+```
+
+**Windows (PowerShell)**
+
+```powershell
+curl.exe -fsSL https://raw.githubusercontent.com/tscircuit/tscircuit-standalone/main/scripts/install-windows.ps1 | Out-String | iex
+```
+
+These install the latest published release, including prereleases. Open a new
+terminal and run `tsci --version`. macOS/Linux install to `/usr/local/bin` and
+may request administrator approval; Windows opens its per-user setup wizard.
+Linux needs `jq` or Python 3 to select the latest release. An explicit release
+tag and portable destination can be passed to the Unix command with
+`sh -s -- TAG ./tsci` instead of `sh`; then run `./tsci/tsci`.
+
 ## Download and run on macOS
 
 Open the newest published [release](https://github.com/tscircuit/tscircuit-standalone/releases)
@@ -10,20 +31,6 @@ and download the **Apple Silicon** or **Intel** `.pkg` installer. Double-click i
 follow the prompts, then open Terminal and run `tsci --version`. The installer
 requires administrator approval and installs the command on PATH; no Bun, Node.js
 or manual permission changes are needed.
-
-### Terminal installation
-
-Install the latest published release on macOS:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/tscircuit/tscircuit-standalone/main/scripts/install-macos.sh | sh
-```
-
-Then run `tsci --version` from any folder. The installer selects Apple Silicon or
-Intel, verifies the checksum and Apple signature, and installs `/usr/local/bin/tsci`
-with administrator approval. No Bun, Node.js or shell configuration changes are needed.
-Latest includes development prereleases. To extract a portable copy without `sudo`,
-use `sh -s -- latest ./tsci` instead of `sh`, then run `./tsci/tsci`.
 
 macOS releases are signed with tscircuit Inc.'s Developer ID and notarized by
 Apple. See [macOS download verification](docs/releases.md#macos-download-quarantine).
@@ -39,6 +46,14 @@ stay installed. No Node.js, Bun or administrator access is needed.
 Windows releases are signed as tscircuit Inc and timestamped. See
 [Windows installation and development](docs/releases.md#windows-installer)
 for unattended installation, command precedence, building and testing.
+
+## Download and run on Linux
+
+Use the terminal command above or extract the matching `.tar.gz` archive from
+the newest [release](https://github.com/tscircuit/tscircuit-standalone/releases)
+and run `./tsci --version`. Linux x64 and arm64 are available. The terminal
+installer retains the licenses, updates only its own installation, and refuses
+to replace an existing npm or manually installed `tsci` command.
 
 ## Build from source
 
