@@ -339,6 +339,12 @@ jobs:
           - **macOS / Windows:** Run the installer, open a new terminal, then run \`tsci --version\`.
           - **Linux:** Extract the archive and run \`./tsci --version\`.
 
+          ### Install latest on macOS
+
+          ~~~sh
+          curl -fsSL https://tscircuit.com/install.sh | sh
+          ~~~
+
           [Installation guide](https://github.com/$GH_REPO/blob/$SOURCE_SHA/README.md) · [Checksums]($download_url/SHA256SUMS) · [Build]($RUN_URL)
           EOF
           if gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" > tag-ref.json 2> tag-error.txt; then
