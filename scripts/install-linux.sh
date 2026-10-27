@@ -22,10 +22,17 @@ case "$prefix" in /*) ;; *) fail 'TSCI_INSTALL_PREFIX must be an absolute path' 
 bundle_root=$prefix/lib/tscircuit-standalone
 command_path=$prefix/bin/tsci
 previous=
+check_command_path() {
+  resolved_command=$(command -v tsci || true)
+  if [ -n "$resolved_command" ] && [ "$resolved_command" != "$command_path" ]; then
+    fail "An existing tsci command is on PATH at $resolved_command; use a portable destination or remove the conflict first."
+  fi
+}
 if [ -n "$destination" ]; then
   case "$destination" in /*) ;; *) destination=./$destination ;; esac
   [ ! -e "$destination" ] && [ ! -L "$destination" ] || fail "Destination already exists: $destination"
 else
+  check_command_path
   if [ -e "$command_path" ] || [ -L "$command_path" ]; then
     target=$(readlink "$command_path" 2>/dev/null || true)
     case "$target" in
@@ -123,6 +130,7 @@ printf '%s\n' 'tscircuit-standalone' > "$staging/.tscircuit-installer"
 as_admin cp "$staging/.tscircuit-installer" "$incoming/"
 link_dir=$(as_admin mktemp -d "$prefix/bin/.tsci-link.XXXXXXXX")
 as_admin ln -s "$incoming/tsci" "$link_dir/tsci"
+check_command_path
 if [ -n "$previous" ]; then
   [ -L "$command_path" ] && [ "$(readlink "$command_path")" = "$target" ] || fail 'The installed command changed while downloading.'
   as_admin mv -f "$link_dir/tsci" "$command_path"

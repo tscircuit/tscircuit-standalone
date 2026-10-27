@@ -31,7 +31,7 @@ const fixture = async (architecture = "x86_64") => {
   await prepare()
   await writeFile(join(bin, "uname"), `#!/bin/sh\nif [ "$1" = -s ]; then echo "\${FIXTURE_OS:-Linux}"; else echo "\${FIXTURE_ARCH:-${architecture}}"; fi\n`)
   await writeFile(join(bin, "curl"), `#!${process.execPath}\n` + String.raw`
-import { appendFileSync, copyFileSync, readFileSync, writeFileSync } from "node:fs"
+import { appendFileSync, chmodSync, readFileSync, writeFileSync } from "node:fs"
 const args = process.argv.slice(2)
 const url = args.find(arg => arg.startsWith("https://"))
 appendFileSync(process.env.FIXTURE_CALLS, url + "\n")
@@ -47,6 +47,10 @@ else if (url?.startsWith("https://github.com/tscircuit/tscircuit-standalone/rele
   bytes = readFileSync(process.env.FIXTURE_RELEASE + "/" + url.split("/").at(-1))
   if (process.env.FIXTURE_CREATE_CONFLICT && url.endsWith(".tar.gz"))
     writeFileSync(process.env.FIXTURE_COMMAND, "existing npm command")
+  if (process.env.FIXTURE_CREATE_PATH_CONFLICT && url.endsWith(".tar.gz")) {
+    writeFileSync(process.env.FIXTURE_PATH_COMMAND, "#!/bin/sh\nprintf 'npm version\\n'\n")
+    chmodSync(process.env.FIXTURE_PATH_COMMAND, 0o755)
+  }
 } else process.exit(22)
 if (args.includes("-o")) writeFileSync(args[args.indexOf("-o") + 1], bytes)
 else process.stdout.write(bytes)
@@ -56,7 +60,7 @@ else process.stdout.write(bytes)
   const environment = (extra: Record<string, string> = {}) => ({
     ...process.env, PATH: `${join(prefix, "bin")}:${bin}:/usr/bin:/bin`, TMPDIR: temporary,
     TSCI_INSTALL_PREFIX: prefix, FIXTURE_CALLS: calls, FIXTURE_PROJECT: project,
-    FIXTURE_RELEASE: release, FIXTURE_COMMAND: commandPath, ...extra,
+    FIXTURE_RELEASE: release, FIXTURE_COMMAND: commandPath, FIXTURE_PATH_COMMAND: join(bin, "tsci"), ...extra,
   })
   const run = (args: string[] = [], extra: Record<string, string> = {}) => Bun.spawnSync(
     ["/bin/sh", join(project, "scripts/install-linux.sh"), ...args], { cwd: root, env: environment(extra) },
@@ -139,6 +143,22 @@ test("a failed Linux upgrade keeps the previous command and removes the new stag
   expect(await readdir(f.temporary)).toEqual([])
 })
 
+test("Linux preserves an npm command elsewhere on PATH", async () => {
+  const f = await fixture()
+  const npmCommand = join(f.bin, "tsci")
+  await writeFile(npmCommand, "#!/bin/sh\nprintf 'npm version\\n'\n")
+  await chmod(npmCommand, 0o755)
+  expect(f.run().exitCode).not.toBe(0)
+  expect(await readFile(f.calls, "utf8")).toBe("")
+  expect(await Bun.file(f.commandPath).exists()).toBe(false)
+  expect(Bun.spawnSync([npmCommand]).stdout.toString()).toBe("npm version\n")
+  await rm(npmCommand)
+  expect(f.run([], { FIXTURE_CREATE_PATH_CONFLICT: "1" }).exitCode).not.toBe(0)
+  expect(await Bun.file(f.commandPath).exists()).toBe(false)
+  expect(Bun.spawnSync([npmCommand]).stdout.toString()).toBe("npm version\n")
+  expect(await f.bundles()).toEqual([])
+})
+
 test("Linux rejects changed, duplicate and missing checksums before installation", async () => {
   const f = await fixture()
   const sums = await readFile(join(f.release, "SHA256SUMS"), "utf8")
@@ -188,7 +208,7 @@ test.skipIf(process.platform !== "linux" || !process.env.TSCI_TEST_LINUX_ARCHIVE
   expect(command).toBeDefined()
   const installed = Bun.spawnSync(["/bin/sh", "-c", command!], { cwd: f.root, env: f.environment() })
   expect(installed.exitCode, installed.stdout.toString() + installed.stderr.toString()).toBe(0)
-  const result = Bun.spawnSync([f.commandPath, "--version"], { cwd: tmpdir(), env: f.environment() })
+  const result = Bun.spawnSync(["tsci", "--version"], { cwd: tmpdir(), env: f.environment() })
   expect(result.exitCode, result.stderr.toString()).toBe(0)
   expect(result.stdout.toString().trim()).toBe((await Bun.file(join(project, "package.json")).json()).version)
 }, 60_000)
