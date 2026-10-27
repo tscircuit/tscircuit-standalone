@@ -293,7 +293,7 @@ test("import failures, wrong teams, rejection, timeout and failed ticket verific
   }
 }, 30_000)
 
-test("publication waits for both signed artifacts and manual releases forward secrets", async () => {
+test("publication waits for every signed platform and manual releases forward secrets", async () => {
   const daily = Bun.YAML.parse(
     await Bun.file(
       new URL("../.github/workflows/daily-release.yml", import.meta.url),
@@ -305,6 +305,7 @@ test("publication waits for both signed artifacts and manual releases forward se
     ).text(),
   ) as any
   expect(daily.jobs.publish.needs).toContain("sign-macos")
+  expect(daily.jobs.publish.needs).toContain("sign-windows")
   expect(daily.jobs["sign-macos"].needs).toEqual(["prepare", "build"])
   const downloads = daily.jobs.publish.steps.filter(
     (step: any) => step.uses === "actions/download-artifact@v4",
@@ -312,6 +313,7 @@ test("publication waits for both signed artifacts and manual releases forward se
   expect(downloads.map((step: any) => step.with.name).filter(Boolean)).toEqual([
     "signed-macos-x64",
     "signed-macos-arm64",
+    "signed-windows-x64",
   ])
   expect(manual.jobs.release.secrets).toBe("inherit")
   const ci = await Bun.file(

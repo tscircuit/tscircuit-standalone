@@ -157,7 +157,7 @@ for (const [packageRoot, inputPaths] of [...packageInputs.entries()].sort(([left
 }
 packages.sort((left, right) => compare(`${left.name}@${left.version}:${left.installedPaths[0]}`, `${right.name}@${right.version}:${right.installedPaths[0]}`))
 
-const runtime = JSON.parse(await readFile(join(projectRoot, "vendor-notices/bun.json"), "utf8"))
+const runtime = JSON.parse(await readFile(join(projectRoot, `vendor-notices/bun-${Bun.version}.json`), "utf8"))
 if (Bun.version !== runtime.version || Bun.revision !== runtime.revision) {
   throw new Error(`Bun runtime ${Bun.version}+${Bun.revision} does not match vendored license inputs ${runtime.version}+${runtime.revision}; update vendor-notices for this exact runtime.`)
 }

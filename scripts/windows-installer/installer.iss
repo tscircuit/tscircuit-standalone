@@ -31,6 +31,10 @@ SolidCompression=yes
 ChangesEnvironment=yes
 UninstallDisplayName=tscircuit Standalone
 SetupLogging=yes
+#ifdef SignInstaller
+SignTool=tscircuit
+SignedUninstaller=yes
+#endif
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

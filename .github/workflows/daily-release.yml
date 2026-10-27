@@ -103,6 +103,9 @@ jobs:
   build:
     needs: prepare
     if: needs.prepare.outputs.publish == 'true'
+    permissions:
+      contents: read
+      id-token: write
     uses: ./.github/workflows/ci.yml
     with:
       tscircuit_version: ${{ needs.prepare.outputs.version }}
@@ -212,8 +215,18 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
+  sign-windows:
+    needs: [prepare, build]
+    if: needs.prepare.outputs.publish == 'true'
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/sign-windows.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+
   publish:
-    needs: [prepare, build, sign-macos]
+    needs: [prepare, build, sign-macos, sign-windows]
     if: needs.prepare.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -233,6 +246,10 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: signed-macos-arm64
+          path: dist/release
+      - uses: actions/download-artifact@v4
+        with:
+          name: signed-windows-x64
           path: dist/release
       - name: Verify the release assets and generate checksums
         working-directory: dist/release
@@ -262,6 +279,8 @@ jobs:
             tscircuit-standalone-macos-arm64.pkg
             tscircuit-standalone-macos-x64.pkg.notarization.json
             tscircuit-standalone-macos-arm64.pkg.notarization.json
+            tsci-windows-x64.signing.json
+            tscircuit-standalone-windows-x64-setup.exe.signing.json
           )
           for asset in "${assets[@]}"; do
             test -s "$asset"
@@ -281,6 +300,18 @@ jobs:
               '.status == "Accepted" and .teamId == "WUQ9WUY75Z" and .sha256 == $checksum and .binarySha256 == $binary and .id == $id and .architecture == $arch and .version == $version' \
               "$installer.notarization.json" > /dev/null
           done
+          windows_checksum="$(sha256sum tsci-windows-x64.exe | cut -d ' ' -f 1)"
+          jq -e --arg checksum "$windows_checksum" --arg version "$RELEASE_VERSION" \
+            --arg source "$GITHUB_SHA" --arg run "$GITHUB_RUN_ID" \
+            '.status == "Verified" and .provider == "Azure Artifact Signing" and .signatureType == "Authenticode" and .publisher == "tscircuit Inc" and .sha256 == $checksum and .version == $version and .sourceCommit == $source and .runId == $run and (.certificateThumbprint | type == "string" and length > 0) and (.timestampThumbprint | type == "string" and length > 0)' \
+            tsci-windows-x64.signing.json > /dev/null
+          test "$(unzip -p tscircuit-standalone-windows-x64.zip tsci.exe | sha256sum | cut -d ' ' -f 1)" = "$windows_checksum"
+          installer_checksum="$(sha256sum tscircuit-standalone-windows-x64-setup.exe | cut -d ' ' -f 1)"
+          jq -e --arg checksum "$installer_checksum" --arg binary "$windows_checksum" \
+            --arg version "$RELEASE_VERSION" --arg source "$GITHUB_SHA" --arg run "$GITHUB_RUN_ID" \
+            'def verified: .status == "Verified" and .signatureType == "Authenticode" and .publisher == "tscircuit Inc" and (.certificateThumbprint | type == "string" and length > 0) and (.timestampThumbprint | type == "string" and length > 0);
+            verified and .provider == "Azure Artifact Signing" and .sha256 == $checksum and .binarySha256 == $binary and .version == $version and .sourceCommit == $source and .runId == $run and (.uninstaller | verified and (.sha256 | test("^[a-f0-9]{64}$")))' \
+            tscircuit-standalone-windows-x64-setup.exe.signing.json > /dev/null
           sha256sum "${assets[@]}" > SHA256SUMS
           sha256sum --check SHA256SUMS
       - name: Publish the complete daily prerelease
@@ -314,7 +345,7 @@ jobs:
           Run setup for your account, confirm any existing-command warning, then open a new terminal.
           Use tscircuit standalone by running tscircuit or tsci.
           No Node.js, Bun or administrator access is needed. Existing npm packages stay installed.
-          The Windows installer is unsigned; Windows may show an unknown-publisher warning.
+          The installer and its included executables are signed as tscircuit Inc and timestamped.
 
           ## Other downloads
 

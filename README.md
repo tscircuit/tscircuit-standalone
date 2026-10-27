@@ -36,7 +36,7 @@ then open a **new terminal** and use `tsci` or `tscircuit`. If an existing comma
 is found, setup asks before making standalone the default. Existing npm packages
 stay installed. No Node.js, Bun or administrator access is needed.
 
-Windows installers are currently unsigned. See
+Windows releases are signed as tscircuit Inc and timestamped. See
 [Windows installation and development](docs/releases.md#windows-installer)
 for unattended installation, command precedence, building and testing.
 
@@ -102,7 +102,7 @@ CI runs this browser check with only loopback networking.
 Set `BUN_BUILD_TARGET` to `bun-linux-x64`, `bun-linux-arm64`, `bun-darwin-x64`,
 `bun-darwin-arm64`, or `bun-windows-x64` to cross-compile. The build emits the
 binary, compiler graphs, `dist/licenses.json` and `dist/THIRD_PARTY_NOTICES.txt`.
-Keep the notices with redistributed binaries. Use the CI-pinned Bun 1.3.14 to
+Keep the notices with redistributed binaries. Use the CI-pinned Bun versions to
 match the vendored runtime notices; cross-compilation does not establish native
 runtime support on each target.
 
