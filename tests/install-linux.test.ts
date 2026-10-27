@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test"
-import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, readlink, rm, symlink, writeFile } from "node:fs/promises"
+import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, readlink, rm, stat, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 
@@ -117,6 +117,19 @@ test("Linux upgrades replace only the managed bundle and clean up the previous b
   expect(await Bun.file(old).exists()).toBe(false)
   expect(await f.bundles()).toHaveLength(1)
   expect(Bun.spawnSync([f.commandPath, "--version"]).stdout.toString()).toBe("fixture 2\n")
+})
+
+test("Linux installs readable licenses and executable directories with a restrictive caller umask", async () => {
+  const f = await fixture()
+  const result = Bun.spawnSync(["/bin/sh", "-c", 'umask 077; exec /bin/sh "$1"', "fixture", join(project, "scripts/install-linux.sh")], {
+    cwd: f.root, env: f.environment(),
+  })
+  expect(result.exitCode, result.stderr.toString()).toBe(0)
+  const binary = await readlink(f.commandPath)
+  expect((await stat(join(f.prefix, "lib/tscircuit-standalone"))).mode & 0o777).toBe(0o755)
+  expect((await stat(resolve(binary, ".."))).mode & 0o777).toBe(0o755)
+  expect((await stat(binary)).mode & 0o777).toBe(0o755)
+  expect((await stat(resolve(binary, "../LICENSE"))).mode & 0o777).toBe(0o644)
 })
 
 test("Linux preserves an existing npm command, including one created during downloading", async () => {

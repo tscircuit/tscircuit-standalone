@@ -1,6 +1,7 @@
 #!/bin/sh
 # Install a checksum-verified Linux release, preserving its redistribution notices.
 set -eu
+umask 022
 fail() { printf '%s\n' "$*" >&2; exit 1; }
 [ "$#" -le 2 ] || fail 'Usage: sh install-linux.sh [RELEASE_TAG|latest] [DESTINATION]'
 [ "$(uname -s)" = Linux ] || fail 'This installer is for Linux.'
@@ -126,6 +127,7 @@ as_admin mkdir -p "$bundle_root" "$prefix/bin"
 incoming=$(as_admin mktemp -d "$bundle_root/install.XXXXXXXX")
 as_admin cp "$staging/extracted/"* "$incoming/"
 as_admin chmod 755 "$incoming" "$incoming/tsci"
+as_admin chmod 644 "$incoming/LICENSE" "$incoming/THIRD_PARTY_NOTICES" "$incoming/licenses.json" "$incoming/THIRD_PARTY_NOTICES.txt"
 printf '%s\n' 'tscircuit-standalone' > "$staging/.tscircuit-installer"
 as_admin cp "$staging/.tscircuit-installer" "$incoming/"
 link_dir=$(as_admin mktemp -d "$prefix/bin/.tsci-link.XXXXXXXX")
