@@ -7,6 +7,7 @@ interface InstallerOptions {
   output: string
   projectRoot?: string
   compiler?: string
+  signCommand?: string
 }
 
 /** Build from the qualified executable; never install packages or fetch runtime files. */
@@ -14,6 +15,7 @@ export async function buildWindowsInstaller({
   binary, version, output,
   projectRoot = resolve(import.meta.dir, ".."),
   compiler = process.env.ISCC || "ISCC.exe",
+  signCommand = process.env.WINDOWS_INSTALLER_SIGN_COMMAND,
 }: InstallerOptions) {
   const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?$/.exec(version)
   if (!match || match.slice(1, 4).some((part) => Number(part) > 65535) ||
@@ -56,6 +58,7 @@ export async function buildWindowsInstaller({
       await copyFile(join(projectRoot, "scripts/windows-installer", name), join(stage, name))
     const result = Bun.spawn([
       compiler, `/DAppVersion=${version}`, `/DNumericVersion=${match.slice(1, 4).join(".")}.0`,
+      ...(signCommand ? ["/DSignInstaller=1", `/Stscircuit=${signCommand}`] : []),
       `/DPayloadDir=${payload}`, `/O${stage}`, "/Fsetup", join(stage, "installer.iss"),
     ], { stdout: "pipe", stderr: "pipe" })
     const [code, stdout, stderr] = await Promise.all([

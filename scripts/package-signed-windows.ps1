@@ -1,7 +1,8 @@
 param(
   [string]$Dist = (Join-Path $PSScriptRoot "../dist"),
   [Parameter(Mandatory)][string]$Notices,
-  [Parameter(Mandatory)][string]$ExpectedVersion
+  [Parameter(Mandatory)][string]$ExpectedVersion,
+  [Parameter(Mandatory)][string]$UninstallerReceipt
 )
 
 $ErrorActionPreference = "Stop"
@@ -45,4 +46,22 @@ $receipt | Add-Member -NotePropertyMembers @{
   runId = $env:GITHUB_RUN_ID
 }
 $receipt | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $output "tsci-windows-x64.signing.json") -Encoding utf8
+$uninstaller = Get-Content -LiteralPath $UninstallerReceipt -Raw | ConvertFrom-Json
+if ($uninstaller.status -cne 'Verified' -or $uninstaller.signatureType -cne 'Authenticode' -or
+    $uninstaller.publisher -cne $receipt.publisher -or $uninstaller.sha256 -cnotmatch '^[a-f0-9]{64}$' -or
+    -not $uninstaller.certificateThumbprint -or -not $uninstaller.timestampThumbprint) {
+  throw 'Missing verified installed uninstaller signature'
+}
+$installer = Join-Path $output 'tscircuit-standalone-windows-x64-setup.exe'
+$installerReceipt = & (Join-Path $PSScriptRoot 'verify-windows-signature.ps1') -Path $installer
+$installerReceipt | Add-Member -NotePropertyMembers @{
+  provider = 'Azure Artifact Signing'
+  version = $ExpectedVersion
+  sourceCommit = $env:GITHUB_SHA
+  runId = $env:GITHUB_RUN_ID
+  binarySha256 = $receipt.sha256
+  uninstaller = $uninstaller
+}
+$installerReceipt | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "$installer.signing.json" -Encoding utf8
 Write-Host "Packaged verified Windows executable: $($receipt.sha256)"
+Write-Host "Packaged verified Windows installer: $($installerReceipt.sha256)"

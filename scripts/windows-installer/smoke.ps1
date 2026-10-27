@@ -2,11 +2,18 @@
 param(
     [Parameter(Mandatory = $true)][string]$Installer,
     [Parameter(Mandatory = $true)][string]$Binary,
-    [Parameter(Mandatory = $true)][string]$Version
+    [Parameter(Mandatory = $true)][string]$Version,
+    [switch]$RequireSigned,
+    [string]$SigningReceipt
 )
 $ErrorActionPreference = 'Stop'
 $Installer = [IO.Path]::GetFullPath($Installer)
 $Binary = [IO.Path]::GetFullPath($Binary)
+$verifySignature = Join-Path $PSScriptRoot '../verify-windows-signature.ps1'
+if ($RequireSigned) {
+    if (-not $SigningReceipt) { throw 'SigningReceipt is required for signed installer checks' }
+    & $verifySignature -Path $Installer | Out-Null
+}
 $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{41A4B36D-24BE-4D42-9D59-3BCA77DECD41}_is1'
 if (Test-Path $key) { throw 'Refusing to test over an existing standalone installation' }
 $root = Join-Path ([IO.Path]::GetTempPath()) ('tsci installer ' + [Guid]::NewGuid())
@@ -61,12 +68,17 @@ try {
     Assert (-not (Test-Path (Join-Path $installed 'tsci-standalone.exe'))) 'Unexpected third command'
     foreach ($name in @('tsci.exe', 'tscircuit.exe')) {
         Assert ((Get-FileHash -LiteralPath (Join-Path $installed $name)).Hash -eq (Get-FileHash -LiteralPath $Binary).Hash) "Installed executable differs: $name"
+        if ($RequireSigned) { & $verifySignature -Path (Join-Path $installed $name) | Out-Null }
     }
     foreach ($name in @('LICENSE', 'THIRD_PARTY_NOTICES', 'licenses.json', 'THIRD_PARTY_NOTICES.txt')) {
         Assert ((Get-FileHash -LiteralPath (Join-Path $installed $name)).Hash -eq
             (Get-FileHash -LiteralPath (Join-Path (Split-Path $Binary) $name)).Hash) "Notice differs: $name"
     }
     Run-Setup ''
+    if ($RequireSigned) {
+        & $verifySignature -Path (Join-Path $installed 'unins000.exe') |
+            ConvertTo-Json | Set-Content -LiteralPath $SigningReceipt -Encoding utf8
+    }
     [Environment]::SetEnvironmentVariable('Path', ([Environment]::GetEnvironmentVariable('Path', 'User') + ';' + $unrelated), 'User')
     Run-Uninstall
     $paths = [Environment]::GetEnvironmentVariable('Path', 'User') -split ';'

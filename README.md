@@ -36,7 +36,7 @@ then open a **new terminal** and use `tsci` or `tscircuit`. If an existing comma
 is found, setup asks before making standalone the default. Existing npm packages
 stay installed. No Node.js, Bun or administrator access is needed.
 
-Windows installers are currently unsigned. See
+Windows releases are signed as tscircuit Inc and timestamped. See
 [Windows installation and development](docs/releases.md#windows-installer)
 for unattended installation, command precedence, building and testing.
 

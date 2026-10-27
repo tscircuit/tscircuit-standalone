@@ -77,7 +77,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          foreach ($source in (Get-ChildItem -Path scripts,tests -Filter *.ps1)) {
+          foreach ($source in (Get-ChildItem -Path scripts,tests -Filter *.ps1 -Recurse)) {
             $tokens = $null
             $parseErrors = $null
             [System.Management.Automation.Language.Parser]::ParseFile($source.FullName, [ref]$tokens, [ref]$parseErrors) | Out-Null
@@ -146,6 +146,7 @@ jobs:
           retention-days: 3
 
   windows-installer:
+    if: ${{ !inputs.windows_signing_test }}
     needs: build-targets
     runs-on: windows-latest
     timeout-minutes: 30
@@ -177,7 +178,7 @@ jobs:
         run: ./scripts/windows-installer/smoke.ps1 -Installer dist/release/tscircuit-standalone-windows-x64-setup.exe -Binary dist/tsci.exe -Version "$env:WINDOWS_RELEASE_VERSION"
       - uses: actions/upload-artifact@v4
         with:
-          name: tscircuit-standalone-windows-installer
+          name: unsigned-windows-installer
           path: dist/release/tscircuit-standalone-windows-x64-setup.exe
           if-no-files-found: error
           retention-days: 3

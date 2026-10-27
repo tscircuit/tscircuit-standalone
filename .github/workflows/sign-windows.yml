@@ -1,4 +1,4 @@
-name: Sign Windows executable
+name: Sign Windows executable and installer
 
 on:
   workflow_call:
@@ -22,6 +22,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
       - uses: actions/download-artifact@v4
         with:
           name: tscircuit-standalone-bun-windows-x64
@@ -72,11 +75,31 @@ jobs:
         env:
           EXPECTED_VERSION: ${{ inputs.version }}
         run: ./tests/windows-cli.ps1 -Path ./dist/tsci.exe -ExpectedVersion $env:EXPECTED_VERSION
+      - name: Install the checksum-pinned Inno Setup compiler
+        shell: pwsh
+        run: ./scripts/windows-installer/install-compiler.ps1 -Destination "$env:RUNNER_TEMP/InnoSetup"
+      - name: Build and sign the installer and uninstaller
+        shell: pwsh
+        env:
+          EXPECTED_VERSION: ${{ inputs.version }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:WINDOWS_INSTALLER_SIGN_COMMAND = '$q{0}$q -NoProfile -NonInteractive -File $q{1}$q -Path $f' -f (Get-Command pwsh).Source, (Resolve-Path scripts/windows-installer/sign.ps1).Path
+          bun scripts/build-windows-installer.ts dist/tsci.exe "$env:EXPECTED_VERSION" dist/release/tscircuit-standalone-windows-x64-setup.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Signed installer compilation failed' }
+      - name: Verify signed installation, upgrades, PATH rollback and uninstall
+        shell: pwsh
+        env:
+          EXPECTED_VERSION: ${{ inputs.version }}
+        run: ./scripts/windows-installer/smoke.ps1 -Installer dist/release/tscircuit-standalone-windows-x64-setup.exe -Binary dist/tsci.exe -Version "$env:EXPECTED_VERSION" -RequireSigned -SigningReceipt "$env:RUNNER_TEMP/windows-uninstaller-signing.json"
       - name: Package the verified signed executable
         shell: pwsh
         env:
           EXPECTED_VERSION: ${{ inputs.version }}
-        run: ./scripts/package-signed-windows.ps1 -Notices unsigned/tsci-windows-x64.notices.txt -ExpectedVersion $env:EXPECTED_VERSION
+        run: ./scripts/package-signed-windows.ps1 -Notices unsigned/tsci-windows-x64.notices.txt -ExpectedVersion $env:EXPECTED_VERSION -UninstallerReceipt "$env:RUNNER_TEMP/windows-uninstaller-signing.json"
       - uses: actions/upload-artifact@v4
         with:
           name: signed-windows-x64

@@ -59,6 +59,7 @@ const assets = [
   "tscircuit-standalone-macos-x64.pkg.notarization.json",
   "tscircuit-standalone-macos-arm64.pkg.notarization.json",
   "tsci-windows-x64.signing.json",
+  "tscircuit-standalone-windows-x64-setup.exe.signing.json",
 ]
 const workflow = Bun.YAML.parse(
   await Bun.file(
@@ -237,11 +238,19 @@ const fixture = async (initialState: FixtureState = {}) => {
     if (packed.exitCode !== 0) throw new Error(packed.stderr.toString())
   }
   const windowsBinary = await readFile(join(root, "tsci-windows-x64.exe"))
-  await writeFile(join(root, "tsci-windows-x64.signing.json"), JSON.stringify({
+  const windowsReceipt = {
     status: "Verified", provider: "Azure Artifact Signing", signatureType: "Authenticode",
     publisher: "tscircuit Inc", version: releaseVersion, sourceCommit: sourceSha, runId: "123",
     sha256: createHash("sha256").update(windowsBinary).digest("hex"),
     certificateThumbprint: "fixture-signing-certificate", timestampThumbprint: "fixture-timestamp-certificate",
+  }
+  await writeFile(join(root, "tsci-windows-x64.signing.json"), JSON.stringify(windowsReceipt))
+  const windowsInstaller = await readFile(join(root, "tscircuit-standalone-windows-x64-setup.exe"))
+  await writeFile(join(root, "tscircuit-standalone-windows-x64-setup.exe.signing.json"), JSON.stringify({
+    ...windowsReceipt,
+    sha256: createHash("sha256").update(windowsInstaller).digest("hex"),
+    binarySha256: windowsReceipt.sha256,
+    uninstaller: { ...windowsReceipt },
   }))
   const windowsStage = join(root, "windows-x64")
   await mkdir(windowsStage)
@@ -380,6 +389,39 @@ test("Windows publication requires matching verified publisher, timestamp, sourc
   expect(release.run().exitCode).not.toBe(0)
   expect(await release.mutations()).toEqual([])
 })
+
+test("Windows setup publication requires verified installer and uninstaller signatures bound to the signed CLI", async () => {
+  for (const component of ["installer", "uninstaller"]) {
+    for (const change of [
+      { status: "Invalid" }, { signatureType: "Catalog" }, { publisher: "Other company" },
+      { sha256: "invalid" }, { certificateThumbprint: "" }, { timestampThumbprint: "" },
+    ]) {
+      const release = await fixture()
+      const path = join(release.root, "tscircuit-standalone-windows-x64-setup.exe.signing.json")
+      const receipt = JSON.parse(await readFile(path, "utf8"))
+      const modified = component === "installer" ? { ...receipt, ...change }
+        : { ...receipt, uninstaller: { ...receipt.uninstaller, ...change } }
+      await writeFile(path, JSON.stringify(modified))
+      expect(release.run().exitCode).not.toBe(0)
+      expect(await release.mutations()).toEqual([])
+    }
+  }
+  for (const change of [
+    { provider: "Other" }, { version: "0.0.1" }, { sourceCommit: otherSha },
+    { runId: "456" }, { binarySha256: "0".repeat(64) },
+  ]) {
+    const release = await fixture()
+    const path = join(release.root, "tscircuit-standalone-windows-x64-setup.exe.signing.json")
+    const receipt = JSON.parse(await readFile(path, "utf8"))
+    await writeFile(path, JSON.stringify({ ...receipt, ...change }))
+    expect(release.run().exitCode).not.toBe(0)
+    expect(await release.mutations()).toEqual([])
+  }
+  const release = await fixture()
+  await writeFile(join(release.root, "tscircuit-standalone-windows-x64-setup.exe"), "Old unsigned installer")
+  expect(release.run().exitCode).not.toBe(0)
+  expect(await release.mutations()).toEqual([])
+}, 30_000)
 
 test("a missing git ref publishes the first release despite unknown commits returning 422", async () => {
   const release = await fixture()
@@ -716,5 +758,5 @@ test("release notes link the Windows installer before portable binaries", async 
   expect(notes).toContain("tscircuit-standalone-windows-x64-setup.exe")
   expect(notes.indexOf("## Download for Windows")).toBeLessThan(notes.indexOf("## Other downloads"))
   expect(notes).toContain("Existing npm packages stay installed")
-  expect(notes).toContain("Windows installer is unsigned")
+  expect(notes).toContain("signed as tscircuit Inc and timestamped")
 })

@@ -56,7 +56,9 @@ For unattended installation, run the setup executable with
 consent through `/TASKS=replacecommands`; without it, a conflicting unattended
 installation fails. Installation itself does not require network access.
 
-The Windows installer is unsigned; Windows may show an unknown-publisher warning.
+The release workflow signs and timestamps the CLI, installer and uninstaller as
+tscircuit Inc using Azure Artifact Signing. It verifies signatures and installed
+payloads before publication; the installer signing receipt binds setup to the CLI.
 `SHA256SUMS` covers the setup executable alongside the portable ZIP and binary.
 
 ### Build and test on Windows
@@ -84,8 +86,10 @@ installation, npm command conflict consent and takeover, repeated installation,
 installed binary/notice bytes, PATH rollback on failure and uninstallation.
 Run `scripts/windows-installer/smoke.ps1` only on a disposable Windows account;
 it temporarily changes that account's PATH and refuses an existing installation.
-The release workflow requires this job, publishes the setup asset and includes
-it in checksums for both manual and daily releases.
+Release signing rebuilds setup from the signed executable, signs the uninstaller
+through Inno Setup's SignTool hook, and repeats these checks before publishing the
+signed setup asset for both manual and daily releases. Local builds are unsigned
+unless `WINDOWS_INSTALLER_SIGN_COMMAND` supplies the Inno Setup signing command.
 
 ## Portable release assets
 
