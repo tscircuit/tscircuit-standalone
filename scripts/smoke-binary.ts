@@ -197,6 +197,41 @@ try {
     ).status,
     404,
   )
+  const inventory = await Bun.file(
+    "build/baked-asset-server/datasheet-api/datasheets/list",
+  ).json()
+  assert.deepEqual(
+    await (await fetch(`${datasheetApiUrl}/datasheets/list`)).json(),
+    inventory,
+  )
+  let sourceCount = 0
+  for (const { datasheet_id } of inventory.datasheets) {
+    const expected = await Bun.file(
+      `build/baked-asset-server/datasheet-api/datasheets/get/datasheet_id%3D${datasheet_id}.json`,
+    ).json()
+    const response: Response = await fetch(
+      `${datasheetApiUrl}/datasheets/get?datasheet_id=${datasheet_id}`,
+    )
+    assert.equal(response.status, 200)
+    assert.deepEqual(await response.json(), expected)
+    const source = expected.datasheet.generated_tsx
+    assert.ok(source === null || typeof source === "string")
+    if (source?.trim()) sourceCount++
+  }
+  // These BGA parts exercise the API source path, including a part excluded
+  // from the compact footprint catalog. Imports must use the baked TSX as-is.
+  for (const chipName of ["AM62L32", "AM3358BZCZA100"]) {
+    const { datasheet } = await Bun.file(
+      `build/baked-asset-server/datasheet-api/datasheets/get/chip_name%3D${chipName.toLowerCase()}.json`,
+    ).json()
+    assert.ok(datasheet.generated_tsx?.trim(), `${chipName} has no generated TSX`)
+    run(["import", chipName])
+    assert.equal(
+      await readFile(join(projectDir, "imports", `${chipName}.tsx`), "utf8"),
+      datasheet.generated_tsx,
+    )
+  }
+  console.log(`Verified all ${inventory.datasheets.length} baked datasheets (${sourceCount} with TSX) and unchanged BGA imports.`)
   for (const file of files) {
     const response = await fetch(`${origin}/jscdn/${file}`, {
       signal: AbortSignal.timeout(5000),
