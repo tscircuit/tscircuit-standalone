@@ -39,8 +39,14 @@ try {
     }
     $before = (Get-FileHash -LiteralPath (Join-Path $existing 'tsci.ps1')).Hash
     [Environment]::SetEnvironmentVariable('Path', ($existing + ';' + $oldPath), 'User')
-    Refresh-Path
-    # Existing commands require explicit consent, including unattended setup.
+    # Simulate setup launched from a terminal opened before npm updated user PATH.
+    # Saved PATH contains both shims, but this process (and the child installer)
+    # deliberately inherits only the old machine PATH.
+    $env:Path = [Environment]::ExpandEnvironmentVariables([Environment]::GetEnvironmentVariable('Path', 'Machine'))
+    Assert (-not (Get-Command tsci -ErrorAction SilentlyContinue)) 'Stale PATH fixture unexpectedly resolves tsci'
+    Assert (-not (Get-Command tscircuit -ErrorAction SilentlyContinue)) 'Stale PATH fixture unexpectedly resolves tscircuit'
+    # Detection must refresh persisted PATH and require consent before any copies.
+
     $refused = Start-Process -FilePath $Installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', ('/DIR="' + $installed + '"')) -Wait -PassThru
     Assert ($refused.ExitCode -ne 0) 'Existing commands were replaced without consent'
     Assert (-not (Test-Path (Join-Path $installed 'tsci.exe'))) 'Unapproved installation copied an executable'

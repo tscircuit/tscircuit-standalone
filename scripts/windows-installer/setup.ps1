@@ -30,6 +30,11 @@ $pathChanged = $false
 $stateChanged = $false
 try {
     if ($Mode -eq 'Detect') {
+        # Setup may inherit a stale terminal environment. Resolve conflicts using
+        # the current persisted PATH, not the launcher's old process PATH.
+        $env:Path = [Environment]::ExpandEnvironmentVariables(
+            [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' +
+            [Environment]::GetEnvironmentVariable('Path', 'User'))
         $commands = @(foreach ($name in @('tsci', 'tscircuit')) {
             Get-Command $name -All -ErrorAction SilentlyContinue | ForEach-Object {
                 if ($_.Path) { $_.Path } else { $_.Definition }

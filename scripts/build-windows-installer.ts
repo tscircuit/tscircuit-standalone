@@ -29,8 +29,8 @@ export async function buildWindowsInstaller({
     ]),
   ] as [string, string][]
   for (const [source] of inputs) {
-    const info = await lstat(source).catch(() => undefined)
-    if (!info?.isFile() || !info.size) throw new Error(`Missing or empty installer input: ${source}`)
+    const inputStat = await lstat(source).catch(() => undefined)
+    if (!inputStat?.isFile() || !inputStat.size) throw new Error(`Missing or empty installer input: ${source}`)
   }
   const handle = await open(sourceBinary, "r")
   try {
