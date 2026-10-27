@@ -339,10 +339,18 @@ jobs:
           - **macOS / Windows:** Run the installer, open a new terminal, then run \`tsci --version\`.
           - **Linux:** Extract the archive and run \`./tsci --version\`.
 
-          ### Install latest on macOS
+          ### Install latest
+
+          **macOS / Linux**
 
           ~~~sh
-          curl -fsSL https://raw.githubusercontent.com/$GH_REPO/main/scripts/install-macos.sh | sh
+          curl -fsSL https://raw.githubusercontent.com/$GH_REPO/main/scripts/install.sh | sh
+          ~~~
+
+          **Windows (PowerShell)**
+
+          ~~~powershell
+          curl.exe -fsSL https://raw.githubusercontent.com/$GH_REPO/main/scripts/install-windows.ps1 | Out-String | iex
           ~~~
 
           [Installation guide](https://github.com/$GH_REPO/blob/$SOURCE_SHA/README.md) · [Checksums]($download_url/SHA256SUMS) · [Build]($RUN_URL)

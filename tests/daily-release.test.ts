@@ -456,7 +456,8 @@ test("a missing git ref publishes the first release despite unknown commits retu
   expect(notes).toContain(`https://github.com/fixture/standalone/blob/${sourceSha}/README.md`)
   expect(notes).toContain("https://example.invalid/actions/runs/1")
   expect(notes).toContain("`./tsci --version`")
-  expect(notes).toContain("curl -fsSL https://raw.githubusercontent.com/fixture/standalone/main/scripts/install-macos.sh | sh")
+  expect(notes).toContain("curl -fsSL https://raw.githubusercontent.com/fixture/standalone/main/scripts/install.sh | sh")
+  expect(notes).toContain("curl.exe -fsSL https://raw.githubusercontent.com/fixture/standalone/main/scripts/install-windows.ps1 | Out-String | iex")
 })
 
 test("direct and nested annotated tags may publish only when they resolve to the source commit", async () => {

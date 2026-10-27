@@ -92,6 +92,12 @@ jobs:
       - name: Test signing dependency retries and failure handling
         shell: pwsh
         run: ./tests/windows-signing-setup.ps1
+      - name: Test the Windows curl installer and signature verification
+        shell: pwsh
+        run: ./tests/windows-bootstrap.test.ps1
+      - name: Test the Windows installer command in Windows PowerShell 5.1
+        shell: powershell
+        run: ./tests/windows-bootstrap.test.ps1
       - name: Cache the pinned Microsoft signing module
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
@@ -149,6 +155,11 @@ jobs:
         run: bun scripts/package-release.ts
         env:
           BUN_BUILD_TARGET: ${{ matrix.target }}
+      - name: Test the Linux installer with the qualified executable
+        if: matrix.target == 'bun-linux-x64'
+        run: bun test --test-name-pattern 'qualified Linux release' tests/install-linux.test.ts
+        env:
+          TSCI_TEST_LINUX_ARCHIVE: ${{ github.workspace }}/dist/release/tscircuit-standalone-linux-x64.tar.gz
       - uses: actions/upload-artifact@v4
         with:
           name: tscircuit-standalone-${{ matrix.target }}
