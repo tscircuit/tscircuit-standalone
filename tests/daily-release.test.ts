@@ -40,6 +40,13 @@ const archives = [
   "tscircuit-standalone-macos-arm64.tar.gz",
   "tscircuit-standalone-windows-x64.zip",
 ]
+const recommendedDownloads = [
+  "tscircuit-standalone-macos-arm64.pkg",
+  "tscircuit-standalone-macos-x64.pkg",
+  "tscircuit-standalone-windows-x64-setup.exe",
+  "tscircuit-standalone-linux-x64.tar.gz",
+  "tscircuit-standalone-linux-arm64.tar.gz",
+]
 const binaries = [
   "tsci-linux-x64",
   "tsci-linux-arm64",
@@ -441,21 +448,14 @@ test("a missing git ref publishes the first release despite unknown commits retu
     "upload",
     "edit",
   ])
-  expect(
-    await readFile(join(release.root, "release-notes.md"), "utf8"),
-  ).toContain(`Version: ${releaseVersion}`)
   const notes = await readFile(join(release.root, "release-notes.md"), "utf8")
-  expect(notes.indexOf("## Download a binary")).toBeLessThan(
-    notes.indexOf(`Version: ${releaseVersion}`),
-  )
-  for (const binary of binaries) {
+  for (const asset of [...recommendedDownloads, "SHA256SUMS"])
     expect(notes).toContain(
-      `https://github.com/fixture/standalone/releases/download/${releaseTag}/${binary})`,
+      `https://github.com/fixture/standalone/releases/download/${releaseTag}/${asset})`,
     )
-    expect(notes).toContain(
-      `https://github.com/fixture/standalone/releases/download/${releaseTag}/${binary.replace(/\.exe$/, "")}.notices.txt)`,
-    )
-  }
+  expect(notes).toContain(`https://github.com/fixture/standalone/blob/${sourceSha}/README.md`)
+  expect(notes).toContain("https://example.invalid/actions/runs/1")
+  expect(notes).toContain("`./tsci --version`")
 })
 
 test("direct and nested annotated tags may publish only when they resolve to the source commit", async () => {
@@ -700,19 +700,18 @@ test("manual retries leave a published run unchanged without a registry request"
 })
 
 
-test("a manual latest release publishes all assets under its unique tag with manual notes", async () => {
+test("a manual release publishes all assets and download links under its unique tag", async () => {
   const release = await fixture()
   expect(release.prepare({ MANUAL_RELEASE: "true" }).exitCode).toBe(0)
   const outputs = await release.outputs()
   expect(outputs.tag).toBe("manual-2026-10-12-123")
-  expect(release.run({ RELEASE_TAG: outputs.tag!, RELEASE_VERSION: outputs.version!, BUILD_KIND: "Manual" }).exitCode).toBe(0)
+  expect(release.run({ RELEASE_TAG: outputs.tag!, RELEASE_VERSION: outputs.version! }).exitCode).toBe(0)
   expect((await release.state()).release?.draft).toBe(false)
   expect((await release.state()).uploaded).toEqual([...assets, "SHA256SUMS"].sort())
   expect((await release.mutations()).every((args) => args[2] === outputs.tag)).toBe(true)
-  expect(await readFile(join(release.root, "release-notes.md"), "utf8")).toContain("Manual development build")
-  for (const binary of binaries) {
+  for (const asset of recommendedDownloads) {
     expect(await readFile(join(release.root, "release-notes.md"), "utf8")).toContain(
-      `https://github.com/fixture/standalone/releases/download/${outputs.tag}/${binary})`,
+      `https://github.com/fixture/standalone/releases/download/${outputs.tag}/${asset})`,
     )
   }
 })
@@ -739,24 +738,22 @@ test("installer receipts must match acceptance, team, package bytes, binary, sub
   }
 }, 30_000)
 
-test("release notes put the Mac installers before raw binaries and explain installation", async () => {
+test("release notes link both Mac installers and explain how to run the installed CLI", async () => {
   const release = await fixture()
   expect(release.run().exitCode).toBe(0)
   const notes = await readFile(join(release.root, "release-notes.md"), "utf8")
-  expect(notes.indexOf("## Download for Mac")).toBeLessThan(notes.indexOf("## Other downloads"))
   for (const arch of ["arm64", "x64"])
     expect(notes).toContain(`/tscircuit-standalone-macos-${arch}.pkg)`)
-  expect(notes).toContain("Double-click the installer")
-  expect(notes).toContain("Administrator approval is required")
+  expect(notes).toContain("Run the installer, open a new terminal")
+  expect(notes).toContain("`tsci --version`")
 })
 
 
-test("release notes link the Windows installer before portable binaries", async () => {
+test("release notes offer the Windows installer and link to the installation guide", async () => {
   const release = await fixture()
   expect(release.run().exitCode).toBe(0)
   const notes = await readFile(join(release.root, "release-notes.md"), "utf8")
   expect(notes).toContain("tscircuit-standalone-windows-x64-setup.exe")
-  expect(notes.indexOf("## Download for Windows")).toBeLessThan(notes.indexOf("## Other downloads"))
-  expect(notes).toContain("Existing npm packages stay installed")
-  expect(notes).toContain("signed as tscircuit Inc and timestamped")
+  expect(notes).toContain("[Installation guide]")
+  expect(notes).toContain("`tsci --version`")
 })
