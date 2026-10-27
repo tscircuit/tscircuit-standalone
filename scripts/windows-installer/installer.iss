@@ -132,9 +132,8 @@ begin
     if CommandSetupOK then
       WizardForm.FinishedLabel.Caption :=
         'tscircuit Standalone has been installed.' + #13#10#13#10 +
-        'Open a new terminal and run:' + #13#10 +
-        'tsci --version' + #13#10#13#10 +
-        'Configured command: ' + GetIniString('Result', 'Command', 'tsci, tscircuit', ExpandConstant('{app}\installer-result.ini')) + #13#10 +
+        'Use tscircuit standalone by running "tscircuit" or "tsci".' + #13#10#13#10 +
+        'Open a new terminal first. You can check the installation with tsci --version.' + #13#10 +
         GetIniString('Result', 'Warning', '', ExpandConstant('{app}\installer-result.ini'))
     else
       WizardForm.FinishedLabel.Caption :=
