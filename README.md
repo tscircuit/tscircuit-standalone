@@ -16,7 +16,7 @@ or manual permission changes are needed.
 Install the latest published release on macOS:
 
 ```sh
-curl -fsSL https://tscircuit.com/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/tscircuit/tscircuit-standalone/main/scripts/install-macos.sh | sh
 ```
 
 Then run `tsci --version` from any folder. The installer selects Apple Silicon or

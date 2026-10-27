@@ -342,7 +342,7 @@ jobs:
           ### Install latest on macOS
 
           ~~~sh
-          curl -fsSL https://tscircuit.com/install.sh | sh
+          curl -fsSL https://raw.githubusercontent.com/$GH_REPO/main/scripts/install-macos.sh | sh
           ~~~
 
           [Installation guide](https://github.com/$GH_REPO/blob/$SOURCE_SHA/README.md) · [Checksums]($download_url/SHA256SUMS) · [Build]($RUN_URL)
