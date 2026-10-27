@@ -72,7 +72,9 @@ The Windows installer is unsigned; Windows may show an unknown-publisher warning
 
 ### Build and test on Windows
 
-After producing `dist/tsci.exe` and its license inventory:
+Extract the qualified Windows release ZIP into `dist`, including `tsci.exe` and
+all four redistribution files. When building from source instead, copy `LICENSE`
+and `THIRD_PARTY_NOTICES` beside `dist/tsci.exe` and its generated license inventory:
 
 ```powershell
 ./scripts/windows-installer/install-compiler.ps1 -Destination "$env:TEMP/InnoSetup"
@@ -84,7 +86,9 @@ bun scripts/build-windows-installer.ts dist/tsci.exe "$version" dist/release/tsc
 The compiler bootstrap pins Inno Setup 7.1.0 and verifies the official download's
 SHA-256. Its [compiler licensing terms](https://www.innosetup.com/license.php)
 apply. Packaging includes the qualified executable and all four redistribution
-files, and does not prepare or download new runtime dependencies.
+files from the same input directory byte-for-byte (including original line
+endings), and does not prepare or download new runtime dependencies. Repository
+checkout copies are not substituted for the qualified release notices.
 
 CI builds setup on `windows-latest` from the qualified Windows archive and checks
 installation, npm command conflict consent and takeover, repeated installation,

@@ -12,7 +12,7 @@ const fixture = async () => {
   const root = await mkdtemp(join(tmpdir(), "tsci-windows-installer-"))
   roots.push(root)
   await mkdir(join(root, "dist"))
-  for (const name of ["LICENSE", "THIRD_PARTY_NOTICES", "dist/licenses.json", "dist/THIRD_PARTY_NOTICES.txt"])
+  for (const name of ["dist/LICENSE", "dist/THIRD_PARTY_NOTICES", "dist/licenses.json", "dist/THIRD_PARTY_NOTICES.txt"])
     await writeFile(join(root, name), "fixture notice")
   const binary = join(root, "dist/tsci.exe")
   // Enough of the PE header to exercise architecture validation, never executed.
@@ -42,5 +42,18 @@ test("rejects scripts, truncated files and non-x64 executables", async () => {
   })()]) {
     await writeFile(options.binary, bytes)
     await expect(buildWindowsInstaller(options)).rejects.toThrow("Expected a Windows x64 PE executable")
+  }
+})
+
+
+test("checkout licenses cannot substitute for missing qualified release notices", async () => {
+  const options = await fixture()
+  // Windows Git checkouts can use CRLF while the qualified release uses LF.
+  await writeFile(join(options.projectRoot, "LICENSE"), "unqualified checkout license\r\n")
+  await writeFile(join(options.projectRoot, "THIRD_PARTY_NOTICES"), "checkout notices\r\n")
+  for (const name of ["LICENSE", "THIRD_PARTY_NOTICES"]) {
+    await rm(join(options.projectRoot, "dist", name))
+    await expect(buildWindowsInstaller(options)).rejects.toThrow(join("dist", name))
+    await writeFile(join(options.projectRoot, "dist", name), "qualified release notice\n")
   }
 })

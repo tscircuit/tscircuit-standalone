@@ -23,7 +23,9 @@ export async function buildWindowsInstaller({
   const inputs = [
     [sourceBinary, "tsci.exe"],
     ...["LICENSE", "THIRD_PARTY_NOTICES", "licenses.json", "THIRD_PARTY_NOTICES.txt"].map((name) => [
-      join(name === "LICENSE" || name === "THIRD_PARTY_NOTICES" ? projectRoot : dirname(sourceBinary), name), name,
+      // The release archive is authoritative, including its original line endings.
+      // Do not substitute files from a platform-dependent Git checkout.
+      join(dirname(sourceBinary), name), name,
     ]),
   ] as [string, string][]
   for (const [source] of inputs) {
