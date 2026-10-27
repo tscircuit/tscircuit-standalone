@@ -104,3 +104,40 @@ jobs:
           path: dist/release/*
           if-no-files-found: error
           retention-days: 3
+
+  windows-installer:
+    needs: build-targets
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - uses: actions/download-artifact@v4
+        with:
+          name: tscircuit-standalone-bun-windows-x64
+          path: windows-release
+      - name: Restore the qualified Windows executable and notices
+        shell: pwsh
+        run: Expand-Archive windows-release/tscircuit-standalone-windows-x64.zip -DestinationPath dist
+      - name: Install the checksum-pinned Inno Setup compiler
+        shell: pwsh
+        run: ./scripts/windows-installer/install-compiler.ps1 -Destination "$env:RUNNER_TEMP/InnoSetup"
+      - name: Build the standard Windows installer
+        shell: pwsh
+        run: |
+          $version = & ./dist/tsci.exe --version
+          if ($LASTEXITCODE -ne 0) { throw 'The qualified Windows executable did not start' }
+          "WINDOWS_RELEASE_VERSION=$version" >> $env:GITHUB_ENV
+          bun scripts/build-windows-installer.ts dist/tsci.exe "$version" dist/release/tscircuit-standalone-windows-x64-setup.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Windows installer compilation failed' }
+      - name: Verify install, existing npm commands, upgrades, rollback and uninstall
+        shell: pwsh
+        run: ./scripts/windows-installer/smoke.ps1 -Installer dist/release/tscircuit-standalone-windows-x64-setup.exe -Binary dist/tsci.exe -Version "$env:WINDOWS_RELEASE_VERSION"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tscircuit-standalone-windows-installer
+          path: dist/release/tscircuit-standalone-windows-x64-setup.exe
+          if-no-files-found: error
+          retention-days: 3

@@ -28,6 +28,26 @@ use `sh -s -- latest ./tsci` instead of `sh`, then run `./tsci/tsci`.
 macOS releases are signed with tscircuit Inc.'s Developer ID and notarized by
 Apple. See [macOS download verification](docs/releases.md#macos-download-quarantine).
 
+## Download and run on Windows
+
+Download `tscircuit-standalone-windows-x64-setup.exe` from the newest published
+[release](https://github.com/tscircuit/tscircuit-standalone/releases). Run setup,
+then open a **new terminal** and use `tsci` or `tscircuit`. If an existing command
+is found, setup asks before making standalone the default. Existing npm packages
+stay installed. No Node.js, Bun or administrator access is needed.
+
+For terminal installation on Windows, download the bootstrap with `curl.exe`:
+
+```powershell
+curl.exe -fsSL https://raw.githubusercontent.com/tscircuit/tscircuit-standalone/main/scripts/install-windows.ps1 -o install-windows.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./install-windows.ps1
+```
+
+The bootstrap downloads the latest installer (including development prereleases),
+verifies its SHA-256 and opens the same setup wizard. Windows installers are
+currently unsigned. See [Windows installation and development](docs/releases.md#windows-installer)
+for unattended installation, command precedence, building and testing.
+
 ## Build from source
 
 ```sh
