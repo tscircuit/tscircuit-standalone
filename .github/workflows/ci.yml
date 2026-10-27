@@ -89,6 +89,17 @@ jobs:
           try { ./scripts/verify-windows-signature.ps1 -Path $unsigned | Out-Null }
           catch { $rejected = $true }
           if (!$rejected) { throw "Unsigned code was accepted" }
+      - name: Test signing dependency retries and failure handling
+        shell: pwsh
+        run: ./tests/windows-signing-setup.ps1
+      - name: Cache the pinned Microsoft signing module
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ~/Documents/PowerShell/Modules/ArtifactSigning/0.1.8
+          key: windows-ArtifactSigning-0.1.8
+      - name: Verify signing dependencies install without signing credentials
+        shell: pwsh
+        run: ./scripts/install-windows-signing.ps1
 
   sign-windows-test:
     if: github.event_name == 'workflow_dispatch' && inputs.windows_signing_test

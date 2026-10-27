@@ -49,6 +49,14 @@ jobs:
         env:
           EXPECTED_VERSION: ${{ inputs.version }}
         run: ./tests/windows-cli.ps1 -Path ./dist/tsci.exe -ExpectedVersion $env:EXPECTED_VERSION
+      - name: Cache the pinned Microsoft signing module
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ~/Documents/PowerShell/Modules/ArtifactSigning/0.1.8
+          key: windows-ArtifactSigning-0.1.8
+      - name: Install the Microsoft signing module with retries
+        shell: pwsh
+        run: ./scripts/install-windows-signing.ps1
       - name: Authenticate to Azure with GitHub OIDC
         uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
@@ -56,17 +64,12 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       - name: Sign and timestamp the Windows executable
-        uses: azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2
-        with:
-          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
-          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
-          certificate-profile-name: ${{ vars.AZURE_SIGNING_PROFILE }}
-          files: ${{ github.workspace }}\dist\tsci.exe
-          file-digest: SHA256
-          timestamp-rfc3161: http://timestamp.acs.microsoft.com
-          timestamp-digest: SHA256
-          exclude-environment-credential: true
-          exclude-azure-cli-credential: false
+        shell: pwsh
+        env:
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+        run: ./scripts/windows-installer/sign.ps1 -Path ./dist/tsci.exe
       - name: Verify Authenticode and reject changed or unexpected signatures
         shell: pwsh
         run: ./tests/windows-signature.ps1 -Path ./dist/tsci.exe
