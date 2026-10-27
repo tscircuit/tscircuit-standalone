@@ -93,7 +93,7 @@ begin
   ExtractTemporaryFile('setup.ps1');
   DetectionFile := ExpandConstant('{tmp}\detected.ini');
   Args := '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "' +
-    ExpandConstant('{tmp}\setup.ps1') + '" -Mode Detect -InstallDir "' + ExpandConstant('{app}') + '" -ResultFile "' + DetectionFile + '"';
+    ExpandConstant('{tmp}\setup.ps1') + '" -Mode Detect -InstallDir "' + WizardDirValue + '" -ResultFile "' + DetectionFile + '"';
   if not Exec(PowerShellPath, Args, '', SW_HIDE, ewWaitUntilTerminated, ExitCode) then
     RaiseException('Setup could not check the existing tsci command. PowerShell could not be started.');
   if ExitCode <> 0 then
