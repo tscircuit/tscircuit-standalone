@@ -83,6 +83,13 @@ to work. The directory is removed on normal process exit.
   site's JS CDN base URL to `./jscdn`.
 - Bundled module and WASM URLs also work when the site is hosted below a subpath.
 
+`tsci search RP2040` searches the baked datasheet inventory by chip name, including
+case-insensitive partial matches. Use `--json` for machine-readable results, or
+`--datasheets` to select this source explicitly. For parts with a baked component,
+pass a result's chip name to `tsci import RP2040`. Standalone selects the shared
+CLI's datasheet provider with `TSCIRCUIT_DEFAULT_SEARCH_SOURCE=datasheets`;
+explicit provider flags select their requested sources.
+
 The shared CLI retains its normal behavior for other services, including remote
 parts, routing and browser resources. Embedding the JS CDN packages does not
 make every CLI command or RunFrame feature offline.

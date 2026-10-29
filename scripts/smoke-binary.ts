@@ -41,6 +41,29 @@ let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined
 try {
   assert.equal(run(["--version"]).trim(), packageMetadata.version)
   assert.match(run(["--help"]), /CLI for developing tscircuit packages/)
+  assert.match(run(["search", "RP2040"]), /RP2040/)
+  const search = (args: string[]) =>
+    JSON.parse(run(["search", "--json", ...args])) as {
+      query: string
+      results: Array<{
+        source: string
+        datasheet_id: string
+        chip_name: string
+      }>
+    }
+  const partialSearch = search(["rP204"])
+  assert.equal(partialSearch.query, "rP204")
+  assert.ok(partialSearch.results.length > 0)
+  assert.ok(partialSearch.results.every((part) => part.source === "datasheets"))
+  const rp2040 = partialSearch.results.find((part) => part.chip_name === "RP2040")
+  assert.ok(rp2040, "Partial search must find the baked RP2040 datasheet")
+  const explicitSearch = search(["--datasheets", "RP2040"])
+  assert.ok(
+    explicitSearch.results.some(
+      (part) => part.datasheet_id === rp2040.datasheet_id && part.source === "datasheets",
+    ),
+  )
+  assert.deepEqual(search(["not-a-baked-part-9e3cc416"]).results, [])
   run(["init", "initialized", "--yes", "--no-install"])
   for (const skillPath of [".claude/skills/tscircuit", ".agents/skills/tscircuit"]) {
     assert.ok(!existsSync(join(projectDir, "initialized", skillPath)))
@@ -48,6 +71,14 @@ try {
   assert.ok(await Bun.file(join(projectDir, "initialized/index.circuit.tsx")).exists())
   assert.ok(!existsSync(join(projectDir, "initialized/node_modules")))
   await writeFile(join(projectDir, "package.json"), "{}")
+  run(["import", rp2040.chip_name])
+  const { datasheet: importedDatasheet } = await Bun.file(
+    `build/baked-asset-server/datasheet-api/datasheets/get/datasheet_id%3D${rp2040.datasheet_id}.json`,
+  ).json()
+  assert.equal(
+    await readFile(join(projectDir, "imports", `${rp2040.chip_name}.tsx`), "utf8"),
+    importedDatasheet.generated_tsx,
+  )
   // A locally generated 2 x 3 x 2 mm solid exercises the viewer's STEP loader,
   // rather than allowing procedural footprint CAD to hide an OCCT failure.
   const stepFixture = await readFile(
@@ -221,6 +252,10 @@ try {
   // These BGA parts exercise the API source path, including a part excluded
   // from the compact footprint catalog. Imports must use the baked TSX as-is.
   for (const chipName of ["AM62L32", "AM3358BZCZA100"]) {
+    assert.ok(
+      search([chipName]).results.some((part) => part.chip_name === chipName),
+      `${chipName} must remain discoverable in the complete baked inventory`,
+    )
     const { datasheet } = await Bun.file(
       `build/baked-asset-server/datasheet-api/datasheets/get/chip_name%3D${chipName.toLowerCase()}.json`,
     ).json()
