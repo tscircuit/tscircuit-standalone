@@ -87,7 +87,7 @@ to work. The directory is removed on normal process exit.
 case-insensitive partial matches. Use `--json` for machine-readable results, or
 `--datasheets` to select this source explicitly. For parts with a baked component,
 pass a result's chip name to `tsci import RP2040`. Standalone selects the shared
-CLI's datasheet provider with `TSCIRCUIT_DEFAULT_SEARCH_SOURCE=datasheets`;
+CLI's datasheet provider with `TSCIRCUIT_DEFAULT_SEARCH_SOURCES=datasheets`;
 explicit provider flags select their requested sources.
 
 The shared CLI retains its normal behavior for other services, including remote
