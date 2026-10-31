@@ -1,5 +1,5 @@
 import { readFile, realpath } from "node:fs/promises"
-import { join, resolve } from "node:path"
+import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import ts from "typescript"
 import { createRequire } from "node:module"
@@ -47,6 +47,49 @@ function preferBundledRuntimeModules(source: string) {
   )
 }
 
+/** Resolve version queries while node_modules still exists on the build host. */
+export async function inlineCliDependencyVersions(
+  source: string,
+  getVersion: (packageName: string) => Promise<string>,
+) {
+  const file = ts.createSourceFile("cli.js", source, ts.ScriptTarget.Latest, true)
+  const calls: { start: number; end: number; packageName: string }[] = []
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === "getTscircuitDependencyVersion"
+    ) {
+      const argument = node.arguments[0]
+      if (node.arguments.length !== 1 || !argument || !ts.isStringLiteralLike(argument))
+        throw new Error("CLI dependency version queries must use a literal package name")
+      calls.push({ start: node.getStart(file), end: node.end, packageName: argument.text })
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(file)
+  for (const { start, end, packageName } of calls.reverse()) {
+    const version = await getVersion(packageName)
+    if (!version) throw new Error(`Missing installed version of ${packageName}`)
+    source = source.slice(0, start) + JSON.stringify(version) + source.slice(end)
+  }
+  return source
+}
+
+async function getPackageVersion(packageName: string, fromDirectory: string) {
+  let directory = dirname(Bun.resolveSync(packageName, fromDirectory))
+  while (directory !== dirname(directory)) {
+    const manifest = Bun.file(join(directory, "package.json"))
+    if (await manifest.exists()) {
+      const metadata = await manifest.json()
+      if (metadata.name === packageName && typeof metadata.version === "string")
+        return metadata.version
+    }
+    directory = dirname(directory)
+  }
+  throw new Error(`Cannot find the installed version of ${packageName}`)
+}
+
 /** Include build-time dependencies that normally resolve files from node_modules. */
 export const cliPackageAdapters: Bun.BunPlugin = {
   name: "standalone-cli-packages",
@@ -71,9 +114,8 @@ export const cliPackageAdapters: Bun.BunPlugin = {
           /@tscircuit\/cli\/dist\/cli\/(?:main|build\/build\.worker|snapshot\/snapshot\.worker)\.js$/,
       },
       async ({ path }) => {
-        const runtimeRequire = createRequire(
-          await realpath(resolve("node_modules/tscircuit/package.json")),
-        )
+        const runtimeManifest = await realpath(resolve("node_modules/tscircuit/package.json"))
+        const runtimeRequire = createRequire(runtimeManifest)
         const workerPath = Bun.resolveSync(
           "@tscircuit/eval/worker-entrypoint",
           resolve("."),
@@ -86,7 +128,10 @@ export const cliPackageAdapters: Bun.BunPlugin = {
         )
         // Compiled Bun cannot load the project's import-only package exports.
         // Keep the CLI and authored TSX on the same registered engine/React.
-        const adapted = preferBundledRuntimeModules(source)
+        const adapted = await inlineCliDependencyVersions(
+          preferBundledRuntimeModules(source),
+          (packageName) => getPackageVersion(packageName, dirname(runtimeManifest)),
+        )
         return {
           // Only the main entry embeds RunFrame as a JavaScript string.
           contents: path.endsWith("/main.js")
