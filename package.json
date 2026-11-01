@@ -23,7 +23,7 @@
     "@rollup/wasm-node": "4.65.1",
     "@tscircuit/checks": "0.0.264",
     "@tscircuit/circuit-json-util": "0.0.129",
-    "@tscircuit/cli": "0.1.2410",
+    "@tscircuit/cli": "0.1.2427",
     "@tscircuit/core": "0.0.2203",
     "@tscircuit/eval": "0.0.1660",
     "@tscircuit/footprinter": "0.0.444",

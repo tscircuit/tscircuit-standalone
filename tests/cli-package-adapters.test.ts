@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { embedCliEvalWorker } from "../scripts/cli-package-adapters"
+import { embedCliEvalWorker, inlineCliDependencyVersions } from "../scripts/cli-package-adapters"
 
 test("published CLI worker embedding preserves the surrounding JavaScript and asset quoting", () => {
   const asset =
@@ -24,4 +24,26 @@ test("changed published CLI asset layouts fail during the build", () => {
   expect(() =>
     embedCliEvalWorker('var standalone_min_default = "changed";', ""),
   ).toThrow("placeholder is missing")
+})
+
+test("CLI dependency versions are embedded without invoking runtime package resolution", async () => {
+  const source = `
+    function getTscircuitDependencyVersion() { throw new Error("No node_modules") }
+    const label = 'getTscircuitDependencyVersion("unrelated")';
+    return [getTscircuitDependencyVersion("@tscircuit/eval"),
+      getTscircuitDependencyVersion("@tscircuit/runframe"), label];
+  `
+  const versions: Record<string, string> = {
+    "@tscircuit/eval": "1.2.3",
+    "@tscircuit/runframe": "4.5.6",
+  }
+  const getVersion = async (name: string) => versions[name]!
+  const embedded = await inlineCliDependencyVersions(source, getVersion)
+  expect(new Function(embedded)()).toEqual([
+    "1.2.3", "4.5.6", 'getTscircuitDependencyVersion("unrelated")',
+  ])
+  await expect(inlineCliDependencyVersions("getTscircuitDependencyVersion(name)", getVersion))
+    .rejects.toThrow("literal package name")
+  await expect(inlineCliDependencyVersions('getTscircuitDependencyVersion("missing")', getVersion))
+    .rejects.toThrow("Missing installed version")
 })
