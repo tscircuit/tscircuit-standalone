@@ -44,11 +44,6 @@ jobs:
             $actual = git hash-object --no-filters "dist/$notice"
             if ($LASTEXITCODE -ne 0 -or $actual -cne $expected) { throw "Qualified input mismatch: $notice" }
           }
-      - name: Verify the unsigned executable and embedded worker run on Windows
-        shell: pwsh
-        env:
-          EXPECTED_VERSION: ${{ inputs.version }}
-        run: ./tests/windows-cli.ps1 -Path ./dist/tsci.exe -ExpectedVersion $env:EXPECTED_VERSION
       - name: Cache the pinned Microsoft signing module
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
@@ -70,9 +65,9 @@ jobs:
           AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
           AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
         run: ./scripts/windows-installer/sign.ps1 -Path ./dist/tsci.exe
-      - name: Verify Authenticode and reject changed or unexpected signatures
+      - name: Verify the release executable Authenticode signature
         shell: pwsh
-        run: ./tests/windows-signature.ps1 -Path ./dist/tsci.exe
+        run: ./scripts/verify-windows-signature.ps1 -Path ./dist/tsci.exe | Out-Null
       - name: Verify the signed executable and embedded worker run on Windows
         shell: pwsh
         env:

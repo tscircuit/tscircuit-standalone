@@ -307,6 +307,7 @@ test("publication waits for every signed platform and manual releases forward se
   expect(daily.jobs.publish.needs).toContain("sign-macos")
   expect(daily.jobs.publish.needs).toContain("sign-windows")
   expect(daily.jobs["sign-macos"].needs).toEqual(["prepare", "build"])
+  expect(daily.jobs.build.uses).toBe("./.github/workflows/build.yml")
   const downloads = daily.jobs.publish.steps.filter(
     (step: any) => step.uses === "actions/download-artifact@v4",
   )
@@ -320,6 +321,19 @@ test("publication waits for every signed platform and manual releases forward se
     new URL("../.github/workflows/ci.yml", import.meta.url),
   ).text()
   expect(ci).not.toContain("secrets.")
+  const tests = Bun.YAML.parse(ci) as any
+  expect(tests.on.workflow_call).toBeUndefined()
+  expect(tests.jobs.test.steps.some((step: any) => step.run === "bun run test")).toBe(true)
+  expect(tests.jobs["windows-installer"]).toBeDefined()
+  const build = Bun.YAML.parse(await Bun.file(
+    new URL("../.github/workflows/build.yml", import.meta.url),
+  ).text()) as any
+  expect(build.jobs["windows-installer"]).toBeUndefined()
+  expect(build.jobs["windows-signing-checks"]).toBeUndefined()
+  expect(build.jobs["build-targets"].needs).toBe("prepare")
+  expect(build.jobs["build-targets"].steps.some((step: any) =>
+    step.run?.includes("smoke-binary.ts --browser") && step.if === "matrix.target == 'bun-linux-x64'",
+  )).toBe(true)
 })
 
 test("an intermediate already included in the PKCS#12 export does not block signing", async () => {
