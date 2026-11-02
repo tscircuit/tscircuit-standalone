@@ -4,7 +4,8 @@ param(
     [Parameter(Mandatory = $true)][string]$Binary,
     [Parameter(Mandatory = $true)][string]$Version,
     [switch]$RequireSigned,
-    [string]$SigningReceipt
+    [string]$SigningReceipt,
+    [string]$DiagnosticsDirectory
 )
 $ErrorActionPreference = 'Stop'
 $Installer = [IO.Path]::GetFullPath($Installer)
@@ -22,19 +23,28 @@ $existing = Join-Path $root 'npm shims'
 $unrelated = Join-Path $root 'added after installation'
 $oldPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 $oldProcessPath = $env:Path
+. "$PSScriptRoot/run-smoke-process.ps1"
+if (-not $DiagnosticsDirectory) {
+    $DiagnosticsDirectory = Join-Path ([IO.Path]::GetTempPath()) ('tsci-installer-diagnostics-' + [Guid]::NewGuid())
+}
+New-Item -ItemType Directory -Path $DiagnosticsDirectory -Force | Out-Null
+Start-Transcript -Path (Join-Path $DiagnosticsDirectory 'smoke.txt') -Force | Out-Null
 function Assert($condition, [string]$message) { if (-not $condition) { throw $message } }
 function Refresh-Path {
     $env:Path = [Environment]::ExpandEnvironmentVariables([Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User'))
 }
 function Run-Setup([string]$task) {
+    $name = if ($task) { 'install' } else { 'upgrade' }
     $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', ('/DIR="' + $installed + '"'))
+    $arguments += '/LOG="' + (Join-Path $DiagnosticsDirectory "$name.inno.log") + '"'
     if ($task) { $arguments += '/TASKS=' + $task }
-    $process = Start-Process -FilePath $Installer -ArgumentList $arguments -Wait -PassThru
+    $process = Invoke-SmokeProcess -Name $name -FilePath $Installer -ArgumentList $arguments -LogDirectory $DiagnosticsDirectory
     Assert ($process.ExitCode -eq 0) "Installer failed with $($process.ExitCode)"
     Refresh-Path
 }
-function Run-Uninstall {
-    $process = Start-Process -FilePath (Join-Path $installed 'unins000.exe') -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART') -Wait -PassThru
+function Run-Uninstall([string]$name = 'uninstall') {
+    $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', ('/LOG="' + (Join-Path $DiagnosticsDirectory "$name.inno.log") + '"'))
+    $process = Invoke-SmokeProcess -Name $name -FilePath (Join-Path $installed 'unins000.exe') -ArgumentList $arguments -LogDirectory $DiagnosticsDirectory
     Assert ($process.ExitCode -eq 0) "Uninstaller failed with $($process.ExitCode)"
     Refresh-Path
 }
@@ -54,7 +64,8 @@ try {
     Assert (-not (Get-Command tscircuit -ErrorAction SilentlyContinue)) 'Stale PATH fixture unexpectedly resolves tscircuit'
     # Detection must refresh persisted PATH and require consent before any copies.
 
-    $refused = Start-Process -FilePath $Installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', ('/DIR="' + $installed + '"')) -Wait -PassThru
+    $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', ('/DIR="' + $installed + '"'), ('/LOG="' + (Join-Path $DiagnosticsDirectory 'refuse-conflict.inno.log') + '"'))
+    $refused = Invoke-SmokeProcess -Name 'refuse-conflict' -FilePath $Installer -ArgumentList $arguments -LogDirectory $DiagnosticsDirectory
     Assert ($refused.ExitCode -ne 0) 'Existing commands were replaced without consent'
     Assert (-not (Test-Path (Join-Path $installed 'tsci.exe'))) 'Unapproved installation copied an executable'
     New-Item -ItemType Directory -Path $installed -Force | Out-Null
@@ -62,8 +73,10 @@ try {
     # Explicit takeover, upgrade, then uninstall must preserve later PATH edits.
     Run-Setup 'replacecommands'
     Assert ((Get-Command tsci).Path -eq (Join-Path $installed 'tsci.exe')) 'Standalone did not become the default'
-    Assert ((& tsci --version) -eq $Version) 'Default command version mismatch'
-    Assert ((& tscircuit --version) -eq $Version) 'tscircuit version mismatch'
+    $versionResult = Invoke-SmokeProcess -Name 'tsci-version' -FilePath (Get-Command tsci).Path -ArgumentList @('--version') -LogDirectory $DiagnosticsDirectory -TimeoutSeconds 60
+    Assert ($versionResult.ExitCode -eq 0 -and $versionResult.Stdout.Trim() -eq $Version) 'Default command version mismatch'
+    $aliasVersion = Invoke-SmokeProcess -Name 'tscircuit-version' -FilePath (Get-Command tscircuit).Path -ArgumentList @('--version') -LogDirectory $DiagnosticsDirectory -TimeoutSeconds 60
+    Assert ($aliasVersion.ExitCode -eq 0 -and $aliasVersion.Stdout.Trim() -eq $Version) 'tscircuit version mismatch'
     Assert ((Get-Command tscircuit).Path -eq (Join-Path $installed 'tscircuit.exe')) 'tscircuit alias did not become the default'
     Assert (-not (Test-Path (Join-Path $installed 'tsci-standalone.exe'))) 'Unexpected third command'
     foreach ($name in @('tsci.exe', 'tscircuit.exe')) {
@@ -95,18 +108,23 @@ try {
     Copy-Item -LiteralPath $Binary -Destination (Join-Path $rollback 'tsci.exe')
     Copy-Item -LiteralPath $Binary -Destination (Join-Path $rollback 'tscircuit.exe')
     $pathBeforeFailure = [Environment]::GetEnvironmentVariable('Path', 'User')
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot\setup.ps1" -Mode Install -InstallDir $rollback -ResultFile (Join-Path $rollback 'missing\result.ini')
-    Assert ($LASTEXITCODE -ne 0) 'Failure fixture unexpectedly succeeded'
+    $arguments = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', ('"' + "$PSScriptRoot\setup.ps1" + '"'), '-Mode', 'Install', '-InstallDir', ('"' + $rollback + '"'), '-ResultFile', ('"' + (Join-Path $rollback 'missing\result.ini') + '"'))
+    $failure = Invoke-SmokeProcess -Name 'rollback' -FilePath powershell.exe -ArgumentList $arguments -LogDirectory $DiagnosticsDirectory -TimeoutSeconds 60
+    Assert ($failure.ExitCode -ne 0) 'Failure fixture unexpectedly succeeded'
     Assert ([Environment]::GetEnvironmentVariable('Path', 'User') -eq $pathBeforeFailure) 'Failed setup did not restore PATH'
     Assert (-not (Test-Path (Join-Path $rollback 'installer-state.json'))) 'Failed setup left state'
     Write-Output 'Windows installer install/conflict/upgrade/uninstall/rollback checks passed'
 } finally {
-    if (Test-Path (Join-Path $installed 'unins000.exe')) {
-        Start-Process -FilePath (Join-Path $installed 'unins000.exe') -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART' -Wait | Out-Null
+    try {
+        if (Test-Path (Join-Path $installed 'unins000.exe')) { Run-Uninstall 'cleanup-uninstall' }
+    } catch {
+        Write-Warning "Installer cleanup failed: $_"
+    } finally {
+        [Environment]::SetEnvironmentVariable('Path', $oldPath, 'User')
+        $env:Path = $oldProcessPath
+        Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
+        Stop-Transcript | Out-Null
     }
-    [Environment]::SetEnvironmentVariable('Path', $oldPath, 'User')
-    $env:Path = $oldProcessPath
-    Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
 }
 # The intentional failing helper above must not become the CI script exit code.
 exit 0

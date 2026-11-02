@@ -98,6 +98,12 @@ jobs:
       - name: Test the Windows installer command in Windows PowerShell 5.1
         shell: powershell
         run: ./tests/windows-bootstrap.test.ps1
+      - name: Test bounded installer process waits
+        shell: pwsh
+        run: ./tests/windows-installer-process.test.ps1
+      - name: Test bounded installer process waits in Windows PowerShell 5.1
+        shell: powershell
+        run: ./tests/windows-installer-process.test.ps1
       - name: Cache the pinned Microsoft signing module
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
@@ -196,8 +202,17 @@ jobs:
           bun scripts/build-windows-installer.ts dist/tsci.exe "$version" dist/release/tscircuit-standalone-windows-x64-setup.exe
           if ($LASTEXITCODE -ne 0) { throw 'Windows installer compilation failed' }
       - name: Verify install, existing npm commands, upgrades, rollback and uninstall
+        timeout-minutes: 10
         shell: pwsh
-        run: ./scripts/windows-installer/smoke.ps1 -Installer dist/release/tscircuit-standalone-windows-x64-setup.exe -Binary dist/tsci.exe -Version "$env:WINDOWS_RELEASE_VERSION"
+        run: ./scripts/windows-installer/smoke.ps1 -Installer dist/release/tscircuit-standalone-windows-x64-setup.exe -Binary dist/tsci.exe -Version "$env:WINDOWS_RELEASE_VERSION" -DiagnosticsDirectory "$env:RUNNER_TEMP/windows-installer-diagnostics"
+      - name: Save Windows installer diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer-diagnostics
+          path: ${{ runner.temp }}/windows-installer-diagnostics
+          if-no-files-found: warn
+          retention-days: 7
       - uses: actions/upload-artifact@v4
         with:
           name: unsigned-windows-installer
