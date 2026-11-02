@@ -94,6 +94,7 @@ jobs:
           bun scripts/build-windows-installer.ts dist/tsci.exe "$env:EXPECTED_VERSION" dist/release/tscircuit-standalone-windows-x64-setup.exe
           if ($LASTEXITCODE -ne 0) { throw 'Signed installer compilation failed' }
       - name: Verify signed installation, upgrades, PATH rollback and uninstall
+        timeout-minutes: 10
         shell: pwsh
         env:
           EXPECTED_VERSION: ${{ inputs.version }}

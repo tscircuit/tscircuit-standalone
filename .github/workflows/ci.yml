@@ -202,6 +202,7 @@ jobs:
           bun scripts/build-windows-installer.ts dist/tsci.exe "$version" dist/release/tscircuit-standalone-windows-x64-setup.exe
           if ($LASTEXITCODE -ne 0) { throw 'Windows installer compilation failed' }
       - name: Verify install, existing npm commands, upgrades, rollback and uninstall
+        timeout-minutes: 10
         shell: pwsh
         run: ./scripts/windows-installer/smoke.ps1 -Installer dist/release/tscircuit-standalone-windows-x64-setup.exe -Binary dist/tsci.exe -Version "$env:WINDOWS_RELEASE_VERSION" -DiagnosticsDirectory "$env:RUNNER_TEMP/windows-installer-diagnostics"
       - name: Save Windows installer diagnostics
