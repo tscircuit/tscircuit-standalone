@@ -13,6 +13,8 @@ function Invoke-SmokeProcess {
     $process = Start-Process -FilePath $FilePath -ArgumentList $ArgumentList -PassThru `
         -RedirectStandardOutput $stdout -RedirectStandardError $stderr
     try {
+        # Windows PowerShell 5.1 otherwise loses the exit code after the child exits.
+        $null = $process.Handle
         # Start-Process -Wait waits for descendants as well. An unrelated
         # background child must not keep a completed installer check alive.
         if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
