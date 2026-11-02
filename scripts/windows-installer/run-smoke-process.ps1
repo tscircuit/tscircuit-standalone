@@ -10,8 +10,9 @@ function Invoke-SmokeProcess {
     $stdout = Join-Path $LogDirectory "$Name.stdout.txt"
     $stderr = Join-Path $LogDirectory "$Name.stderr.txt"
     Write-Host "[$([DateTime]::UtcNow.ToString('o'))] Starting $Name (limit ${TimeoutSeconds}s)"
-    $process = Start-Process -FilePath $FilePath -ArgumentList $ArgumentList -PassThru `
+    $process = Start-Process -FilePath $FilePath -ArgumentList $ArgumentList -PassThru -NoNewWindow `
         -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+    Write-Host "[$([DateTime]::UtcNow.ToString('o'))] Launched $Name (PID $($process.Id))"
     try {
         # Windows PowerShell 5.1 otherwise loses the exit code after the child exits.
         $null = $process.Handle
