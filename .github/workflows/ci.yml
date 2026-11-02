@@ -1,4 +1,4 @@
-name: Check standalone preparation
+name: Tests
 on:
   push:
     branches: [main]
@@ -14,60 +14,78 @@ on:
         required: false
         default: false
         type: boolean
-  workflow_call:
-    inputs:
-      tscircuit_version:
-        description: Upstream tscircuit version to prepare for a daily release
-        required: false
-        type: string
 permissions:
   contents: read
 jobs:
-  check:
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      tscircuit_version: ${{ inputs.tscircuit_version || '' }}
+      windows_only: ${{ inputs.windows_signing_test || false }}
+
+  test:
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
-      - name: Prepare the selected tscircuit release
+      - name: Cache Bun package downloads
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-1.3.14-${{ inputs.tscircuit_version || 'pinned' }}-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-1.3.14-
+      - name: Prepare the selected tscircuit version
         if: inputs.tscircuit_version != ''
         env:
           TSCIRCUIT_VERSION: ${{ inputs.tscircuit_version }}
         run: bun scripts/prepare-release.ts "$TSCIRCUIT_VERSION"
       - run: bun install --frozen-lockfile
-      - name: Record the selected version
-        id: version
-        run: |
-          version="$(bun -p 'require("./package.json").version')"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-      - run: bun run check
-      - name: Install the qualification browser
-        run: bunx playwright install --with-deps chromium
-        env:
-          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/build/playwright
-      - name: Verify 3D STEP rendering, JS CDN modules and WASM with only loopback networking
-        run: |
-          sudo unshare --net env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" CI_BROWSER_USER="$(id -un)" sh -c 'ip link set lo up; exec runuser -u "$CI_BROWSER_USER" -- env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" bun scripts/smoke-binary.ts --browser'
-        env:
-          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/build/playwright
-      - name: Save the qualified dependencies and JS CDN for all target builds
-        uses: actions/upload-artifact@v4
+      - name: Build the prototype UI used by the regression tests
+        run: bun run build:ui
+      - run: bun run typecheck
+      - run: bun run test
+
+  macos-tests:
+    needs: build
+    runs-on: ${{ matrix.runner }}
+    if: ${{ !inputs.windows_signing_test }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: macos-15-intel
+          - arch: arm64
+            runner: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          name: standalone-build-inputs
-          path: |
-            package.json
-            ui/package.json
-            bun.lock
-            lib/generated-jscdn-assets.ts
-            lib/generated-baked-assets.ts
-            build/baked-asset-server
-            build/jscdn
-            build/jscdn-metafile.json
-          if-no-files-found: error
-          retention-days: 3
+          bun-version: 1.3.14
+      - name: Cache Bun package downloads
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-1.3.14-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-1.3.14-
+      - run: bun install --frozen-lockfile
+      - name: Test native macOS packaging and installer regression cases
+        run: bun run test tests/build-macos-installer.test.ts tests/install-macos.test.ts
+      - uses: actions/download-artifact@v4
+        with:
+          name: tscircuit-standalone-bun-darwin-${{ matrix.arch }}
+          path: macos-release
+      - name: Verify the native compiled executable starts
+        env:
+          ARCH: ${{ matrix.arch }}
+          EXPECTED_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          mkdir -p dist
+          tar -xzf "macos-release/tscircuit-standalone-macos-$ARCH.tar.gz" -C dist
+          test "$(./dist/tsci --version)" = "$EXPECTED_VERSION"
+          ./dist/tsci --help
 
   windows-signing-checks:
     runs-on: windows-2025
@@ -89,6 +107,9 @@ jobs:
           try { ./scripts/verify-windows-signature.ps1 -Path $unsigned | Out-Null }
           catch { $rejected = $true }
           if (!$rejected) { throw "Unsigned code was accepted" }
+      - name: Test valid, wrong-publisher and tampered Authenticode signatures
+        shell: pwsh
+        run: ./tests/windows-signature.ps1 -Path (Get-Process -Id $PID).Path -ExpectedPublisher 'Microsoft Corporation'
       - name: Test signing dependency retries and failure handling
         shell: pwsh
         run: ./tests/windows-signing-setup.ps1
@@ -115,67 +136,16 @@ jobs:
 
   sign-windows-test:
     if: github.event_name == 'workflow_dispatch' && inputs.windows_signing_test
-    needs: [check, build-targets]
+    needs: build
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/sign-windows.yml
     with:
-      version: ${{ needs.check.outputs.version }}
-  build-targets:
-    needs: check
-    runs-on: ${{ matrix.runner || 'ubuntu-latest' }}
-    strategy:
-      matrix:
-        target: ${{ fromJSON(inputs.windows_signing_test && '["bun-windows-x64"]' || '["bun-linux-x64", "bun-linux-arm64", "bun-darwin-x64", "bun-darwin-arm64", "bun-windows-x64"]') }}
-        include: ${{ fromJSON(inputs.windows_signing_test && '[]' || '[{"target":"bun-darwin-x64","runner":"macos-15-intel"},{"target":"bun-darwin-arm64","runner":"macos-15"}]') }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          # Bun 1.4 includes Windows embedded-worker fixes.
-          bun-version: ${{ matrix.target == 'bun-windows-x64' && '1.4.4' || '1.3.14' }}
-      - uses: actions/download-artifact@v4
-        with:
-          name: standalone-build-inputs
-          path: .
-      - run: bun install --frozen-lockfile
-      - name: Compile the qualified inputs for this target
-        run: bun scripts/compile-binary.ts
-        env:
-          BUN_BUILD_TARGET: ${{ matrix.target }}
-      - name: Test native macOS installation
-        if: runner.os == 'macOS'
-        run: bun test tests/build-macos-installer.test.ts tests/install-macos.test.ts
-      - name: Verify the macOS binary starts
-        if: runner.os == 'macOS'
-        run: |
-          test "$(./dist/tsci --version)" = "$(bun -p 'require("./package.json").version')"
-          ./dist/tsci --help
-      - name: Install GNU tar for deterministic macOS archives
-        if: runner.os == 'macOS'
-        run: |
-          brew install gnu-tar
-          echo "$(brew --prefix gnu-tar)/libexec/gnubin" >> "$GITHUB_PATH"
-      - name: Package the binary and redistribution notices
-        run: bun scripts/package-release.ts
-        env:
-          BUN_BUILD_TARGET: ${{ matrix.target }}
-      - name: Test the Linux installer with the qualified executable
-        if: matrix.target == 'bun-linux-x64'
-        run: bun test --test-name-pattern 'qualified Linux release' tests/install-linux.test.ts
-        env:
-          TSCI_TEST_LINUX_ARCHIVE: ${{ github.workspace }}/dist/release/tscircuit-standalone-linux-x64.tar.gz
-      - uses: actions/upload-artifact@v4
-        with:
-          name: tscircuit-standalone-${{ matrix.target }}
-          path: dist/release/*
-          if-no-files-found: error
-          retention-days: 3
-
+      version: ${{ needs.build.outputs.version }}
   windows-installer:
     if: ${{ !inputs.windows_signing_test }}
-    needs: build-targets
+    needs: build
     runs-on: windows-latest
     timeout-minutes: 30
     steps:

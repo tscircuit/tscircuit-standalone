@@ -1,8 +1,11 @@
-param([Parameter(Mandatory)][string]$Path)
+param(
+  [Parameter(Mandatory)][string]$Path,
+  [string]$ExpectedPublisher = "tscircuit Inc"
+)
 
 $ErrorActionPreference = "Stop"
 $verify = Join-Path $PSScriptRoot "../scripts/verify-windows-signature.ps1"
-& $verify -Path $Path | Out-Null
+& $verify -Path $Path -ExpectedPublisher $ExpectedPublisher | Out-Null
 $rejected = $false
 try { & $verify -Path $Path -ExpectedPublisher "Wrong publisher" | Out-Null }
 catch { $rejected = $true }

@@ -114,6 +114,19 @@ and 3D rendering of a board with an embedded STEP model in the compiled dev
 viewer. The viewer and exporters share a single OCCT loader/WASM pair.
 CI runs this browser check with only loopback networking.
 
+The **Tests** workflow runs typechecks, the regression suite, native installer
+tests and unsigned Windows installer verification on pull requests and `main`.
+It also calls the reusable **Build standalone artifacts** workflow, which manual
+and daily releases call directly. Builds prepare the embedded assets once, then
+compile all five targets in parallel. The Linux x64 build runs the compiled CLI
+and offline browser verification once, alongside the other target builds.
+
+Releases keep the checks for the selected upstream version and the actual signed
+downloads: offline browser/worker/WASM checks, native signed executable startup,
+signed installer verification, signing/notarization receipts and checksums.
+They do not rebuild the prototype UI, rerun the regression suite or build a
+second, unsigned Windows installer before signing.
+
 Set `BUN_BUILD_TARGET` to `bun-linux-x64`, `bun-linux-arm64`, `bun-darwin-x64`,
 `bun-darwin-arm64`, or `bun-windows-x64` to cross-compile. The build emits the
 binary, compiler graphs, `dist/licenses.json` and `dist/THIRD_PARTY_NOTICES.txt`.

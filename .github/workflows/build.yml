@@ -1,0 +1,129 @@
+name: Build standalone artifacts
+
+on:
+  workflow_call:
+    inputs:
+      tscircuit_version:
+        description: Optional exact upstream version to build
+        required: false
+        type: string
+      windows_only:
+        description: Build only the input for Windows signing qualification
+        default: false
+        type: boolean
+    outputs:
+      version:
+        description: The selected standalone version
+        value: ${{ jobs.prepare.outputs.version }}
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - name: Cache Bun package downloads
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-1.3.14-${{ inputs.tscircuit_version || 'pinned' }}-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-1.3.14-
+      - name: Prepare the selected tscircuit release
+        if: inputs.tscircuit_version != ''
+        env:
+          TSCIRCUIT_VERSION: ${{ inputs.tscircuit_version }}
+        run: bun scripts/prepare-release.ts "$TSCIRCUIT_VERSION"
+      - run: bun install --frozen-lockfile
+      - name: Record the selected version
+        id: version
+        run: |
+          version="$(bun -p 'require("./package.json").version')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Prepare the embedded browser modules and baked datasheets
+        run: |
+          bun scripts/build-jscdn.ts
+          bun scripts/build-baked-assets.ts
+      - name: Save the selected dependencies and prepared assets for all target builds
+        uses: actions/upload-artifact@v4
+        with:
+          name: standalone-build-inputs
+          path: |
+            package.json
+            ui/package.json
+            bun.lock
+            lib/generated-jscdn-assets.ts
+            lib/generated-baked-assets.ts
+            build/baked-asset-server
+            build/jscdn
+            build/jscdn-metafile.json
+          if-no-files-found: error
+          retention-days: 3
+
+  build-targets:
+    needs: prepare
+    runs-on: ${{ matrix.runner || 'ubuntu-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(inputs.windows_only && '["bun-windows-x64"]' || '["bun-linux-x64", "bun-linux-arm64", "bun-darwin-x64", "bun-darwin-arm64", "bun-windows-x64"]') }}
+        include: ${{ fromJSON(inputs.windows_only && '[]' || '[{"target":"bun-darwin-x64","runner":"macos-15-intel"},{"target":"bun-darwin-arm64","runner":"macos-15"}]') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          # Bun 1.4 includes Windows embedded-worker fixes.
+          bun-version: ${{ matrix.target == 'bun-windows-x64' && '1.4.4' || '1.3.14' }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: standalone-build-inputs
+          path: .
+      - name: Cache Bun package downloads
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ matrix.target == 'bun-windows-x64' && '1.4.4' || '1.3.14' }}-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-${{ matrix.target == 'bun-windows-x64' && '1.4.4' || '1.3.14' }}-
+      - run: bun install --frozen-lockfile
+      - name: Compile the qualified inputs for this target
+        run: bun scripts/compile-binary.ts
+        env:
+          BUN_BUILD_TARGET: ${{ matrix.target }}
+      - name: Install the qualification browser
+        if: matrix.target == 'bun-linux-x64'
+        run: bunx playwright install --with-deps chromium
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/build/playwright
+      - name: Verify 3D STEP rendering, JS CDN modules and WASM with only loopback networking
+        if: matrix.target == 'bun-linux-x64'
+        run: |
+          sudo unshare --net env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" CI_BROWSER_USER="$(id -un)" sh -c 'ip link set lo up; exec runuser -u "$CI_BROWSER_USER" -- env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" bun scripts/smoke-binary.ts --browser'
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/build/playwright
+      - name: Install GNU tar for deterministic macOS archives
+        if: runner.os == 'macOS'
+        run: |
+          brew install gnu-tar
+          echo "$(brew --prefix gnu-tar)/libexec/gnubin" >> "$GITHUB_PATH"
+      - name: Package the binary and redistribution notices
+        run: bun scripts/package-release.ts
+        env:
+          BUN_BUILD_TARGET: ${{ matrix.target }}
+      - name: Test the Linux installer with the qualified executable
+        if: matrix.target == 'bun-linux-x64'
+        run: bun run test --test-name-pattern 'qualified Linux release' tests/install-linux.test.ts
+        env:
+          TSCI_TEST_LINUX_ARCHIVE: ${{ github.workspace }}/dist/release/tscircuit-standalone-linux-x64.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tscircuit-standalone-${{ matrix.target }}
+          path: dist/release/*
+          if-no-files-found: error
+          retention-days: 3
+
