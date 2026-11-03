@@ -111,7 +111,7 @@ test("compiled internal Bun works without a host runtime and preserves process b
     expect(failure.stderr.toString()).toStartWith("child error")
     await writeFile(
       join(project, "package.json"),
-      JSON.stringify({ name: "consumer", private: true, scripts: { postinstall: "exit 99" } }),
+      JSON.stringify({ name: "consumer", private: true, scripts: { postinstall: "exit 99", reinstall: "bun install" } }),
     )
     const add = run([
       "internal",
@@ -145,6 +145,9 @@ test("compiled internal Bun works without a host runtime and preserves process b
         'console.log(require("internal-bun-fixture"))',
       ]).stdout.toString(),
     ).toBe("17\n")
+    await rm(join(project, "node_modules"), { recursive: true })
+    const nestedInstall = run(["internal", "bun", "run", "reinstall"])
+    expect(nestedInstall.exitCode, nestedInstall.stderr.toString()).toBe(0)
     const missing = run(["internal", "bun", "add", "not-in-bundled-cache@1.0.0"])
     expect(missing.exitCode).not.toBe(0)
     expect(missing.stderr.toString()).toContain("--offline")

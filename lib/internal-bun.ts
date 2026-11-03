@@ -1,7 +1,8 @@
 import { fileURLToPath } from "node:url"
-import { mkdir, writeFile } from "node:fs/promises"
-import { basename, join } from "node:path"
-import { bunProjectDirectory } from "./bun-shell"
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { basename, delimiter, join } from "node:path"
+import { bunProjectDirectory, writeBunLauncher } from "./bun-shell"
 
 declare const TSCIRCUIT_STANDALONE_COMPILED: boolean
 
@@ -45,9 +46,9 @@ export async function runInternalBun(args: string[]): Promise<number> {
   }
   const command = args[commandIndex]
   const packageOperation = ["install", "i", "add", "a", "remove", "rm", "uninstall", "update", "up", "ci", "init"].includes(command ?? "")
-  if (!informational && packageOperation) {
+  if (!informational) {
     const forbidden = args.find(arg => /^(?:--cache-dir|--no-cache|--force|--prefer-latest|--offline=false|--ignore-scripts=false|--trust)(?:=|$)/.test(arg) || arg === "-f")
-    if (forbidden) throw new Error(`Standalone installs use only the bundled cache; ${forbidden} is not supported`)
+    if (forbidden && packageOperation) throw new Error(`Standalone installs use only the bundled cache; ${forbidden} is not supported`)
     const { getBundledBunCache, seedBundledLockfile, bundledPackageSpec, bundledRegistry } = await import("./bundled-bun-cache")
     cache = await getBundledBunCache()
     registry = bundledRegistry
@@ -65,10 +66,13 @@ export async function runInternalBun(args: string[]): Promise<number> {
       args = args.map((arg, i) => i > commandIndex && !valueFlags.has(args[i - 1]!) ? bundledPackageSpec(arg) : arg)
       if (!args.includes("--global") && !args.includes("-g")) cleanup = await seedBundledLockfile(directory)
     }
-    args = ["--offline", "--ignore-scripts", `--cache-dir=${cache}`, `--registry=${registry}`, ...args]
+    if (packageOperation) args = ["--offline", "--ignore-scripts", `--cache-dir=${cache}`, `--registry=${registry}`, ...args]
   }
+  const directory = informational ? undefined : await mkdtemp(join(tmpdir(), "tsci-bun-launcher-"))
+  if (directory) await writeBunLauncher(directory, getInternalBunArguments([]))
+  if (directory && cache) await writeFile(join(directory, ".bunfig.toml"), `[install]\noffline = true\nauto = "disable"\n[install.cache]\ndir = ${JSON.stringify(cache)}\n`)
   const child = Bun.spawn([process.execPath, ...args], {
-    env: { ...process.env, BUN_BE_BUN: "1", BUN_INSTALL_AUTO: "disable", ...(cache ? { BUN_INSTALL_CACHE_DIR: cache, BUN_CONFIG_REGISTRY: registry, NPM_CONFIG_IGNORE_SCRIPTS: "true" } : {}) },
+    env: { ...process.env, BUN_BE_BUN: "1", BUN_INSTALL_AUTO: "disable", ...(directory ? { PATH: directory + delimiter + (process.env.PATH ?? ""), XDG_CONFIG_HOME: directory } : {}), ...(cache ? { BUN_INSTALL_CACHE_DIR: cache, BUN_CONFIG_REGISTRY: registry, NPM_CONFIG_IGNORE_SCRIPTS: "true" } : {}) },
     stdin: "inherit",
     stdout: "inherit",
     stderr: "inherit",
@@ -87,5 +91,6 @@ export async function runInternalBun(args: string[]): Promise<number> {
   } finally {
     process.off("SIGINT", interrupt)
     process.off("SIGTERM", terminate)
+    if (directory) await rm(directory, { recursive: true, force: true })
   }
 }

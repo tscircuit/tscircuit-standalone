@@ -1,5 +1,16 @@
-import { readFile, stat } from "node:fs/promises"
-import { dirname, resolve } from "node:path"
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises"
+import { dirname, join, resolve } from "node:path"
+
+/** Child shells must route bun too; interactive shell functions are not inherited. */
+export async function writeBunLauncher(directory: string, command: string[]): Promise<string> {
+  await mkdir(directory, { recursive: true })
+  const quote = (arg: string) => process.platform === "win32" ? `"${arg}"` : `'${arg.replaceAll("'", "'\\''")}'`
+  await writeFile(join(directory, process.platform === "win32" ? "bun.cmd" : "bun"),
+    process.platform === "win32"
+      ? `@echo off\r\nset "BUN_BE_BUN="\r\n${command.map(quote).join(" ")} %*\r\nexit /b %errorlevel%\r\n`
+      : `#!/bin/sh\nunset BUN_BE_BUN\nexec ${command.map(quote).join(" ")} "$@"\n`, { mode: 0o755 })
+  return directory
+}
 
 export function bunWorkingDirectory(args: string[]): string {
   let directory = process.cwd()
