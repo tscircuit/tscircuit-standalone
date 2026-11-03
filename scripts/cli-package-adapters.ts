@@ -47,6 +47,54 @@ function preferBundledRuntimeModules(source: string) {
   )
 }
 
+/** Route the published CLI's Bun commands without changing other managers. */
+export function routeCliBunCalls(source: string, required = false) {
+  if (!source.includes("function getPackageManager(")) {
+    if (required) throw new Error("Published CLI package manager has changed")
+    return { source, usesRuntime: false }
+  }
+  const file = ts.createSourceFile("cli.js", source, ts.ScriptTarget.Latest, true)
+  const edits: { start: number; end: number; text: string }[] = []
+  let probes = 0
+  let commands = 0
+  const visit = (node: ts.Node, scope = "") => {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === "detectPackageManager")
+      scope = "probe"
+    if ((ts.isFunctionDeclaration(node) && node.name?.text === "getPackageManager") ||
+      (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === "getGlobalDepsInstallCommand"))
+      scope = "commands"
+    if (scope === "probe" && ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) && node.expression.expression.getText(file) === "Bun" &&
+      node.expression.name.text === "spawnSync") {
+      const argument = node.arguments[0]
+      if (argument && ts.isArrayLiteralExpression(argument) &&
+        argument.elements.length === 2 && argument.elements.every(ts.isStringLiteral) &&
+        argument.elements[0]!.text === "bun" && argument.elements[1]!.text === "--version") {
+        edits.push({ start: argument.getStart(file), end: argument.end, text: '__standaloneBunArguments(["--version"])' })
+        probes++
+      }
+    }
+    if (scope === "commands") {
+      if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && node.text.startsWith("bun ")) {
+        edits.push({ start: node.getStart(file), end: node.end, text: `(__standaloneBunCommand() + ${JSON.stringify(node.text.slice(3))})` })
+        commands++
+      } else if (ts.isTemplateExpression(node) && node.head.text.startsWith("bun ")) {
+        const start = node.head.getStart(file) + 1
+        if (source.slice(start, start + 3) !== "bun") throw new Error("Published CLI Bun command prefix has changed")
+        edits.push({ start, end: start + 3, text: "${__standaloneBunCommand()}" })
+        commands++
+      }
+    }
+    ts.forEachChild(node, (child) => visit(child, scope))
+  }
+  visit(file)
+  if (probes !== 1 || commands < 7)
+    throw new Error("Published CLI Bun package-manager calls have changed")
+  for (const edit of edits.sort((a, b) => b.start - a.start))
+    source = source.slice(0, edit.start) + edit.text + source.slice(edit.end)
+  return { source, usesRuntime: true }
+}
+
 /** Resolve version queries while node_modules still exists on the build host. */
 export async function inlineCliDependencyVersions(
   source: string,
@@ -128,10 +176,16 @@ export const cliPackageAdapters: Bun.BunPlugin = {
         )
         // Compiled Bun cannot load the project's import-only package exports.
         // Keep the CLI and authored TSX on the same registered engine/React.
-        const adapted = await inlineCliDependencyVersions(
-          preferBundledRuntimeModules(source),
+        const routed = routeCliBunCalls(source, path.endsWith("/main.js"))
+        let adapted = await inlineCliDependencyVersions(
+          preferBundledRuntimeModules(routed.source),
           (packageName) => getPackageVersion(packageName, dirname(runtimeManifest)),
         )
+        if (routed.usesRuntime) {
+          const runtimeImport = `import { getInternalBunArguments as __standaloneBunArguments, getInternalBunCommandPrefix as __standaloneBunCommand } from ${JSON.stringify(resolve("lib/internal-bun.ts"))};\n`
+          const offset = adapted.startsWith("#!") ? adapted.indexOf("\n") + 1 : 0
+          adapted = adapted.slice(0, offset) + runtimeImport + adapted.slice(offset)
+        }
         return {
           // Only the main entry embeds RunFrame as a JavaScript string.
           contents: path.endsWith("/main.js")

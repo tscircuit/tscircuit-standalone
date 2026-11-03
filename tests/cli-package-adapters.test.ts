@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { embedCliEvalWorker, inlineCliDependencyVersions } from "../scripts/cli-package-adapters"
+import { embedCliEvalWorker, inlineCliDependencyVersions, routeCliBunCalls } from "../scripts/cli-package-adapters"
 
 test("published CLI worker embedding preserves the surrounding JavaScript and asset quoting", () => {
   const asset =
@@ -15,6 +15,41 @@ test("published CLI worker embedding preserves the surrounding JavaScript and as
   expect(result.asset).toContain('atob("d29ya2Vy")')
   expect(result.asset).toContain("user's circuit")
   expect(result.asset).not.toContain("<--INJECT_")
+})
+
+test("standalone routes Bun operations while preserving other package managers and metadata", () => {
+  const source = `
+    function detectPackageManager() { return Bun.spawnSync(["bun", "--version"], { stdout: "ignore" }).exitCode; }
+    function getPackageManager(name) {
+      return [\`bun remove \${name}\`, \`bun add \${name}\`, \`bun update \${name}\`,
+        "bun init -y", "bun install", \`bun add -d \${name}\`, \`bun add \${name}\`, "npm install"];
+    }
+    var getGlobalDepsInstallCommand = (deps) => \`bun install -g \${deps}\`;
+    const metadata = { scripts: { build: "bun build index.ts" } };
+    return { commands: getPackageManager("fixture"), global: getGlobalDepsInstallCommand("agent"), probe: detectPackageManager(), metadata };
+  `
+  const routed = routeCliBunCalls(source, true)
+  const spawn = (args: string[]) => {
+    expect(args).toEqual(["/standalone", "internal", "bun", "--version"])
+    return { exitCode: 0 }
+  }
+  const result = new Function("__standaloneBunCommand", "__standaloneBunArguments", "Bun", routed.source)(
+    () => "'/standalone' internal bun",
+    (args: string[]) => ["/standalone", "internal", "bun", ...args],
+    { spawnSync: spawn },
+  )
+  expect(routed.usesRuntime).toBe(true)
+  expect(result.commands).toEqual([
+    "'/standalone' internal bun remove fixture", "'/standalone' internal bun add fixture",
+    "'/standalone' internal bun update fixture", "'/standalone' internal bun init -y",
+    "'/standalone' internal bun install", "'/standalone' internal bun add -d fixture",
+    "'/standalone' internal bun add fixture", "npm install",
+  ])
+  expect(result.global).toBe("'/standalone' internal bun install -g agent")
+  expect(result.metadata.scripts.build).toBe("bun build index.ts")
+  expect(result.probe).toBe(0)
+  expect(() => routeCliBunCalls("function renamedManager() {}", true)).toThrow("has changed")
+  expect(() => routeCliBunCalls("function getPackageManager() {}", true)).toThrow("have changed")
 })
 
 test("changed published CLI asset layouts fail during the build", () => {

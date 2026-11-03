@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { jscdnAssets } from "./generated-jscdn-assets"
 import { bakedAssets } from "./generated-baked-assets"
+import { getInternalBunCommandPrefix } from "./internal-bun"
 
 export async function setupStandaloneEnvironment() {
   // Bun 1.3's embedded files are readable individually, but not as a directory.
@@ -26,6 +27,7 @@ export async function setupStandaloneEnvironment() {
     return root
   }
   process.env.TSCIRCUIT_STANDALONE = "1"
+  process.env.TSCIRCUIT_NODE_RUNTIME = getInternalBunCommandPrefix()
   process.env.TSCI_SKIP_CLI_UPDATE = "true"
   process.env.TSCI_TELEMETRY_DISABLED = "true"
   process.env.TSCI_SKIP_SKILL_SETUP = "true"

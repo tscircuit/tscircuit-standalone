@@ -5,6 +5,7 @@ import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { chromium } from "playwright"
 import packageMetadata from "../package.json"
+import { smokeInternalBun } from "./smoke-internal-bun"
 
 const binary = resolve(
   process.platform === "win32" ? "dist/tsci.exe" : "dist/tsci",
@@ -41,6 +42,7 @@ let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined
 try {
   assert.equal(run(["--version"]).trim(), packageMetadata.version)
   assert.match(run(["--help"]), /CLI for developing tscircuit packages/)
+  await smokeInternalBun(binary)
   run(["init", "initialized", "--yes", "--no-install"])
   for (const skillPath of [".claude/skills/tscircuit", ".agents/skills/tscircuit"]) {
     assert.ok(!existsSync(join(projectDir, "initialized", skillPath)))
