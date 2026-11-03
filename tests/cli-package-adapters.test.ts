@@ -19,7 +19,7 @@ test("published CLI worker embedding preserves the surrounding JavaScript and as
 
 test("standalone forces bundled Bun while preserving package command arguments and metadata", () => {
   const source = `
-    function detectPackageManager() { return Bun.spawnSync(["bun", "--version"], { stdout: "ignore" }).exitCode; }
+    function detectPackageManager() { throw new Error("Standalone probed a system package manager"); }
     function getPackageManager(name) {
       const pm = detectPackageManager();
       return [\`bun remove \${name}\`, \`bun add \${name}\`, \`bun update \${name}\`,
@@ -27,20 +27,10 @@ test("standalone forces bundled Bun while preserving package command arguments a
     }
     var getGlobalDepsInstallCommand = (deps) => \`bun install -g \${deps}\`;
     const metadata = { scripts: { build: "bun build index.ts" } };
-    return { commands: getPackageManager("fixture"), global: getGlobalDepsInstallCommand("agent"), probe: detectPackageManager(), metadata };
+    return { commands: getPackageManager("fixture"), global: getGlobalDepsInstallCommand("agent"), metadata };
   `
   const routed = routeCliBunCalls(source, true)
-  const spawn = (args: string[]) => {
-    expect(args).toEqual(["/standalone", "internal", "bun", "--version"])
-    return { exitCode: 0 }
-  }
-  const result = new Function("__standaloneBunCommand", "__standaloneBunArguments", "Bun", routed.source)(
-    () => "'/standalone' internal bun",
-    (args: string[]) => ["/standalone", "internal", "bun", ...args],
-    { spawnSync: spawn },
-  )
-  expect(routed.usesRuntime).toBe(true)
-  expect(routed.source).toContain('const pm = "bun"')
+  const result = new Function("process", routed)({ env: { TSCIRCUIT_NODE_RUNTIME: "'/standalone' internal bun" } })
   expect(result.commands).toEqual([
     "'/standalone' internal bun remove fixture", "'/standalone' internal bun add fixture",
     "'/standalone' internal bun update fixture", "'/standalone' internal bun init -y",
@@ -49,7 +39,6 @@ test("standalone forces bundled Bun while preserving package command arguments a
   ])
   expect(result.global).toBe("'/standalone' internal bun install -g agent")
   expect(result.metadata.scripts.build).toBe("bun build index.ts")
-  expect(result.probe).toBe(0)
   expect(() => routeCliBunCalls("function renamedManager() {}", true)).toThrow("has changed")
   expect(() => routeCliBunCalls("function getPackageManager() {}", true)).toThrow("have changed")
 })

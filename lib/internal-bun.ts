@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url"
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { basename, delimiter, join } from "node:path"
+import { delimiter, join } from "node:path"
 import { bunProjectDirectory, writeBunLauncher } from "./bun-shell"
 
 declare const TSCIRCUIT_STANDALONE_COMPILED: boolean
@@ -52,21 +52,12 @@ export async function runInternalBun(args: string[]): Promise<number> {
     const { getBundledBunCache, seedBundledLockfile, bundledPackageSpec, bundledRegistry } = await import("./bundled-bun-cache")
     cache = await getBundledBunCache()
     registry = bundledRegistry
-    const directory = await bunProjectDirectory(args)
-    if (command === "init") {
-      // Bun init performs its own automatic install. The shared CLI only needs
-      // package.json here; keep that initialization on our cache-only path.
-      if (args.some(arg => !["init", "-y", "--yes"].includes(arg)))
-        throw new Error("Use tsci init to create an offline tscircuit project")
-      await mkdir(directory, { recursive: true })
-      await writeFile(join(directory, "package.json"), JSON.stringify({ name: basename(directory), private: true, type: "module" }, null, 2), { flag: "wx" }).catch(error => { if (error.code !== "EEXIST") throw error })
-      return 0
-    }
-    if (command) {
+    if (packageOperation && command !== "init" && !args.includes("--global") && !args.includes("-g"))
+      cleanup = await seedBundledLockfile(await bunProjectDirectory(args))
+    if (["install", "i", "add", "a", "update", "up"].includes(command ?? "")) {
       args = args.map((arg, i) => i > commandIndex && !valueFlags.has(args[i - 1]!) ? bundledPackageSpec(arg) : arg)
-      if (!args.includes("--global") && !args.includes("-g")) cleanup = await seedBundledLockfile(directory)
     }
-    if (packageOperation) args = ["--offline", "--ignore-scripts", `--cache-dir=${cache}`, `--registry=${registry}`, ...args]
+    if (packageOperation && command !== "init") args = ["--offline", "--ignore-scripts", `--cache-dir=${cache}`, `--registry=${registry}`, ...args]
   }
   const directory = informational ? undefined : await mkdtemp(join(tmpdir(), "tsci-bun-launcher-"))
   if (directory) await writeBunLauncher(directory, getInternalBunArguments([]))

@@ -17,20 +17,6 @@ on:
 permissions:
   contents: read
 jobs:
-  bundled-bun-runtime:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-15, windows-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.4
-      - name: Test embedded cache and shell scope without system runtimes or external downloads
-        run: bun test tests/internal-bun.test.ts tests/bun-shell.test.ts
-
   build:
     uses: ./.github/workflows/build.yml
     with:

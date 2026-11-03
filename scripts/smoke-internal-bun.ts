@@ -40,7 +40,7 @@ export async function smokeInternalBun(sourceBinary: string) {
   const run = async (args: string[], cwd = directory) => {
     const result = await execute([binary, ...args], cwd)
     assert.equal(result.status, 0, `${args.join(" ")}:\n${result.stdout}\n${result.stderr}`)
-    return result.stdout
+    return args[0] === "init" ? result.stdout + result.stderr : result.stdout
   }
   try {
     const version = (await run(["--version"])).trim()
@@ -53,9 +53,12 @@ export async function smokeInternalBun(sourceBinary: string) {
     assert.ok(existsSync(join(project, "bun.lock")))
     assert.equal(existsSync(marker), false, "Standalone invoked system Bun")
     await run(["add", "sucrase@3.35.1"], project)
+    await run(["remove", "sucrase"], project)
     const manifestPath = join(project, "package.json")
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+    assert.equal(manifest.dependencies?.sucrase, undefined)
     manifest.dependencies = { ...manifest.dependencies, fflate: "0.8.3" }
+    manifest.scripts = { ...manifest.scripts, reinstall: "bun install", react: "echo SCRIPT_NAME_PRESERVED", postinstall: "exit 99" }
     await writeFile(manifestPath, JSON.stringify(manifest))
     await rm(join(project, "node_modules"), { recursive: true, force: true })
     // A plain install must stay offline even when .npmrc points at a live trap.
@@ -80,11 +83,20 @@ export async function smokeInternalBun(sourceBinary: string) {
     assert.match(shellResult.stdout, /MANUAL_INSTALL_OK/)
     assert.ok(existsSync(marker), "The shell wrapper did not delegate to system Bun outside the project")
     assert.equal(JSON.parse(await readFile(join(project, "node_modules/fflate/package.json"), "utf8")).version, "0.8.3")
+    const lockfile = await readFile(join(project, "bun.lock"), "utf8")
+    assert.match(await run(["internal", "bun", "run", "react"], project), /SCRIPT_NAME_PRESERVED/)
+    assert.equal(await readFile(join(project, "bun.lock"), "utf8"), lockfile)
+    await run(["internal", "bun", "run", "reinstall"], project)
     const missing = await execute([binary, "internal", "bun", "add", "standalone-intentionally-uncached-package@1.0.0"], project)
     assert.notEqual(missing.status, 0)
     assert.match(missing.stderr, /offline|bundled cache/i)
     const urlMiss = await execute([binary, "internal", "bun", "add", `${trap.url.origin}/uncached.tgz`], project)
     assert.notEqual(urlMiss.status, 0)
+    manifest.dependencies["standalone-intentionally-uncached-package"] = "1.0.0"
+    await writeFile(manifestPath, JSON.stringify(manifest))
+    const scriptMiss = await execute([binary, "internal", "bun", "run", "reinstall"], project)
+    assert.notEqual(scriptMiss.status, 0)
+    assert.match(scriptMiss.stderr, /--offline/)
     assert.deepEqual(requests, [], "A package operation attempted a network request")
     assert.equal((await run(["--version"])).trim(), version)
     console.log("Bundled cache: default init, add and manual shell install passed; cache misses made no requests; system Bun is preserved outside projects.")

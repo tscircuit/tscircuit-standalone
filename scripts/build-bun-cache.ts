@@ -22,7 +22,6 @@ export async function buildBunCache() {
   const roots: Record<string, string> = {
     ...root.dependencies,
     "@types/react": ui.devDependencies["@types/react"],
-    "@types/bun": root.devDependencies["@types/bun"],
   }
   await writeFile(join(project, "package.json"), JSON.stringify({
     name: "tscircuit-bundled-dependencies", private: true, dependencies: roots,
