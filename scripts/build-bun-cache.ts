@@ -40,7 +40,11 @@ export async function packBunCache(cache: string, output: string) {
         const absoluteTarget = await realpath(full)
         const target = portable(relative(dirname(full), absoluteTarget))
         const resolved = relative(cache, absoluteTarget)
-        if (isAbsolute(resolved) || resolved === ".." || resolved.startsWith(`..${sep}`)) {
+        if (
+          isAbsolute(resolved) ||
+          resolved === ".." ||
+          resolved.startsWith(`..${sep}`)
+        ) {
           throw new Error(`Cache link escapes the cache: ${key}`)
         }
         metadata.links[key] = {

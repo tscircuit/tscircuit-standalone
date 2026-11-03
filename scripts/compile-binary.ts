@@ -4,8 +4,19 @@ import { binaryTargets, validateBinaryTarget } from "./binary-targets"
 
 /** Compile the shared CLI and prepared assets, without fetching packages. */
 export async function compileBinary(): Promise<string> {
+  // Until the companion CLI release is pinned, fail before producing a binary
+  // that would silently ignore the explicit runtime and use a system manager.
+  const cliSource = await Bun.file(
+    Bun.resolveSync("@tscircuit/cli", process.cwd()),
+  ).text()
+  if (!cliSource.includes("TSCIRCUIT_NODE_RUNTIME")) {
+    throw new Error(
+      "@tscircuit/cli must support TSCIRCUIT_NODE_RUNTIME. Install the companion CLI release before building standalone.",
+    )
+  }
   const expectedBun = (await Bun.file(".bun-version").text()).trim()
-  if (Bun.version !== expectedBun) throw new Error(`Compile with Bun ${expectedBun}, got ${Bun.version}`)
+  if (Bun.version !== expectedBun)
+    throw new Error(`Compile with Bun ${expectedBun}, got ${Bun.version}`)
   const target = process.env.BUN_BUILD_TARGET
   validateBinaryTarget(target)
   for (const path of [

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { existsSync } from "node:fs"
 import { mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
@@ -38,10 +39,6 @@ const run = async (args: string[], cwd = directory, success = true) => {
         ? {
             SystemRoot: process.env.SystemRoot,
             TEMP: process.env.TEMP,
-            // node:child_process needs the Windows shell even with no package
-            // managers on PATH. ComSpec supplies cmd.exe's absolute location.
-            ComSpec: process.env.ComSpec,
-            PATHEXT: process.env.PATHEXT,
           }
         : {}),
       PATH: directory,
@@ -108,6 +105,7 @@ try {
     project,
     false,
   )
+  assert.equal(existsSync(join(directory, "cache", "launchers")), false)
   console.log(
     `Compiled init/install/add passed with an empty package-manager PATH and a restored native cache${trace ? "; zero non-loopback connection/send attempts, including cache misses" : ""}.`,
   )

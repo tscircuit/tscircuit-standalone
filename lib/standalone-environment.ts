@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { jscdnAssets } from "./generated-jscdn-assets"
 import { bunCache } from "./generated-bun-cache"
-import { setupPrivateBun, privateBunDirectory } from "./native-bun"
+import { setupNativeBun } from "./native-bun"
 import { bakedAssets } from "./generated-baked-assets"
 
 export async function setupStandaloneEnvironment() {
@@ -27,7 +27,7 @@ export async function setupStandaloneEnvironment() {
     }
     return root
   }
-  await setupPrivateBun(await privateBunDirectory(bunCache))
+  await setupNativeBun(bunCache, directory)
   process.env.TSCIRCUIT_STANDALONE = "1"
   process.env.TSCI_SKIP_CLI_UPDATE = "true"
   process.env.TSCI_TELEMETRY_DISABLED = "true"

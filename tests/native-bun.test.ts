@@ -1,5 +1,12 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
-import { mkdtemp, mkdir, rm, writeFile, readFile, symlink } from "node:fs/promises"
+import {
+  mkdtemp,
+  mkdir,
+  rm,
+  writeFile,
+  readFile,
+  symlink,
+} from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { packBunCache } from "../scripts/build-bun-cache"
@@ -75,16 +82,22 @@ beforeAll(async () => {
   const nativeModule = JSON.stringify(resolve("lib/native-bun.ts"))
   await writeFile(
     join(root, "entry.ts"),
-    `import { execSync } from 'node:child_process'
-import { isPrivateBun, runNativeBun, setupPrivateBun } from ${nativeModule}
+    `import { setupNativeBun } from ${nativeModule}
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import archive from './cache.tar.gz' with { type: 'file' }
-if (isPrivateBun()) {
-  try { process.exitCode = await runNativeBun({ archive, id:'fixture', bunVersion:${JSON.stringify(Bun.version)} }) }
-  catch(e) { console.error(e.message); process.exitCode=1 }
-} else {
-  await setupPrivateBun(process.argv[2])
-  execSync('bun --version', { stdio: 'inherit' })
-}`,
+const originalPath = process.env.PATH
+const originalAgent = process.env.npm_config_user_agent
+const configDirectory = await mkdtemp(join(tmpdir(), 'tsci-config-'))
+await setupNativeBun({ archive, id:'fixture', bunVersion:${JSON.stringify(Bun.version)} }, configDirectory)
+if (process.env.PATH !== originalPath || process.env.npm_config_user_agent !== originalAgent || process.env.BUN_BE_BUN) throw Error('Parent environment changed')
+const child = Bun.spawn([process.env.TSCIRCUIT_NODE_RUNTIME, ...JSON.parse(process.env.TSCIRCUIT_NODE_RUNTIME_ARGS), ...process.argv.slice(2)], {
+  env: { ...process.env, BUN_BE_BUN:'1' }, stdin:'inherit', stdout:'inherit', stderr:'inherit'
+})
+process.exitCode = await child.exited
+await rm(configDirectory, { recursive:true, force:true })
+`,
   )
   binary = join(root, process.platform === "win32" ? "tsci.exe" : "tsci")
   const build = await Bun.build({
@@ -102,19 +115,18 @@ if (isPrivateBun()) {
     ])
     expect(signing.exitCode).toBe(0)
   }
-  // Exercise launcher creation and subprocess discovery, including Windows .exe.
-  const setup = Bun.spawn([binary, join(root, "launcher")], {
-    env: { ...process.env, PATH: "" },
+  // The executable invokes its embedded Bun directly, even with no Bun on PATH.
+  const setup = Bun.spawn([binary, "--version"], {
+    env: {
+      ...process.env,
+      PATH: "",
+      TSCIRCUIT_CACHE_DIR: join(root, "restored-cache"),
+    },
     stdout: "pipe",
     stderr: "pipe",
   })
   expect(await setup.exited, await new Response(setup.stderr).text()).toBe(0)
   expect((await new Response(setup.stdout).text()).trim()).toBe(Bun.version)
-  binary = join(
-    root,
-    "launcher/bin",
-    process.platform === "win32" ? "bun.exe" : "bun",
-  )
   requests = 0
 }, 60_000)
 
@@ -135,6 +147,10 @@ async function run(
     JSON.stringify({ dependencies, ...extra }),
   )
   await writeFile(join(cwd, ".npmrc"), `registry=${server.url}\n`)
+  await writeFile(
+    join(cwd, "bunfig.toml"),
+    "[install]\noffline = false\nignoreScripts = false\n",
+  )
   const child = Bun.spawn([binary, ...args], {
     cwd,
     env: {
@@ -168,9 +184,9 @@ test("cache links to a different directory are still rejected", async () => {
   const cache = join(root, "escaping-cache")
   await mkdir(cache)
   await symlink(join(root, "seed"), join(cache, "outside"), "junction")
-  await expect(packBunCache(cache, join(root, "escaping.tar.gz"))).rejects.toThrow(
-    "Cache link escapes the cache",
-  )
+  await expect(
+    packBunCache(cache, join(root, "escaping.tar.gz")),
+  ).rejects.toThrow("Cache link escapes the cache")
 })
 
 test("native add and remove use the same offline cache", async () => {
@@ -209,10 +225,4 @@ test("lifecycle scripts cannot make their own outbound requests", async () => {
       join(result.cwd, "node_modules/tsci-cache-fixture/lifecycle-ran"),
     ).exists(),
   ).toBe(false)
-})
-
-test("private launcher rejects commands and flags that bypass the offline policy", async () => {
-  expect((await run(["upgrade"])).code).toBe(1)
-  expect((await run(["install", "--offline=false"])).code).toBe(1)
-  expect((await run(["install", "--no-ignore-scripts"])).code).toBe(1)
 })

@@ -1,18 +1,15 @@
 import {
   chmod,
   copyFile,
-  link,
   mkdir,
   mkdtemp,
   readFile,
   rename,
-  stat,
   rm,
   symlink,
   writeFile,
 } from "node:fs/promises"
-import { basename, delimiter, dirname, join, posix } from "node:path"
-import { createHash } from "node:crypto"
+import { dirname, join, posix, resolve } from "node:path"
 import { homedir } from "node:os"
 
 export interface EmbeddedBunCache {
@@ -26,9 +23,6 @@ interface CacheMetadata {
   links: Record<string, { target: string; directory: boolean }>
 }
 
-export const isPrivateBun = () =>
-  ["bun", "bun.exe"].includes(basename(process.execPath).toLowerCase())
-
 export function nativeCacheDirectory(bundle: EmbeddedBunCache) {
   const root =
     process.env.TSCIRCUIT_CACHE_DIR ??
@@ -38,22 +32,7 @@ export function nativeCacheDirectory(bundle: EmbeddedBunCache) {
           process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"),
           "tscircuit",
         ))
-  return join(root, `bun-${bundle.bunVersion}-${bundle.id}`)
-}
-
-// Keep the launcher outside the extracted cache. On different filesystems a
-// hardlink needs a copy fallback; cache that copy instead of repeating it per command.
-export async function privateBunDirectory(bundle: EmbeddedBunCache) {
-  const info = await stat(process.execPath)
-  const executableId = createHash("sha256")
-    .update(`${process.execPath}:${info.size}:${info.mtimeMs}`)
-    .digest("hex")
-    .slice(0, 24)
-  return join(
-    dirname(nativeCacheDirectory(bundle)),
-    "launchers",
-    `${bundle.id}-${executableId}`,
-  )
+  return resolve(root, `bun-${bundle.bunVersion}-${bundle.id}`)
 }
 
 const safeRelative = (name: string) => {
@@ -123,92 +102,19 @@ export async function restoreBunCache(
   return destination
 }
 
-/** Make normal CLI package-manager discovery find this executable, not a system Bun. */
-export async function setupPrivateBun(
-  directory: string,
-  executable = process.execPath,
-) {
-  const bin = join(directory, "bin")
-  await mkdir(bin, { recursive: true })
-  const launcher = join(bin, process.platform === "win32" ? "bun.exe" : "bun")
-  if (!(await Bun.file(launcher).exists())) {
-    const staging = await mkdtemp(join(bin, ".launcher-"))
-    const staged = join(staging, basename(launcher))
-    try {
-      try {
-        await link(executable, staged)
-      } catch {
-        await copyFile(executable, staged)
-      }
-      try {
-        await rename(staged, launcher)
-      } catch (error) {
-        if (!(await Bun.file(launcher).exists())) throw error
-      }
-    } finally {
-      await rm(staging, { recursive: true, force: true })
-    }
-  }
-  process.env.PATH = `${bin}${delimiter}${process.env.PATH ?? ""}`
-  process.env.npm_config_user_agent = `bun/${Bun.version}`
-  return launcher
-}
-
-export async function runNativeBun(
+/** Select the embedded runtime directly; PATH and the user's Bun stay untouched. */
+export async function setupNativeBun(
   bundle: EmbeddedBunCache,
-  args = process.argv.slice(2),
+  configDirectory: string,
 ) {
-  const command = args[0]
-  const informational =
-    args.length === 1 &&
-    ["--version", "-v", "--revision", "--help", "-h"].includes(command ?? "")
-  if (
-    !informational &&
-    ![
-      "install",
-      "i",
-      "add",
-      "a",
-      "remove",
-      "rm",
-      "uninstall",
-      "update",
-    ].includes(command ?? "")
-  ) {
-    throw new Error(
-      `Standalone's private Bun launcher does not support ${command ?? "an empty command"}`,
-    )
-  }
-  // Force flags before positional arguments (including --), and do not let callers
-  // disable offline mode. Lifecycle scripts can perform their own networking.
-  if (
-    args.some((arg) =>
-      /^--(?:no-offline|offline=|no-ignore-scripts|ignore-scripts=)/.test(arg),
-    )
-  ) {
-    throw new Error(
-      "Standalone package installation must remain offline with scripts disabled",
-    )
-  }
-  const cache = informational ? undefined : await restoreBunCache(bundle)
-  const child = Bun.spawn(
-    [
-      process.execPath,
-      ...(informational
-        ? args
-        : [command!, "--offline", "--ignore-scripts", ...args.slice(1)]),
-    ],
-    {
-      cwd: process.cwd(),
-      env: {
-        ...process.env,
-        BUN_BE_BUN: "1",
-        ...(cache ? { BUN_INSTALL_CACHE_DIR: cache } : {}),
-      },
-      stdin: "inherit",
-      stdout: "inherit",
-      stderr: "inherit",
-    },
+  const cache = await restoreBunCache(bundle)
+  const config = join(configDirectory, "bunfig.toml")
+  await writeFile(
+    config,
+    `[install]\noffline = true\nignoreScripts = true\n[install.cache]\ndir = ${JSON.stringify(cache)}\n`,
   )
-  return child.exited
+  process.env.TSCIRCUIT_NODE_RUNTIME = process.execPath
+  process.env.TSCIRCUIT_NODE_RUNTIME_ARGS = JSON.stringify([
+    `--config=${config}`,
+  ])
 }
