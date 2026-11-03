@@ -12,15 +12,11 @@ the CLI's temporary directory. The config sets `install.offline = true`,
 handles resolution, installation, lockfiles and removal. These settings do not
 change the user's project/global bunfig or independently invoked system Bun.
 
-## Companion CLI release
+## CLI runtime support
 
-This revision depends on [CLI PR #5671](https://github.com/tscircuit/cli/pull/5671).
-The shared CLI must support explicit runtime selection before standalone's
-`@tscircuit/cli` dependency is upgraded. The current published dependency pin
-predates that support, so the standalone PR remains draft. Compilation rejects
-an older CLI rather than producing a binary that falls back to a system manager.
-The combined executable is tested locally with the companion CLI build; a
-published CLI version must be pinned before release and native-platform CI.
+Standalone pins `@tscircuit/cli@0.1.2430`, which includes
+[CLI PR #5671](https://github.com/tscircuit/cli/pull/5671). This published release
+supports explicit runtime selection for startup and package operations.
 
 The CLI contract is a Bun-compatible executable plus optional JSON argv. It has
 no knowledge of standalone's cache transport, archive, or offline policy. With
@@ -86,5 +82,5 @@ and Windows CI.
 `scripts/smoke-offline-install.ts` tests the actual standalone executable with
 no package manager on PATH: init, reinstall, add, cache misses, and absence of
 private launcher files. Linux traces reject non-loopback connection/send attempts.
-Existing compiled build, browser, native macOS/Windows and installer qualification
-remains enabled once the companion CLI release is pinned.
+Compiled build, browser, native macOS/Windows and installer qualification run
+against the pinned published CLI release.
