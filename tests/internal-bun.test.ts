@@ -81,7 +81,9 @@ test("compiled internal Bun works without a host runtime and preserves process b
       "stdin payload",
     )
     expect(script.exitCode).toBe(0)
-    expect(JSON.parse(script.stdout.toString())).toEqual({
+    const scriptOutput = JSON.parse(script.stdout.toString())
+    // Windows can report an 8.3 alias for the same working directory.
+    expect({ ...scriptOutput, cwd: await realpath(scriptOutput.cwd) }).toEqual({
       args,
       cwd: await realpath(directory),
       input: "stdin payload",
