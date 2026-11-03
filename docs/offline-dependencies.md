@@ -1,57 +1,81 @@
-# Offline init and install
+# Native Bun cache and offline installation
 
-The standalone build now prepares an installable dependency archive in addition
-to its runtime/browser bundles. `scripts/build-dependency-bundle.ts` creates an
-isolated starter project with the exact installed versions of tscircuit,
-TypeScript, React and React types, resolves a hoisted tree on the release builder,
-and packages it with per-file hashes and its Bun lockfile. All OS/CPU optional
-packages are requested so cross-compilation does not ship only the build host's
-native dependencies. Lifecycle scripts are disabled.
+Standalone uses Bun 1.4.4's package manager and native cache. The shared CLI is
+unchanged: its normal `bun install`, `bun add`, and `bun remove` subprocesses find
+a private launcher on PATH. That launcher is a hardlink (or a cached copy) of the
+standalone executable, named `bun` / `bun.exe`. It re-enters the embedded runtime
+with `BUN_BE_BUN=1`, enforcing `--offline --ignore-scripts`. It does not implement
+package resolution, installation, dependency validation, or project scaffolding.
 
-The build must use a shared CLI version containing the
-`TSCIRCUIT_DEPENDENCY_BUNDLE` backend. **The currently pinned published CLI does
-not contain this change.** Land/release the companion CLI change first, then
-update `@tscircuit/cli` and `bun.lock` here. Compilation deliberately rejects the
-old CLI instead of producing an executable that still invokes Bun/npm.
+All build and test jobs pin Bun 1.4.4, the latest stable release verified on
+2026-11-03. `.bun-version` records the local build version. The existing vendored
+1.4.4 runtime license metadata is reused. Strict install `--offline` requires
+Bun 1.4.1 or newer; `--prefer-offline` alone permits downloads on cache misses.
+The `altiumts` override selects the published 0.0.59 package already used by the
+UI, avoiding the Git package's missing build output in the newer isolated linker.
 
-The archive and generated import are prepared once and shared with every target
-build. Startup passes the embedded archive path to the CLI; only init/install read its
-bytes. The CLI installs into
-project-local `node_modules`, so dependencies remain usable after the process's
-temporary directory is removed. Runtime installation does not execute package
-scripts, contact registries, or discover a system package manager. The release
-license inventory includes packages inside the archive as well as compiler inputs.
+## Preparing the native cache
 
-Behavior and archive format are documented in the companion CLI's
-`docs/standalone-dependencies.md`. Missing packages/versions fail locally; the
-initial backend installs the whole release tree and supports only that resolved
-graph. Existing unmanaged `node_modules` must be moved aside by the user.
+`scripts/build-bun-cache.ts` uses the pinned Bun to warm an isolated cache during
+release preparation. It installs the default init requirements (`tscircuit` and
+React types at `latest`, TypeScript at `^5`) and the explicitly selected runtime
+release. All OS/CPU optional packages are requested. Lifecycle scripts are never
+run. It records each seed project's Bun lockfile for review/reproduction.
 
-## Qualification and cost
+The archive contains native package directories and binary registry manifests,
+without changing their contents. Cache index links are made relative for
+portability. Small transport metadata preserves executable modes and links;
+Windows restores directory links as junctions and file links as copies, without
+requiring developer mode. Distribution notices include the cached packages.
+The prepared archive and manifests are shared across all five target builds.
 
-Local prototype measurement using tscircuit 0.0.3031-libonly, TypeScript 5.9.3,
-React 19.3.1 and React types 19.3.0: 293 top-level packages, 19,279 regular files,
-25 executable links, and a 190,070,183-byte ZIP (about 181 MiB). This is additional
-payload beyond the compiled runtime. Exact size and package graph depend on the
-selected release. A separate enterprise dependency pack or a narrower types-only
-SDK would reduce the base installer size but would change the installation
-contract; this implementation bundles the complete installable tree.
+The captured `latest` tag is the registry snapshot at cache preparation time;
+it may differ from a manually selected older runtime release. Both are cached.
+The embedded circuit engine remains the standalone release's selected version.
+A later clean preparation can resolve newer transitive versions or tags: retain
+the prepared archive and seed lockfiles for an exact release record. This cache
+is a release snapshot, not an online update channel.
 
-The first preparation resolves transitive version ranges; the resulting lockfile
-and archive freeze that resolution for all platform artifacts in that release.
-A later clean preparation may select different transitive versions. For exact
-rebuilds, retain the prepared project lockfile and use a frozen install against it.
-Compare the prepared engine graph to the runtime graph during release qualification.
+## Running offline
 
-Before release, qualify the compiled binary on supported native platforms, with
-empty caches, no package manager on PATH, and outbound networking denied and
-monitored. Run init, reinstall after deleting node_modules, supported package
-addition, missing package/version rejection, and starter build. Include interactive
-init (update-check path), corrupt archive recovery and Windows executable shims.
-Packages needing lifecycle scripts must be qualified or excluded explicitly;
-this backend never runs those scripts. Executing a Node tool from node_modules
-still requires Node even though tsci itself is a standalone executable.
+The cache is restored lazily on the first package operation into a versioned,
+archive-specific user cache directory. Extraction is staged and renamed; concurrent
+processes can reuse the winning completed extraction. Later commands reuse it.
+`TSCIRCUIT_CACHE_DIR` overrides the default user cache root. Private launcher copies
+are also cached so a cross-filesystem copy is not repeated on every command.
+Neither Bun nor npm needs to be installed separately or exposed on the user's PATH.
 
-Source-CLI tests with fetch recording and empty PATH are useful regression checks,
-but do not replace OS-level DNS/socket monitoring or native binary qualification.
-Directly invoked Bun/npm commands remain outside tsci's control.
+Missing packages, unavailable versions, uncached URLs and Git dependencies fail
+locally through Bun. Lifecycle scripts are disabled because they can make their
+own network calls even when the package manager is offline. There is no fallback
+to a system package manager. Project registry settings remain respected; if their
+registry metadata is absent from the bundled cache, installation fails locally.
+
+Cache files remain writable for Bun. If a user removes a required entry, Bun
+reports an offline cache miss. Removing the affected versioned cache directory
+causes standalone to restore it on the next package operation. Package files in
+projects are managed entirely by Bun, including its normal lockfile and cache
+linking behavior.
+
+The existing launcher switches still disable update checks, telemetry, account
+fetches and skill downloads. This feature covers init/install/add/remove and
+package updates. It does not make all circuit-build features offline, intercept
+separately invoked system Bun/npm, or sandbox arbitrary user code. Other Bun
+commands are unavailable through the private launcher.
+
+## Qualification
+
+`tests/native-bun.test.ts` builds a real compiled launcher and a small native cache
+using a loopback fixture registry. It checks discovery with an empty PATH, native
+install/add/remove, cache misses, URL rejection, script suppression and policy
+flags, and verifies that offline operations make zero fixture-registry requests.
+It runs on Linux, macOS and Windows CI.
+
+`scripts/smoke-offline-install.ts` tests the actual distributed executable: default
+init, reinstall after deleting node_modules, package addition, and cache misses,
+with no package manager on PATH. Linux CI runs it in a network namespace with only
+loopback available and uses strace to reject non-loopback connect/send attempts.
+The trace permits the CLI's baked-asset loopback listener and Unix stream sockets
+used for subprocess output. macOS and Windows CI run the native executable smoke
+without Linux syscall tracing. Existing compiled build/browser qualification is
+retained.

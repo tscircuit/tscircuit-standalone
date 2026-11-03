@@ -1,4 +1,6 @@
 import * as tscircuit from "tscircuit"
+// @ts-ignore Resolved from the installed core by the build plugin.
+import * as autorouterRuntime from "@tscircuit/capacity-autorouter/runtime/bun"
 // @ts-ignore Resolved to the existing UI dependency by the build plugin when not hoisted.
 import { initWasm } from "@resvg/resvg-wasm"
 import { jscdnAssets } from "./generated-jscdn-assets"
@@ -11,6 +13,7 @@ const modules: Record<string, Record<string, unknown>> = {
   "react/jsx-runtime": require("react/jsx-runtime"),
   "react/jsx-dev-runtime": require("react/jsx-dev-runtime"),
   tscircuit,
+  "@tscircuit/capacity-autorouter/runtime/bun": autorouterRuntime,
 }
 Bun.plugin({
   name: "standalone-runtime-modules",

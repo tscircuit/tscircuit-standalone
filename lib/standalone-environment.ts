@@ -3,9 +3,9 @@ import { rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { jscdnAssets } from "./generated-jscdn-assets"
+import { bunCache } from "./generated-bun-cache"
+import { setupPrivateBun, privateBunDirectory } from "./native-bun"
 import { bakedAssets } from "./generated-baked-assets"
-
-import { dependencyBundle } from "./generated-dependency-bundle"
 
 export async function setupStandaloneEnvironment() {
   // Bun 1.3's embedded files are readable individually, but not as a directory.
@@ -27,8 +27,7 @@ export async function setupStandaloneEnvironment() {
     }
     return root
   }
-  // Leave the archive embedded; only init/install need to read its bytes.
-  process.env.TSCIRCUIT_DEPENDENCY_BUNDLE = dependencyBundle
+  await setupPrivateBun(await privateBunDirectory(bunCache))
   process.env.TSCIRCUIT_STANDALONE = "1"
   process.env.TSCI_SKIP_CLI_UPDATE = "true"
   process.env.TSCI_TELEMETRY_DISABLED = "true"

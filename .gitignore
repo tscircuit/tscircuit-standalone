@@ -9,4 +9,4 @@ imports/
 !examples/imports/
 !examples/imports/C2040.tsx
 *.tgz
-lib/generated-dependency-bundle.ts
+lib/generated-bun-cache.ts

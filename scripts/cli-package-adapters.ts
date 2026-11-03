@@ -94,6 +94,17 @@ async function getPackageVersion(packageName: string, fromDirectory: string) {
 export const cliPackageAdapters: Bun.BunPlugin = {
   name: "standalone-cli-packages",
   setup(build) {
+    // Core loads this runtime by a computed specifier; register its bundled
+    // exports alongside the other modules used by authored TSX and workers.
+    build.onResolve(
+      { filter: /^@tscircuit\/capacity-autorouter\/runtime\/bun$/ },
+      ({ path }) => ({
+        path: Bun.resolveSync(
+          path,
+          dirname(Bun.resolveSync("@tscircuit/core", resolve("."))),
+        ),
+      }),
+    )
     // Worker entrypoints are shipped in dist but are not public package exports.
     const cliEntries: Record<string, string> = {
       "@tscircuit/cli/build.worker": "build/build.worker.js",
@@ -126,9 +137,6 @@ export const cliPackageAdapters: Bun.BunPlugin = {
           (_call, _quote, specifier: string) =>
             `require(${JSON.stringify(runtimeRequire.resolve(specifier))})`,
         )
-        if (path.endsWith("/main.js") && !source.includes("TSCIRCUIT_DEPENDENCY_BUNDLE")) {
-          throw new Error("The pinned CLI lacks offline dependency installation. Update @tscircuit/cli to a release containing the standalone dependency backend before building.")
-        }
         // Compiled Bun cannot load the project's import-only package exports.
         // Keep the CLI and authored TSX on the same registered engine/React.
         const adapted = await inlineCliDependencyVersions(

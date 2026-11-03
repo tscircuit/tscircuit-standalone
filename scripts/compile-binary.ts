@@ -4,11 +4,14 @@ import { binaryTargets, validateBinaryTarget } from "./binary-targets"
 
 /** Compile the shared CLI and prepared assets, without fetching packages. */
 export async function compileBinary(): Promise<string> {
+  const expectedBun = (await Bun.file(".bun-version").text()).trim()
+  if (Bun.version !== expectedBun) throw new Error(`Compile with Bun ${expectedBun}, got ${Bun.version}`)
   const target = process.env.BUN_BUILD_TARGET
   validateBinaryTarget(target)
   for (const path of [
-    "lib/generated-dependency-bundle.ts",
-    "build/dependencies.zip",
+    "lib/generated-bun-cache.ts",
+    "build/bun-cache.tar.gz",
+    "build/bun-cache.tar.gz.notices.json",
     "lib/generated-jscdn-assets.ts",
     "lib/generated-baked-assets.ts",
     "build/jscdn-metafile.json",

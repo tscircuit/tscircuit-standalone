@@ -50,5 +50,8 @@
   ],
   "trustedDependencies": [
     "altiumts"
-  ]
+  ],
+  "overrides": {
+    "altiumts": "0.0.59"
+  }
 }
