@@ -148,6 +148,13 @@ test("compiled internal Bun works without a host runtime and preserves process b
     await rm(join(project, "node_modules"), { recursive: true })
     const nestedInstall = run(["internal", "bun", "run", "reinstall"])
     expect(nestedInstall.exitCode, nestedInstall.stderr.toString()).toBe(0)
+    const changedManifest = JSON.parse(await readFile(join(project, "package.json"), "utf8"))
+    changedManifest.dependencies = { ...changedManifest.dependencies, "script-only-cache-miss": "1.0.0" }
+    await writeFile(join(project, "package.json"), JSON.stringify(changedManifest))
+    const nestedMiss = run(["internal", "bun", "run", "reinstall"])
+    expect(nestedMiss.exitCode).not.toBe(0)
+    expect(nestedMiss.stderr.toString()).toContain("--offline")
+    expect(fixture.requests).toEqual([])
     const missing = run(["internal", "bun", "add", "not-in-bundled-cache@1.0.0"])
     expect(missing.exitCode).not.toBe(0)
     expect(missing.stderr.toString()).toContain("--offline")

@@ -77,6 +77,8 @@ to replace an existing npm or manually installed `tsci` command.
 
 ## Build from source
 
+Use Bun 1.4.4 to match the bundled cache format and qualified offline behavior.
+
 ```sh
 bun install --frozen-lockfile
 bun run build
