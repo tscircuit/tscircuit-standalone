@@ -18,6 +18,13 @@ if (!metafile.inputs || !metafile.outputs) {
 }
 const graphInputs = { ...metafile.inputs }
 const metafiles = [{ path: projectPath(metafilePath), sha256: sha256(metafileBytes), inputCount: Object.keys(metafile.inputs).length }]
+const cacheMetafilePath = join(projectRoot, "build/bun-cache-metafile.json")
+if (await Bun.file(cacheMetafilePath).exists()) {
+  const bytes = await readFile(cacheMetafilePath)
+  const cacheInputs = JSON.parse(bytes.toString()).inputs
+  Object.assign(graphInputs, cacheInputs)
+  metafiles.push({ path: projectPath(cacheMetafilePath), sha256: sha256(bytes), inputCount: Object.keys(cacheInputs).length })
+}
 const jscdnMetafilePath = join(projectRoot, "build/jscdn-metafile.json")
 if (await Bun.file(jscdnMetafilePath).exists()) {
   const jscdnMetafileBytes = await readFile(jscdnMetafilePath)

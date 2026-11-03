@@ -48,7 +48,7 @@ const replaceSection = (source: string, from: string, to: string, replacement: s
 
 /** Localizes reviewed nested loaders while retaining the real converters. */
 export async function createUiPackageAdapters({ findPackageRoot }: UiPackageAdapterOptions) {
-  const [lbrnRoot, fdmRoot, gltfRoot, manifoldRoot, occtRoot, resvgRoot, threeRoot] = await Promise.all([
+  const [lbrnRoot, fdmRoot, gltfRoot, manifoldRoot, occtRoot, resvgRoot, threeRoot, altiumRoot] = await Promise.all([
     exactPackage(findPackageRoot, "circuit-json-to-lbrn", "0.0.74"),
     exactPackage(findPackageRoot, "circuit-json-to-fdm-component-box", "0.0.4"),
     exactPackage(findPackageRoot, "circuit-json-to-gltf", "0.0.152"),
@@ -56,6 +56,7 @@ export async function createUiPackageAdapters({ findPackageRoot }: UiPackageAdap
     exactPackage(findPackageRoot, "occt-import-js", "0.0.23"),
     exactPackage(findPackageRoot, "@resvg/resvg-wasm", "2.6.2"),
     exactPackage(findPackageRoot, "three", "0.165.0"),
+    exactPackage(findPackageRoot, "altiumts", "0.0.59"),
   ])
 
   const lbrnPath = join(lbrnRoot, "dist/index.js")
@@ -137,6 +138,7 @@ async function ensureWasmInitialized() {
       // STEP also declares a transitive GLTF dependency. Keep its nested import
       // on the same reviewed converter and rasterizer as the UI manifest.
       builder.onResolve({ filter: /^circuit-json-to-gltf$/ }, () => ({ path: join(gltfRoot, "dist/index.js") }))
+      builder.onResolve({ filter: /^altiumts$/ }, () => ({ path: join(altiumRoot, "dist/index.js") }))
       builder.onResolve({ filter: /^standalone:exporter-manifold$/ }, () => ({ path: "exporter-manifold", namespace }))
       builder.onResolve({ filter: /^manifold-3d$/ }, ({ importer }) => {
         if (importer.startsWith(fdmRoot + "/")) return { path: "exporter-manifold", namespace }
