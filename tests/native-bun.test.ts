@@ -75,15 +75,15 @@ beforeAll(async () => {
   const nativeModule = JSON.stringify(resolve("lib/native-bun.ts"))
   await writeFile(
     join(root, "entry.ts"),
-    `import { isPrivateBun, runNativeBun, setupPrivateBun } from ${nativeModule}
+    `import { execSync } from 'node:child_process'
+import { isPrivateBun, runNativeBun, setupPrivateBun } from ${nativeModule}
 import archive from './cache.tar.gz' with { type: 'file' }
 if (isPrivateBun()) {
   try { process.exitCode = await runNativeBun({ archive, id:'fixture', bunVersion:${JSON.stringify(Bun.version)} }) }
   catch(e) { console.error(e.message); process.exitCode=1 }
 } else {
   await setupPrivateBun(process.argv[2])
-  const child=Bun.spawn(['bun','--version'],{env:{...process.env},stdout:'inherit',stderr:'inherit'})
-  process.exitCode=await child.exited
+  execSync('bun --version', { stdio: 'inherit' })
 }`,
   )
   binary = join(root, process.platform === "win32" ? "tsci.exe" : "tsci")

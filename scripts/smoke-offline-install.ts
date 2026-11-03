@@ -35,7 +35,14 @@ const run = async (args: string[], cwd = directory, success = true) => {
     cwd,
     env: {
       ...(process.platform === "win32"
-        ? { SystemRoot: process.env.SystemRoot, TEMP: process.env.TEMP }
+        ? {
+            SystemRoot: process.env.SystemRoot,
+            TEMP: process.env.TEMP,
+            // node:child_process needs the Windows shell even with no package
+            // managers on PATH. ComSpec supplies cmd.exe's absolute location.
+            ComSpec: process.env.ComSpec,
+            PATHEXT: process.env.PATHEXT,
+          }
         : {}),
       PATH: directory,
       HOME: directory,
@@ -71,12 +78,13 @@ const run = async (args: string[], cwd = directory, success = true) => {
   return output
 }
 try {
-  await run(["init", "project", "--yes"])
+  const initOutput = await run(["init", "project", "--yes"])
   const project = join(directory, "project")
   assert.ok(
     await Bun.file(
       join(project, "node_modules/tscircuit/package.json"),
     ).exists(),
+    initOutput,
   )
   await rm(join(project, "node_modules"), { recursive: true })
   await run(["install"], project)
