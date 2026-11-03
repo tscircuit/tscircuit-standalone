@@ -2,14 +2,14 @@ import {
   mkdir,
   mkdtemp,
   readdir,
-  readlink,
+  realpath,
   lstat,
   stat,
   rm,
   writeFile,
 } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { dirname, join, relative, resolve, sep } from "node:path"
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path"
 import { createHash } from "node:crypto"
 import packageMetadata from "../package.json"
 
@@ -21,6 +21,9 @@ export interface CacheMetadata {
 
 /** Archive native cache files and metadata verbatim; Bun still performs installation. */
 export async function packBunCache(cache: string, output: string) {
+  // Bun's index links use canonical absolute paths. macOS temporary paths and
+  // Windows junctions may spell the same cache differently from the caller.
+  cache = await realpath(cache)
   const files: Record<string, Uint8Array | string> = {}
   const metadata: CacheMetadata = {
     bunVersion: Bun.version,
@@ -34,10 +37,10 @@ export async function packBunCache(cache: string, output: string) {
       const key = portable(relative(cache, full))
       const info = await lstat(full)
       if (info.isSymbolicLink()) {
-        const absoluteTarget = resolve(dirname(full), await readlink(full))
+        const absoluteTarget = await realpath(full)
         const target = portable(relative(dirname(full), absoluteTarget))
         const resolved = relative(cache, absoluteTarget)
-        if (resolved === ".." || resolved.startsWith(`..${sep}`)) {
+        if (isAbsolute(resolved) || resolved === ".." || resolved.startsWith(`..${sep}`)) {
           throw new Error(`Cache link escapes the cache: ${key}`)
         }
         metadata.links[key] = {

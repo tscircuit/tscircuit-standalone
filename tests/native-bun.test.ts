@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test"
-import { mkdtemp, mkdir, rm, writeFile, readFile } from "node:fs/promises"
+import { mkdtemp, mkdir, rm, writeFile, readFile, symlink } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { packBunCache } from "../scripts/build-bun-cache"
@@ -64,7 +64,10 @@ beforeAll(async () => {
     },
   )
   expect(await warm.exited, await new Response(warm.stderr).text()).toBe(0)
-  await packBunCache(join(root, "warm-cache"), join(root, "cache.tar.gz"))
+  // Exercise the alias/canonical-path mismatch found in macOS temp directories
+  // and Windows junctions, even when this test runs on Linux.
+  await symlink(join(root, "warm-cache"), join(root, "cache-alias"), "junction")
+  await packBunCache(join(root, "cache-alias"), join(root, "cache.tar.gz"))
   const metadata = JSON.parse(
     await readFile(join(root, "cache.tar.gz.notices.json"), "utf8"),
   )
@@ -159,6 +162,15 @@ test("native offline install restores package and manifest caches without regist
       join(result.cwd, "node_modules/tsci-cache-fixture/index.js"),
     ).text(),
   ).toContain("42")
+})
+
+test("cache links to a different directory are still rejected", async () => {
+  const cache = join(root, "escaping-cache")
+  await mkdir(cache)
+  await symlink(join(root, "seed"), join(cache, "outside"), "junction")
+  await expect(packBunCache(cache, join(root, "escaping.tar.gz"))).rejects.toThrow(
+    "Cache link escapes the cache",
+  )
 })
 
 test("native add and remove use the same offline cache", async () => {
