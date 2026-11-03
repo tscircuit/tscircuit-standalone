@@ -1,3 +1,4 @@
+import { dependencyBundleNotices } from "./dependency-bundle-notices"
 import { createHash } from "node:crypto"
 import { mkdir, readFile, readdir, realpath, writeFile } from "node:fs/promises"
 import { basename, dirname, join, relative, resolve, sep } from "node:path"
@@ -154,6 +155,24 @@ for (const [packageRoot, inputPaths] of [...packageInputs.entries()].sort(([left
   if (!inventory.declaredLicense) inventory.reviewReasons.push("Installed package metadata has no declared license.")
   if (inventory.noticeFiles.length === 0) inventory.reviewReasons.push("No installed LICENSE/COPYING/NOTICE file found; verify the full copyright and license text.")
   packages.push(inventory)
+}
+// The dependency tree is embedded as an archive, not as compiler input modules.
+if (Object.keys(graphInputs).some((path) => path.endsWith("generated-dependency-bundle.ts"))) {
+  for (const item of dependencyBundleNotices(await readFile(join(projectRoot, "build/dependencies.zip")))) {
+    packages.push({
+      name: item.name, version: item.version,
+      declaredLicense: item.declaredLicense, repository: item.repository,
+      installedPaths: [`build/dependencies.zip!/${item.root}`],
+      inputFiles: ["build/dependencies.zip"],
+      noticeFiles: item.notices.map((notice) => appendNotice(`${item.name}@${item.version}: offline dependency notice`, `build/dependencies.zip!/${notice.path}`, notice.content)),
+      bundledLicenseComments: [],
+      reviewReasons: [
+        "Offline package archive may include prebundled/native code; internal licenses require review.",
+        ...(item.declaredLicense ? [] : ["Installed package metadata has no declared license."]),
+        ...(item.notices.length ? [] : ["No installed LICENSE/COPYING/NOTICE file found."]),
+      ],
+    })
+  }
 }
 packages.sort((left, right) => compare(`${left.name}@${left.version}:${left.installedPaths[0]}`, `${right.name}@${right.version}:${right.installedPaths[0]}`))
 

@@ -5,6 +5,8 @@ import { dirname, join } from "node:path"
 import { jscdnAssets } from "./generated-jscdn-assets"
 import { bakedAssets } from "./generated-baked-assets"
 
+import { dependencyBundle } from "./generated-dependency-bundle"
+
 export async function setupStandaloneEnvironment() {
   // Bun 1.3's embedded files are readable individually, but not as a directory.
   const directory = await mkdtemp(join(tmpdir(), "tsci-standalone-"))
@@ -25,6 +27,8 @@ export async function setupStandaloneEnvironment() {
     }
     return root
   }
+  // Leave the archive embedded; only init/install need to read its bytes.
+  process.env.TSCIRCUIT_DEPENDENCY_BUNDLE = dependencyBundle
   process.env.TSCIRCUIT_STANDALONE = "1"
   process.env.TSCI_SKIP_CLI_UPDATE = "true"
   process.env.TSCI_TELEMETRY_DISABLED = "true"

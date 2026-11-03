@@ -50,6 +50,7 @@ jobs:
         run: |
           bun scripts/build-jscdn.ts
           bun scripts/build-baked-assets.ts
+          bun scripts/build-dependency-bundle.ts
       - name: Save the selected dependencies and prepared assets for all target builds
         uses: actions/upload-artifact@v4
         with:
@@ -60,6 +61,8 @@ jobs:
             bun.lock
             lib/generated-jscdn-assets.ts
             lib/generated-baked-assets.ts
+            lib/generated-dependency-bundle.ts
+            build/dependencies.zip
             build/baked-asset-server
             build/jscdn
             build/jscdn-metafile.json

@@ -126,6 +126,9 @@ export const cliPackageAdapters: Bun.BunPlugin = {
           (_call, _quote, specifier: string) =>
             `require(${JSON.stringify(runtimeRequire.resolve(specifier))})`,
         )
+        if (path.endsWith("/main.js") && !source.includes("TSCIRCUIT_DEPENDENCY_BUNDLE")) {
+          throw new Error("The pinned CLI lacks offline dependency installation. Update @tscircuit/cli to a release containing the standalone dependency backend before building.")
+        }
         // Compiled Bun cannot load the project's import-only package exports.
         // Keep the CLI and authored TSX on the same registered engine/React.
         const adapted = await inlineCliDependencyVersions(

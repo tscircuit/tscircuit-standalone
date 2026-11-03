@@ -7,6 +7,8 @@ export async function compileBinary(): Promise<string> {
   const target = process.env.BUN_BUILD_TARGET
   validateBinaryTarget(target)
   for (const path of [
+    "lib/generated-dependency-bundle.ts",
+    "build/dependencies.zip",
     "lib/generated-jscdn-assets.ts",
     "lib/generated-baked-assets.ts",
     "build/jscdn-metafile.json",
