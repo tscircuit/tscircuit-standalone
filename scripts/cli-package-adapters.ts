@@ -47,7 +47,7 @@ function preferBundledRuntimeModules(source: string) {
   )
 }
 
-/** Route the published CLI's Bun commands without changing other managers. */
+/** Keep all standalone package operations on the bundled, cache-only runtime. */
 export function routeCliBunCalls(source: string, required = false) {
   if (!source.includes("function getPackageManager(")) {
     if (required) throw new Error("Published CLI package manager has changed")
@@ -57,7 +57,16 @@ export function routeCliBunCalls(source: string, required = false) {
   const edits: { start: number; end: number; text: string }[] = []
   let probes = 0
   let commands = 0
+  let managers = 0
   const visit = (node: ts.Node, scope = "") => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === "pm" &&
+      node.initializer && ts.isCallExpression(node.initializer) && node.initializer.expression.getText(file) === "detectPackageManager") {
+      edits.push({ start: node.initializer.getStart(file), end: node.initializer.end, text: '"bun"' })
+      managers++
+    }
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "resolveTarballUrlFromRegistry" && node.arguments.length === 1) {
+      edits.push({ start: node.getStart(file), end: node.end, text: node.arguments[0]!.getText(file) })
+    }
     if (ts.isFunctionDeclaration(node) && node.name?.text === "detectPackageManager")
       scope = "probe"
     if ((ts.isFunctionDeclaration(node) && node.name?.text === "getPackageManager") ||
@@ -88,7 +97,7 @@ export function routeCliBunCalls(source: string, required = false) {
     ts.forEachChild(node, (child) => visit(child, scope))
   }
   visit(file)
-  if (probes !== 1 || commands < 7)
+  if (probes !== 1 || commands < 7 || (required && managers !== 1))
     throw new Error("Published CLI Bun package-manager calls have changed")
   for (const edit of edits.sort((a, b) => b.start - a.start))
     source = source.slice(0, edit.start) + edit.text + source.slice(edit.end)
@@ -142,6 +151,19 @@ async function getPackageVersion(packageName: string, fromDirectory: string) {
 export const cliPackageAdapters: Bun.BunPlugin = {
   name: "standalone-cli-packages",
   setup(build) {
+    // Bun 1.4 exposes Node compatibility in compiled executables, enabling the
+    // engine's threaded autorouter. Give its computed import a bundled target.
+    build.onLoad({ filter: /@tscircuit\/core\/dist\/index\.js$/ }, async ({ path }) => {
+      const source = await readFile(path, "utf8")
+      if (!source.includes('"@tscircuit/capacity-autorouter/runtime/bun"')) return undefined
+      let replacements = 0
+      const contents = source.replace(/import\(\s*(?:\/\* @vite-ignore \*\/\s*)?runtimeModule\s*\)/g, () => {
+        replacements++
+        return 'import("@tscircuit/capacity-autorouter/runtime/bun")'
+      })
+      if (replacements !== 1) throw new Error("Published core autorouter runtime loader has changed")
+      return { contents, loader: "js" }
+    })
     // Worker entrypoints are shipped in dist but are not public package exports.
     const cliEntries: Record<string, string> = {
       "@tscircuit/cli/build.worker": "build/build.worker.js",

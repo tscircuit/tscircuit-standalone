@@ -24,6 +24,26 @@ Linux needs `jq` or Python 3 to select the latest release. An explicit release
 tag and portable destination can be passed to the Unix command with
 `sh -s -- TAG ./tsci` instead of `sh`; then run `./tsci/tsci`.
 
+Standalone installs packages from its embedded, release-specific Bun cache.
+Missing packages fail without downloading, and installation scripts are disabled.
+To route manually typed `bun` commands through the same runtime inside tscircuit
+projects, add this line to your Zsh startup file (use `bash` for Bash):
+
+```sh
+eval "$(tsci internal shell-init zsh)"
+```
+
+For PowerShell, add this line to your profile:
+
+```powershell
+tsci internal shell-init powershell | Out-String | Invoke-Expression
+```
+
+The wrapper recognizes `tscircuit.config.json` or a `tscircuit` dependency in
+`package.json`, including parent directories and `--cwd` targets. Outside those
+projects it delegates to the existing system Bun. Open a new terminal after
+enabling the wrapper; without it, plain `bun` still invokes the system command.
+
 ## Download and run on macOS
 
 Open the newest published [release](https://github.com/tscircuit/tscircuit-standalone/releases)

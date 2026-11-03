@@ -3,10 +3,14 @@ import { execSync } from "node:child_process"
 import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
+import { bunCacheFixture } from "./bun-cache-fixture"
 
 test("compiled internal Bun works without a host runtime and preserves process behavior", async () => {
   const directory = await mkdtemp(join(tmpdir(), "standalone bun's runtime-"))
+  const fixture = await bunCacheFixture(directory)
   try {
+    const project = join(directory, "project")
+    await (await import("node:fs/promises")).mkdir(project)
     const entry = join(directory, "entry.ts")
     const binary = join(
       directory,
@@ -32,6 +36,14 @@ test("compiled internal Bun works without a host runtime and preserves process b
       entrypoints: [entry],
       compile: { outfile: binary },
       define: { TSCIRCUIT_STANDALONE_COMPILED: "true" },
+      plugins: [{ name: "fixture-cache", setup(build) {
+        build.onResolve({ filter: /generated-bun-cache$/ }, () => ({ path: "cache", namespace: "fixture" }))
+        build.onLoad({ filter: /.*/, namespace: "fixture" }, () => {
+          const assets = [fixture.bundle.archive, fixture.bundle.lockfile, ...Object.values(fixture.bundle.manifests)]
+          return { contents: assets.map((path, i) => `import asset${i} from ${JSON.stringify(path)} with { type: "file" };`).join("\n") +
+            `\nexport const bundledBunCache = { ...${JSON.stringify(fixture.bundle)}, archive: asset0, lockfile: asset1, manifests: {${Object.keys(fixture.bundle.manifests).map((name, i) => `${JSON.stringify(name)}: asset${i + 2}`).join(",")}} };`, loader: "js" }
+        })
+      } }],
     })
     expect(result.success).toBe(true)
     if (process.platform === "darwin")
@@ -44,13 +56,14 @@ test("compiled internal Bun works without a host runtime and preserves process b
       TMPDIR: directory,
       BUN_INSTALL_AUTO: "disable",
       BUN_INSTALL_CACHE_DIR: join(directory, "cache"),
+      TSCIRCUIT_CACHE_DIR: join(directory, "private-cache"),
       ...(process.platform === "win32"
         ? { SystemRoot: process.env.SystemRoot, ComSpec: process.env.ComSpec }
         : {}),
     }
     const run = (args: string[], input?: string) =>
       Bun.spawnSync([binary, ...args], {
-        cwd: directory,
+        cwd: project,
         env,
         stdin: input === undefined ? "ignore" : Buffer.from(input),
         stdout: "pipe",
@@ -72,7 +85,7 @@ test("compiled internal Bun works without a host runtime and preserves process b
     ).toBe(Bun.version)
     expect(run(["environment"]).stdout.toString()).toBe("unset\n")
     await writeFile(
-      join(directory, "script.ts"),
+      join(project, "script.ts"),
       `console.log(JSON.stringify({args:process.argv.slice(2),cwd:process.cwd(),input:await Bun.stdin.text()}))`,
     )
     const args = ["with spaces", "quotes'\"", "--option=value"]
@@ -85,7 +98,7 @@ test("compiled internal Bun works without a host runtime and preserves process b
     // Windows can report an 8.3 alias for the same working directory.
     expect({ ...scriptOutput, cwd: await realpath(scriptOutput.cwd) }).toEqual({
       args,
-      cwd: await realpath(directory),
+      cwd: await realpath(project),
       input: "stdin payload",
     })
     const failure = run([
@@ -95,41 +108,27 @@ test("compiled internal Bun works without a host runtime and preserves process b
       'process.stderr.write("child error"); process.exit(37)',
     ])
     expect(failure.exitCode).toBe(37)
-    expect(failure.stderr.toString()).toBe("child error")
-    const archive = new Bun.Archive({
-      "package/package.json": JSON.stringify({
-        name: "internal-bun-fixture",
-        version: "1.0.0",
-        main: "index.js",
-      }),
-      "package/index.js": "module.exports = 17\n",
-    })
+    expect(failure.stderr.toString()).toStartWith("child error")
     await writeFile(
-      join(directory, "fixture.tgz"),
-      Bun.gzipSync(new Uint8Array(await (await archive.blob()).arrayBuffer())),
-    )
-    await writeFile(
-      join(directory, "package.json"),
-      JSON.stringify({ name: "consumer", private: true }),
+      join(project, "package.json"),
+      JSON.stringify({ name: "consumer", private: true, scripts: { postinstall: "exit 99" } }),
     )
     const add = run([
       "internal",
       "bun",
       "add",
-      "--offline",
-      "--ignore-scripts",
-      "./fixture.tgz",
+      "internal-bun-fixture",
     ])
     expect(add.exitCode, add.stderr.toString()).toBe(0)
     expect(
       JSON.parse(
         await readFile(
-          join(directory, "node_modules/internal-bun-fixture/package.json"),
+          join(project, "node_modules/internal-bun-fixture/package.json"),
           "utf8",
         ),
       ).version,
     ).toBe("1.0.0")
-    await rm(join(directory, "node_modules"), { recursive: true })
+    await rm(join(project, "node_modules"), { recursive: true })
     const install = run([
       "internal",
       "bun",
@@ -146,8 +145,15 @@ test("compiled internal Bun works without a host runtime and preserves process b
         'console.log(require("internal-bun-fixture"))',
       ]).stdout.toString(),
     ).toBe("17\n")
+    const missing = run(["internal", "bun", "add", "not-in-bundled-cache@1.0.0"])
+    expect(missing.exitCode).not.toBe(0)
+    expect(missing.stderr.toString()).toContain("--offline")
+    const missingTarball = run(["internal", "bun", "add", `${fixture.bundle.registry}/not-cached.tgz`])
+    expect(missingTarball.exitCode).not.toBe(0)
+    expect(fixture.requests).toEqual([])
     expect(run([]).stdout.toString()).toBe("application mode\n")
   } finally {
+    fixture.stop()
     await rm(directory, { recursive: true, force: true })
   }
 }, 60_000)

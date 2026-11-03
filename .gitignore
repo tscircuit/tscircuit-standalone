@@ -5,6 +5,7 @@ lib/generated-ui-assets.ts
 lib/generated-jscdn-assets.ts
 lib/generated-baked-assets.ts
 lib/generated-bundled-parts.ts
+lib/generated-bun-cache.ts
 imports/
 !examples/imports/
 !examples/imports/C2040.tsx

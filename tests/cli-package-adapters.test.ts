@@ -17,10 +17,11 @@ test("published CLI worker embedding preserves the surrounding JavaScript and as
   expect(result.asset).not.toContain("<--INJECT_")
 })
 
-test("standalone routes Bun operations while preserving other package managers and metadata", () => {
+test("standalone forces bundled Bun while preserving package command arguments and metadata", () => {
   const source = `
     function detectPackageManager() { return Bun.spawnSync(["bun", "--version"], { stdout: "ignore" }).exitCode; }
     function getPackageManager(name) {
+      const pm = detectPackageManager();
       return [\`bun remove \${name}\`, \`bun add \${name}\`, \`bun update \${name}\`,
         "bun init -y", "bun install", \`bun add -d \${name}\`, \`bun add \${name}\`, "npm install"];
     }
@@ -39,6 +40,7 @@ test("standalone routes Bun operations while preserving other package managers a
     { spawnSync: spawn },
   )
   expect(routed.usesRuntime).toBe(true)
+  expect(routed.source).toContain('const pm = "bun"')
   expect(result.commands).toEqual([
     "'/standalone' internal bun remove fixture", "'/standalone' internal bun add fixture",
     "'/standalone' internal bun update fixture", "'/standalone' internal bun init -y",

@@ -28,13 +28,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version: 1.4.4
       - name: Cache Bun package downloads
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-1.3.14-${{ inputs.tscircuit_version || 'pinned' }}-${{ hashFiles('bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-1.3.14-
+          key: ${{ runner.os }}-bun-1.4.4-${{ inputs.tscircuit_version || 'pinned' }}-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-1.4.4-
       - name: Prepare the selected tscircuit release
         if: inputs.tscircuit_version != ''
         env:
@@ -78,8 +78,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
-          # Bun 1.4 includes Windows embedded-worker fixes.
-          bun-version: ${{ matrix.target == 'bun-windows-x64' && '1.4.4' || '1.3.14' }}
+          # Strict cache-only installation is qualified with this runtime.
+          bun-version: 1.4.4
       - uses: actions/download-artifact@v4
         with:
           name: standalone-build-inputs
@@ -88,9 +88,13 @@ jobs:
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ matrix.target == 'bun-windows-x64' && '1.4.4' || '1.3.14' }}-${{ hashFiles('bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-${{ matrix.target == 'bun-windows-x64' && '1.4.4' || '1.3.14' }}-
+          key: ${{ runner.os }}-bun-1.4.4-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-1.4.4-
       - run: bun install --frozen-lockfile
+      - name: Prepare the embedded dependency cache for this platform
+        run: bun scripts/build-bun-cache.ts
+        env:
+          BUN_BUILD_TARGET: ${{ matrix.target }}
       - name: Compile the qualified inputs for this target
         run: bun scripts/compile-binary.ts
         env:

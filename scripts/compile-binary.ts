@@ -9,6 +9,8 @@ export async function compileBinary(): Promise<string> {
   for (const path of [
     "lib/generated-jscdn-assets.ts",
     "lib/generated-baked-assets.ts",
+    "lib/generated-bun-cache.ts",
+    "build/bun-cache-metafile.json",
     "build/jscdn-metafile.json",
   ]) {
     const input = await stat(path).catch(() => undefined)
