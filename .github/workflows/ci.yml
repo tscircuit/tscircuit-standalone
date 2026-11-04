@@ -51,3 +51,4 @@ jobs:
           $result = Get-Content "$env:RUNNER_TEMP/installer-node-probe/result.json" | ConvertFrom-Json
           if (!$result.exited) { throw 'Verification exceeded the diagnostic deadline; partial logs were saved' }
           if ($result.exitCode -ne 0) { throw "Verification failed with $($result.exitCode); diagnostics were saved" }
+          if (!$result.verified) { throw 'Installer completion transcript was not produced' }
