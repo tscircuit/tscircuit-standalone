@@ -5,11 +5,15 @@ const directory = path.join(process.env.RUNNER_TEMP, "installer-node-probe")
 fs.mkdirSync(directory, { recursive: true })
 const powershell = path.join(process.env.SystemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
 const quote = value => "'" + value.replaceAll("'", "''") + "'"
-const command = "Write-Output 'INSTALLER_PROBE_STARTED'; & " +
+const command = "Set-PSDebug -Trace 1; Write-Output 'INSTALLER_PROBE_STARTED'; & " +
   quote(path.resolve("scripts/windows-installer/smoke.ps1")) +
   " -Installer " + quote(path.resolve("installer/installer.exe")) +
   " -Binary " + quote(path.resolve("dist/tsci.exe")) +
   " -Version '0.0.3075' -DiagnosticsDirectory " + quote(directory)
+const childEnvironment = { ...process.env }
+for (const key of Object.keys(childEnvironment)) {
+  if (key.toLowerCase() === "psmodulepath") delete childEnvironment[key]
+}
 const stdout = fs.openSync(path.join(directory, "stdout.txt"), "w")
 const stderr = fs.openSync(path.join(directory, "stderr.txt"), "w")
 fs.writeFileSync(path.join(directory, "launch.json"), JSON.stringify({ powershell, command, started: new Date().toISOString() }, null, 2))
@@ -51,6 +55,6 @@ function finish(exited, exitCode, error) {
 setTimeout(() => finish(false, null, "diagnostic deadline"), 180000)
 child = spawn(powershell, [
   "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command,
-], { windowsHide: true, stdio: ["ignore", stdout, stderr] })
+], { windowsHide: true, env: childEnvironment, stdio: ["ignore", stdout, stderr] })
 child.on("error", error => finish(true, null, error.message))
 child.on("exit", (code, signal) => finish(true, code, signal))
