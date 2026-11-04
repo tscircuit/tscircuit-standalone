@@ -18,6 +18,7 @@
         "@tscircuit/props": "0.0.710",
         "@tscircuit/schematic-trace-solver": "0.0.208",
         "circuit-json": "0.0.535",
+        "circuit-json-to-gltf": "0.0.152",
         "circuit-to-svg": "0.0.453",
         "fflate": "0.8.3",
         "kicad-to-circuit-json": "0.0.145",

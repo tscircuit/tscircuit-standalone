@@ -104,10 +104,20 @@ export async function prepareRelease(options: PrepareReleaseOptions = {}) {
     "root manifest",
   ) as Manifest
   object(root.dependencies, "root dependencies")
+  const runtimeDependencies = { ...root.dependencies }
+  for (const [name, version] of Object.entries(runtimeDependencies)) {
+    // The CLI and UI keep their reviewed asset adapters. Native runtime peers
+    // must satisfy the selected release instead of resolving older root pins.
+    if (name === "@tscircuit/cli" || dependencies[name] === undefined) continue
+    const minimum = dependencyMinimum(dependencies, name)
+    if (!Bun.semver.satisfies(version, dependencies[name] as string)) {
+      runtimeDependencies[name] = minimum
+    }
+  }
   // Install the published package so its runtime dependency graph is retained.
   root.version = metadata.version
   root.dependencies = {
-    ...root.dependencies,
+    ...runtimeDependencies,
     tscircuit: metadata.version,
   }
   await writeFile(packagePath, `${JSON.stringify(root, null, 2)}\n`)

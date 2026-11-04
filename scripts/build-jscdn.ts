@@ -115,8 +115,8 @@ export async function buildJscdn() {
       {
         name: "standalone-circuit-json",
         setup(build) {
-          build.onResolve({ filter: /^circuit-json$/ }, async () => ({
-            path: join(await findPackageRoot("circuit-json"), "dist/index.mjs"),
+          build.onResolve({ filter: /^circuit-json$/ }, () => ({
+            path: runtimeRequire.resolve("circuit-json"),
           }))
         },
       },
