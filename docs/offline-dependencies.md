@@ -1,86 +1,81 @@
-# Explicit Bun runtime and native offline cache
+# Package installation and offline runtime
 
-Standalone uses its embedded Bun 1.4.4 runtime and Bun's native package cache.
-It sets `TSCIRCUIT_NODE_RUNTIME` to its own executable path. The shared CLI uses
-that executable directly, with argv and child-only `BUN_BE_BUN=1`, for package
-operations. It does not create a `bun` alias, copy the executable, change PATH,
-or change `npm_config_user_agent`.
+Standalone packages two normal filesystem trees: the CLI runtime project and
+Bun's native install cache. It does not rewrite package files or register
+package-specific runtime modules.
 
-`TSCIRCUIT_NODE_RUNTIME_ARGS` supplies `--config` pointing to a private bunfig in
-the CLI's temporary directory. The config sets `install.offline = true`,
-`install.ignoreScripts = true`, and the restored native cache directory. Bun
-handles resolution, installation, lockfiles and removal. These settings do not
-change the user's project/global bunfig or independently invoked system Bun.
+## Build
 
-## CLI runtime support
+The production manifest declares the CLI and selected `tscircuit` release.
+`scripts/build-bun-cache.ts` installs that manifest in an isolated project,
+including optional dependencies for every supported OS and CPU. Bun resolves
+transitive and peer dependencies. The installed project's manifest, lockfile,
+`node_modules`, workers, data files and native modules are archived together.
 
-Standalone pins `@tscircuit/cli@0.1.2430`, which includes
-[CLI PR #5671](https://github.com/tscircuit/cli/pull/5671). This published release
-supports explicit runtime selection for startup and package operations.
+The same script invokes that CLI's `init --yes --no-install` and installs the
+generated project to warm the native cache. Standalone does not maintain a
+second list of init dependencies. Build inputs retain both resolved lockfiles,
+the generated init manifest, both archives and their license inventories.
+Cached tags such as `latest` are snapshots taken during preparation.
 
-The CLI contract is a Bun-compatible executable plus optional JSON argv. It has
-no knowledge of standalone's cache transport, archive, or offline policy. With
-an explicit runtime available, standalone init installs dependencies by default;
-`--no-install` still skips installation.
+Release preparation selects only the top-level `tscircuit` version. Development
+and UI dependencies belong to their own graphs; they are not copied into, or
+used to override, the production runtime.
 
-## Preparing and restoring the cache
+## Launch
 
-Build and test jobs pin Bun 1.4.4, the latest stable release verified on
-2026-11-03. `.bun-version` records the local version and the vendored Bun notices
-cover this runtime. Strict offline installation requires Bun 1.4.1 or newer;
-`--prefer-offline` alone permits downloads on cache misses.
+The executable restores each archive into a Bun-version- and content-specific
+cache directory using staged extraction and an atomic rename. Published file
+contents stay unchanged; transport metadata preserves executable permissions
+and internal links. Windows uses directory junctions where symlink privileges
+would otherwise be required. `TSCIRCUIT_CACHE_DIR` overrides the cache root.
 
-`scripts/build-bun-cache.ts` warms an isolated native cache for the CLI's init
-requirements and the selected runtime release, including all OS/CPU optional
-packages. Lifecycle scripts are disabled. Seed lockfiles, package notices and
-the prepared archive are retained as build inputs and shared across targets.
-Cached `latest` tags are snapshots at preparation time and can differ from a
-manually selected older runtime release. Retain the archive and seed lockfiles
-for exact reproduction; rebuilding can select newer tags or transitive versions.
+A small compiled launcher starts the restored public CLI entrypoint using its
+own executable with child-only `BUN_BE_BUN=1`. This uses ordinary Bun filesystem
+resolution, including relative worker entrypoints and package exports. It
+forwards arguments, terminal streams, exit codes, SIGINT and SIGTERM. No Bun
+installation or change to the user's PATH is required.
 
-Package files and binary registry manifests retain their native contents.
-Transport metadata preserves executable modes and relocates cache index links;
-Windows restores directory links as junctions. Canonical paths handle macOS temp
-directory aliases and Windows junctions without admitting links outside the cache.
+`TSCIRCUIT_NODE_RUNTIME` and `TSCIRCUIT_NODE_RUNTIME_ARGS` pass the same
+executable and a private bunfig to the CLI's existing runtime hook. The config
+sets `install.offline = true`, `install.ignoreScripts = true` and the restored
+native cache directory. Install/add/remove use Bun itself; misses fail locally.
+Project and global bunfig files stay untouched.
 
-The cache is restored once into a versioned, archive-specific user cache directory,
-using staged extraction and an atomic rename. `TSCIRCUIT_CACHE_DIR` overrides its
-root. The first standalone invocation prepares this cache; subsequent invocations
-reuse it. Each process writes a private bunfig alongside its temporary assets,
-then removes that configuration on exit. Existing cache snapshots can be reused
-without depending on old launcher files or runtime config stored in the cache.
+Project dependency resolution follows the published CLI. The child appends the
+restored node_modules directory to Bun's standard NODE_PATH search path, so bare
+projects can use the bundled SDK. Project-local packages retain priority;
+standalone no longer forces selected React, tscircuit or autorouter modules
+through a Bun registration plugin.
 
-## Behavior and limits
+## Browser packages
 
-Missing packages, unavailable versions, and uncached tarball/Git URLs fail locally
-through Bun. Project .npmrc registry settings are respected; absent metadata produces
-an offline miss. Lifecycle scripts are disabled because they can access the
-network independently. Removing a damaged versioned cache directory restores it
-on the next standalone invocation.
+CLI [PR #5699](https://github.com/tscircuit/cli/pull/5699) serves the installed
+`tscircuit/browser` export for standalone dev and static sites. That producer
+already embeds its matching evaluator worker. Standalone no longer edits the
+CLI's minified JavaScript to inject one. Until that fix is released, the manifest
+uses the public package preview from its validation workflow.
 
-Existing switches disable update checks, telemetry, account fetches and skill
-downloads. Other features and arbitrary user code are not sandboxed. The runtime
-hook selects an executable; it does not restrict all of Bun's commands.
+The local JS CDN bundles UI-declared dependencies that appear in
+`internal-dynamic-import`'s exported `supportedModules` catalog. It does not
+compile RunFrame and its viewers just to discover import calls.
 
-The build uses published `altiumts@0.0.59` (also used by the UI), avoiding the Git
-package's missing build outputs with the isolated linker, and bundles the computed
-autorouter runtime import needed by compiled circuit builds.
+Browser exporter asset adapters still exist in `ui-package-adapters.ts`.
+Removing those requires upstream browser entrypoints and asset URL contracts;
+the native runtime refactor does not make those exporters universally portable.
+The package-specific follow-ups are recorded in [the packaging audit](package-bundling-audit.md).
 
-## Qualification
+## Verification and limits
 
-`tests/native-bun.test.ts` compiles a fixture executable, restores a real native
-cache and invokes that executable with `BUN_BE_BUN=1`. It verifies unchanged PATH
-and user agent, cached install/add/remove, misses, script suppression, and native
-config precedence over a project bunfig that enables networking. Offline
-operations make zero fixture-registry requests.
+`tests/packaged-runtime.test.ts` compiles a launcher fixture and checks restored
+package exports, a relative worker, package data, dependency links, literal
+arguments and a nonzero exit code with an empty PATH.
 
-The companion CLI tests exercise the actual runtime hook with a compiled Bun
-application, an empty PATH, executable paths containing spaces/metacharacters,
-literal argument forwarding, and failure without fallback. They run in Linux
-and Windows CI.
+`tests/native-bun.test.ts` checks real native install/add/remove behavior,
+uncached versions and URLs, lifecycle suppression and private-config precedence.
+Fixture-registry requests must stay at zero during offline operations. The full
+binary smoke tests exercise actual CLI commands and browser execution.
 
-`scripts/smoke-offline-install.ts` tests the actual standalone executable with
-no package manager on PATH: init, reinstall, add, cache misses, and absence of
-private launcher files. Linux traces reject non-loopback connection/send attempts.
-Compiled build, browser, native macOS/Windows and installer qualification run
-against the pinned published CLI release.
+The cache and complete runtime project both take space in the executable and
+on first extraction. This preserves package boundaries at the cost of a larger
+payload. User-authored programs and arbitrary Bun commands are not sandboxed.

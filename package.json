@@ -1,6 +1,6 @@
 {
   "name": "@tscircuit/standalone",
-  "version": "0.0.3020",
+  "version": "0.0.3082",
   "private": true,
   "description": "Offline tscircuit platform and standalone binary preparation",
   "type": "module",
@@ -19,41 +19,33 @@
     "typecheck:ui": "tsc --noEmit -p ui/tsconfig.json"
   },
   "dependencies": {
+    "@tscircuit/cli": "https://pkg.pr.new/@tscircuit/cli@c5ec866",
+    "tscircuit": "0.0.3082"
+  },
+  "devDependencies": {
     "@flatten-js/core": "1.6.15",
-    "@rollup/wasm-node": "4.65.1",
     "@tscircuit/checks": "0.0.264",
     "@tscircuit/circuit-json-util": "0.0.129",
-    "@tscircuit/cli": "0.1.2430",
     "@tscircuit/core": "0.0.2203",
     "@tscircuit/eval": "0.0.1660",
     "@tscircuit/footprinter": "0.0.444",
     "@tscircuit/krt-wasm": "0.1.9",
     "@tscircuit/math-utils": "0.0.38",
     "@tscircuit/props": "0.0.710",
-    "@tscircuit/schematic-trace-solver": "0.0.208",
     "circuit-json": "0.0.535",
-    "circuit-json-to-gltf": "0.0.152",
     "circuit-to-svg": "0.0.453",
     "fflate": "0.8.3",
     "kicad-to-circuit-json": "0.0.145",
     "kicadts": "0.0.59",
     "react": "19.3.1",
     "sucrase": "3.35.1",
-    "tscircuit": "0.0.3020",
-    "typescript": "5.9.3"
-  },
-  "devDependencies": {
+    "typescript": "5.9.3",
     "@types/bun": "1.4.4",
     "playwright": "1.64.1",
-    "@types/node": "26.6.5"
+    "@types/node": "26.6.5",
+    "@tscircuit/schematic-trace-solver": "0.0.208"
   },
   "workspaces": [
     "ui"
-  ],
-  "trustedDependencies": [
-    "altiumts"
-  ],
-  "overrides": {
-    "altiumts": "0.0.59"
-  }
+  ]
 }

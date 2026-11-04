@@ -62,24 +62,14 @@ try {
   // Exercise the shared CLI's sequential and embedded worker paths.
   for (const concurrency of ["1", "2"])
     run(["build", "index.tsx", "--ignore-errors", "--concurrency", concurrency])
-  // `init` normally installs packages. The compiled CLI must still use its
-  // registered engine and React, rather than import those packages by file URL.
-  for (const name of ["tscircuit", "react"]) {
-    const directory = join(projectDir, "node_modules", name)
-    await mkdir(directory, { recursive: true })
-    await writeFile(
-      join(directory, "package.json"),
-      JSON.stringify({ name, type: "module", exports: { import: "./index.js" } }),
-    )
-    await writeFile(
-      join(directory, "index.js"),
-      `throw new Error("Standalone loaded project ${name} instead of its bundled runtime")`,
-    )
-  }
+  // Use the same installed project graph as the published CLI.
+  await writeFile(join(projectDir, "package.json"), JSON.stringify({
+    private: true, dependencies: { tscircuit: packageMetadata.dependencies.tscircuit },
+  }))
+  run(["install"])
   run(["build", "initialized/index.circuit.tsx"])
   for (const concurrency of ["1", "2"])
     run(["build", "index.tsx", "--ignore-errors", "--concurrency", concurrency])
-  await rm(join(projectDir, "node_modules"), { recursive: true })
   run(["build", "index.tsx", "--site", "--pcb-png", "--ignore-errors"])
   assert.equal(
     (await readFile(join(projectDir, "dist/index/pcb.png")))

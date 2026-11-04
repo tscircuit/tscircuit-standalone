@@ -10,10 +10,10 @@ Maintainers can also run **Daily standalone release** manually from `main`.
 To qualify a selected upstream version without publishing, run **Check standalone
 preparation** manually with its `tscircuit_version` input.
 
-The selected npm release determines the bundled core, evaluator, props and
-compiler peer helpers. Preparation updates these dependencies and creates one
-lockfile before qualification. Every target installs that lockfile with frozen
-installation and compiles the same qualified catalog and UI bundle.
+The selected npm release owns its runtime dependency graph. Preparation updates
+the top-level tscircuit version and lets Bun resolve its dependencies. Runtime
+and cache archives retain their resolved lockfiles. Every target compiles the
+same qualified runtime, cache, catalog and browser assets.
 
 The workflow reuses the normal CI checks: frozen installation, typechecks,
 tests, compiled-binary smoke, browser qualification and native network tracing.

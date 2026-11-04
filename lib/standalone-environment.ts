@@ -5,16 +5,16 @@ import { dirname, join } from "node:path"
 import { jscdnAssets } from "./generated-jscdn-assets"
 import { bunCache } from "./generated-bun-cache"
 import { setupNativeBun } from "./native-bun"
+import { restorePackagedRuntime } from "./packaged-runtime"
+import { packagedRuntime } from "./generated-runtime"
 import { bakedAssets } from "./generated-baked-assets"
 
 export async function setupStandaloneEnvironment() {
-  // Bun 1.3's embedded files are readable individually, but not as a directory.
+  // Extract browser assets for the shared CLI's existing directory interfaces.
   const directory = await mkdtemp(join(tmpdir(), "tsci-standalone-"))
   process.once("exit", () =>
     rmSync(directory, { recursive: true, force: true }),
   )
-  process.once("SIGINT", () => process.exit(130))
-  process.once("SIGTERM", () => process.exit(143))
   const extractAssets = async (
     assets: Record<string, string>,
     subdirectory: string,
@@ -28,6 +28,7 @@ export async function setupStandaloneEnvironment() {
     return root
   }
   await setupNativeBun(bunCache, directory)
+  const entrypoint = await restorePackagedRuntime(packagedRuntime)
   process.env.TSCIRCUIT_STANDALONE = "1"
   process.env.TSCI_SKIP_CLI_UPDATE = "true"
   process.env.TSCI_TELEMETRY_DISABLED = "true"
@@ -38,4 +39,5 @@ export async function setupStandaloneEnvironment() {
     bakedAssets,
     "baked-asset-server",
   )
+  return entrypoint
 }

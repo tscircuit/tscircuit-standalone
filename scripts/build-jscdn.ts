@@ -1,4 +1,4 @@
-import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises"
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { createRequire } from "node:module"
 import { basename, dirname, join, relative, resolve, sep } from "node:path"
 import ts from "typescript"
@@ -11,46 +11,6 @@ import {
 const projectRoot = resolve(import.meta.dir, "..")
 const uiRequire = createRequire(join(projectRoot, "ui/package.json"))
 const portable = (path: string) => path.split(sep).join("/")
-
-export function getDynamicImports(source: string): string[] {
-  if (!source.includes("@tscircuit/internal-dynamic-import")) return []
-  const file = ts.createSourceFile(
-    "module.js",
-    source,
-    ts.ScriptTarget.Latest,
-    true,
-  )
-  const importers = new Set<string>()
-  for (const statement of file.statements) {
-    if (
-      ts.isImportDeclaration(statement) &&
-      ts.isStringLiteral(statement.moduleSpecifier) &&
-      statement.moduleSpecifier.text === "@tscircuit/internal-dynamic-import" &&
-      statement.importClause?.name
-    ) {
-      importers.add(statement.importClause.name.text)
-    }
-  }
-  const specifiers = new Set<string>()
-  const visit = (node: ts.Node) => {
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      importers.has(node.expression.text)
-    ) {
-      const argument = node.arguments[0]
-      if (!argument || !ts.isStringLiteralLike(argument)) {
-        throw new Error(
-          "RunFrame dynamic imports must use a literal package specifier",
-        )
-      }
-      specifiers.add(argument.text)
-    }
-    ts.forEachChild(node, visit)
-  }
-  visit(file)
-  return [...specifiers]
-}
 
 // Browser assets must work both at /jscdn in dev and below a static site's path.
 export function localizeAssetUrls(
@@ -96,63 +56,31 @@ export function localizeAssetUrls(
   return source
 }
 
+/** Bundle installed browser modules from the importer's public catalog. */
+export function selectDynamicModules(
+  dependencies: Record<string, string>,
+  supportedModules: readonly string[],
+): string[] {
+  return supportedModules.filter((name) => Object.hasOwn(dependencies, name)).sort()
+}
+
 export async function buildJscdn() {
   const outputDir = join(projectRoot, "build/jscdn")
-  const { getImportUrl, getModuleName } = await import(
+  const { getImportUrl, supportedModules } = await import(
     uiRequire.resolve("@tscircuit/internal-dynamic-import")
   )
-  const runtimeRequire = createRequire(
-    await realpath(join(projectRoot, "node_modules/tscircuit/package.json")),
-  )
   const adapters = await createUiPackageAdapters({ findPackageRoot })
-  // Follow the same RunFrame dependency graph that the shared CLI serves.
-  const runframe = await Bun.build({
-    entrypoints: [runtimeRequire.resolve("@tscircuit/runframe")],
-    target: "browser",
-    metafile: true,
-    plugins: [
-      adapters.plugin,
-      {
-        name: "standalone-circuit-json",
-        setup(build) {
-          build.onResolve({ filter: /^circuit-json$/ }, () => ({
-            path: runtimeRequire.resolve("circuit-json"),
-          }))
-        },
-      },
-    ],
-  })
-  if (!runframe.success || !runframe.metafile)
-    throw new AggregateError(runframe.logs, "Cannot inspect RunFrame imports")
-  const specifiers = new Set<string>()
-  for (const input of Object.keys(runframe.metafile.inputs)) {
-    if (!/\.[cm]?[jt]sx?$/.test(input) || input.includes(":")) continue
-    const source = await readFile(resolve(projectRoot, input), "utf8")
-    for (const specifier of getDynamicImports(source)) specifiers.add(specifier)
-  }
+  const uiMetadata = await Bun.file(join(projectRoot, "ui/package.json")).json()
+  const specifiers = new Set(selectDynamicModules(uiMetadata.dependencies, supportedModules))
   if (!specifiers.size) throw new Error("No RunFrame dynamic imports found")
 
   const entries: { in: string; out: string }[] = []
   for (const specifier of [...specifiers].sort()) {
-    const name = getModuleName(specifier)
-    const root = await findPackageRoot(name)
-    const metadata = await Bun.file(join(root, "package.json")).json()
-    const { version } = metadata
-    const requestedVersion = specifier.slice(name.length + 1)
-    if (
-      requestedVersion &&
-      requestedVersion !== "latest" &&
-      requestedVersion !== version
-    ) {
-      throw new Error(
-        `${specifier} is requested by RunFrame, but ${name}@${version} is installed`,
-      )
-    }
+    const root = await findPackageRoot(specifier)
     const out = new URL(getImportUrl(specifier)).pathname.slice(1)
+    const entry = out.slice(specifier.length + 1).split("/").slice(1).join("/")
     entries.push({
-      in: out.endsWith("/dist/browser.js")
-        ? join(root, "dist/browser.js")
-        : uiRequire.resolve(name),
+      in: entry === "+esm" ? uiRequire.resolve(specifier) : join(root, entry),
       out,
     })
   }

@@ -40,23 +40,6 @@ const object = (
   return value as Record<string, unknown>
 }
 
-const dependencyMinimum = (
-  dependencies: Record<string, unknown>,
-  name: string,
-): string => {
-  const range = dependencies[name]
-  if (typeof range !== "string") {
-    throw new Error(`tscircuit metadata is missing ${name}`)
-  }
-  const version = range.replace(/^[\^~]/, "")
-  if (!isVersion(version) || !Bun.semver.satisfies(version, range)) {
-    throw new Error(
-      `Unsupported tscircuit dependency range for ${name}: ${range}`,
-    )
-  }
-  return version
-}
-
 const installDependencies = async (projectRoot: string): Promise<void> => {
   const installation = Bun.spawn([process.execPath, "install"], {
     cwd: projectRoot,
@@ -94,37 +77,23 @@ export async function prepareRelease(options: PrepareReleaseOptions = {}) {
       `Requested tscircuit ${requestedVersion}, received ${metadata.version}`,
     )
   }
-  const dependencies = object(metadata.dependencies, "tscircuit dependencies")
-  const coreVersion = dependencyMinimum(dependencies, "@tscircuit/core")
-  const evalVersion = dependencyMinimum(dependencies, "@tscircuit/eval")
-  const propsVersion = dependencyMinimum(dependencies, "@tscircuit/props")
   const packagePath = join(projectRoot, "package.json")
   const root = object(
     JSON.parse(await readFile(packagePath, "utf8")),
     "root manifest",
   ) as Manifest
   object(root.dependencies, "root dependencies")
-  const runtimeDependencies = { ...root.dependencies }
-  for (const [name, version] of Object.entries(runtimeDependencies)) {
-    // The CLI and UI keep their reviewed asset adapters. Native runtime peers
-    // must satisfy the selected release instead of resolving older root pins.
-    if (name === "@tscircuit/cli" || dependencies[name] === undefined) continue
-    const minimum = dependencyMinimum(dependencies, name)
-    if (!Bun.semver.satisfies(version, dependencies[name] as string)) {
-      runtimeDependencies[name] = minimum
-    }
-  }
   // Install the published package so its runtime dependency graph is retained.
   root.version = metadata.version
   root.dependencies = {
-    ...runtimeDependencies,
+    ...root.dependencies,
     tscircuit: metadata.version,
   }
   await writeFile(packagePath, `${JSON.stringify(root, null, 2)}\n`)
   if (options.install !== false) {
     await (options.install ?? installDependencies)(projectRoot)
   }
-  return { version: metadata.version, coreVersion, evalVersion, propsVersion }
+  return { version: metadata.version }
 }
 
 if (import.meta.main) {
@@ -132,7 +101,5 @@ if (import.meta.main) {
   if (args.length > 1)
     throw new Error("Usage: bun scripts/prepare-release.ts [version|latest]")
   const release = await prepareRelease({ version: args[0] })
-  console.log(
-    `Prepared tscircuit ${release.version} (core ${release.coreVersion}, eval ${release.evalVersion}, props ${release.propsVersion})`,
-  )
+  console.log("Prepared tscircuit " + release.version)
 }
