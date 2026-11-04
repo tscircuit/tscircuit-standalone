@@ -1,6 +1,6 @@
 const fs = require("node:fs")
 const path = require("node:path")
-const { spawn } = require("node:child_process")
+const { spawn, spawnSync } = require("node:child_process")
 const directory = path.join(process.env.RUNNER_TEMP, "installer-node-probe")
 fs.mkdirSync(directory, { recursive: true })
 const stdout = fs.openSync(path.join(directory, "stdout.txt"), "w")
@@ -21,6 +21,15 @@ function finish(exited, exitCode, error) {
   fs.writeFileSync(path.join(directory, "result.json"), JSON.stringify({
     exited, exitCode, error, pid: child.pid, observedAt: new Date().toISOString(),
   }, null, 2))
+  for (const name of ["stdout.txt", "stderr.txt", "smoke.txt"]) {
+    try { fs.writeSync(1, "\n--- " + name + " ---\n" + fs.readFileSync(path.join(directory, name), "utf8").slice(-20000)) } catch {}
+  }
+  if (!exited && child.pid) {
+    spawnSync("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], {
+      timeout: 10000, windowsHide: true, stdio: "ignore",
+    })
+    try { child.kill("SIGKILL") } catch {}
+  }
   child.unref()
   fs.closeSync(stdout)
   fs.closeSync(stderr)

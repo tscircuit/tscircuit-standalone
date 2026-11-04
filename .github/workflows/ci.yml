@@ -1,6 +1,8 @@
 name: Windows installer diagnostic
 on:
   workflow_dispatch:
+  push:
+    branches: [diagnose/windows-installer-hang-47]
 permissions:
   contents: read
   actions: read
@@ -43,15 +45,6 @@ jobs:
           path: ${{ runner.temp }}/installer-node-probe
           if-no-files-found: error
           retention-days: 3
-      - name: Clean up the diagnostic process
-        if: always()
-        shell: pwsh
-        run: |
-          if ($env:INSTALLER_PROBE_PID) {
-            $kill = Start-Process -FilePath "$env:SystemRoot/System32/taskkill.exe" -ArgumentList @('/PID', $env:INSTALLER_PROBE_PID, '/T', '/F') -WindowStyle Hidden -PassThru
-            if (!$kill.WaitForExit(10000)) { Stop-Process -Id $kill.Id -Force -ErrorAction SilentlyContinue }
-            Stop-Process -Id ([int]$env:INSTALLER_PROBE_PID) -Force -ErrorAction SilentlyContinue
-          }
       - name: Report probe result
         shell: pwsh
         run: |
