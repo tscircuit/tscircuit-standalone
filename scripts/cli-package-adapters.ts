@@ -94,6 +94,17 @@ async function getPackageVersion(packageName: string, fromDirectory: string) {
 export const cliPackageAdapters: Bun.BunPlugin = {
   name: "standalone-cli-packages",
   setup(build) {
+    // Core loads this runtime by a computed specifier; register its bundled
+    // exports alongside the other modules used by authored TSX and workers.
+    build.onResolve(
+      { filter: /^@tscircuit\/capacity-autorouter\/runtime\/bun$/ },
+      ({ path }) => ({
+        path: Bun.resolveSync(
+          path,
+          dirname(Bun.resolveSync("@tscircuit/core", resolve("."))),
+        ),
+      }),
+    )
     // Worker entrypoints are shipped in dist but are not public package exports.
     const cliEntries: Record<string, string> = {
       "@tscircuit/cli/build.worker": "build/build.worker.js",

@@ -3,6 +3,8 @@ import { rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { jscdnAssets } from "./generated-jscdn-assets"
+import { bunCache } from "./generated-bun-cache"
+import { setupNativeBun } from "./native-bun"
 import { bakedAssets } from "./generated-baked-assets"
 
 export async function setupStandaloneEnvironment() {
@@ -25,6 +27,7 @@ export async function setupStandaloneEnvironment() {
     }
     return root
   }
+  await setupNativeBun(bunCache, directory)
   process.env.TSCIRCUIT_STANDALONE = "1"
   process.env.TSCI_SKIP_CLI_UPDATE = "true"
   process.env.TSCI_TELEMETRY_DISABLED = "true"

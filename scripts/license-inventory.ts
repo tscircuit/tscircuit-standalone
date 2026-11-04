@@ -155,6 +155,19 @@ for (const [packageRoot, inputPaths] of [...packageInputs.entries()].sort(([left
   if (inventory.noticeFiles.length === 0) inventory.reviewReasons.push("No installed LICENSE/COPYING/NOTICE file found; verify the full copyright and license text.")
   packages.push(inventory)
 }
+// Native-cache packages are transported as archive bytes, outside the module graph.
+if (Object.keys(graphInputs).some((path) => path.endsWith("generated-bun-cache.ts"))) {
+  const cached = JSON.parse(await readFile(join(projectRoot, "build/bun-cache.tar.gz.notices.json"), "utf8"))
+  for (const item of cached) {
+    packages.push({
+      name: item.name, version: item.version, declaredLicense: item.license, repository: item.repository,
+      installedPaths: [`build/bun-cache.tar.gz!/${item.root}`], inputFiles: ["build/bun-cache.tar.gz"],
+      noticeFiles: item.notices.map((notice: { path: string; content: string }) => appendNotice(`${item.name}@${item.version}: native cache notice`, `build/bun-cache.tar.gz!/${notice.path}`, notice.content)),
+      bundledLicenseComments: [],
+      reviewReasons: ["Cached packages may contain prebundled/native code; internal licenses require review.", ...(item.notices.length ? [] : ["No installed notice file found."])],
+    })
+  }
+}
 packages.sort((left, right) => compare(`${left.name}@${left.version}:${left.installedPaths[0]}`, `${right.name}@${right.version}:${right.installedPaths[0]}`))
 
 const runtime = JSON.parse(await readFile(join(projectRoot, `vendor-notices/bun-${Bun.version}.json`), "utf8"))
