@@ -3,6 +3,11 @@ on:
   workflow_dispatch:
   push:
     branches: [diagnose/windows-installer-hang-47]
+    paths:
+      - scripts/windows-installer/installer.iss
+      - .github/fixtures/original-installer.iss
+      - .github/scripts/build-module-probes.ts
+      - .github/scripts/test-module-probes.cjs
 permissions:
   contents: read
 jobs:
