@@ -18,10 +18,10 @@ restored native cache. No PATH changes or source rewrites are required.
 Uncached packages, versions and URLs fail locally. Cached `latest` tags reflect
 preparation time; keep the qualified archives for exact reproduction.
 
-[CLI #5699](https://github.com/tscircuit/cli/pull/5699) serves the public
-`tscircuit/browser` export with its matching evaluator worker. The manifest uses
-a test preview until that fix is released. The JS CDN uses the dynamic
-importer's public catalog and UI dependency manifest.
+Published CLI 0.1.2438 includes [CLI #5699](https://github.com/tscircuit/cli/pull/5699)
+and serves the public `tscircuit/browser` export with its matching evaluator
+worker. The JS CDN uses the dynamic importer's public catalog and UI dependency
+manifest.
 
 Legacy browser exporters still have asset adapters in
 `scripts/ui-package-adapters.ts`; those need upstream browser entrypoint and

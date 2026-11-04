@@ -27,7 +27,7 @@
     "@tscircuit/solver-utils": "0.0.16",
     "@tscircuit/system-block-viewer": "https://jscdn.tscircuit.com/@tscircuit/system-block-viewer/0.0.2.tgz",
     "circuit-json": "0.0.525",
-    "circuit-json-to-altium": "github:tscircuit/circuit-json-to-altium#43570b5f1fe9680c8e3d00f16d8a6e97a1085b35",
+    "circuit-json-to-altium": "github:tscircuit/circuit-json-to-altium#a399f6a5341c13bc3846b166bda48894faf2fa5f",
     "circuit-json-to-bom-csv": "0.0.19",
     "circuit-json-to-fdm-component-box": "0.0.4",
     "circuit-json-to-gerber": "0.0.111",
