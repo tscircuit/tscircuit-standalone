@@ -64,8 +64,16 @@ var
   ExternalCommands: Boolean;
   CommandSetupOK: Boolean;
 
+function SetProcessEnvironmentVariable(Name: String; Value: NativeInt): Boolean;
+  external 'SetEnvironmentVariableW@kernel32.dll stdcall';
+
 function PowerShellPath: String;
 begin
+  { Setup can inherit PowerShell 7 module paths through its launcher.
+    Let Windows PowerShell construct its own compatible module search path. }
+  if GetEnv('PSModulePath') <> '' then
+    if not SetProcessEnvironmentVariable('PSModulePath', 0) then
+      RaiseException('Setup could not prepare the Windows PowerShell module path.');
   Result := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
 end;
 

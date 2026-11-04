@@ -1,54 +1,24 @@
-name: Windows installer diagnostic
+name: Windows helper module-path regression
 on:
   workflow_dispatch:
   push:
     branches: [diagnose/windows-installer-hang-47]
 permissions:
   contents: read
-  actions: read
 jobs:
-  probe:
+  regression:
     runs-on: windows-2025
-    timeout-minutes: 10
+    timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          name: tscircuit-standalone-bun-windows-x64
-          run-id: 41846327286
-          github-token: ${{ github.token }}
-          path: windows-release
-      - uses: actions/download-artifact@v4
-        with:
-          name: diagnostic-unsigned-windows-installer
-          run-id: 41852278534
-          github-token: ${{ github.token }}
-          path: installer
-      - name: Restore qualified executable
+          bun-version: 1.4.4
+      - name: Install pinned Inno Setup
         shell: pwsh
-        run: Expand-Archive windows-release/tscircuit-standalone-windows-x64.zip -DestinationPath dist
-      - name: Verify the executable and warm its native cache
-        timeout-minutes: 3
-        shell: pwsh
-        run: |
-          $version = & ./dist/tsci.exe --version
-          if ($LASTEXITCODE -ne 0 -or $version -ne '0.0.3075') { throw 'Executable version check failed' }
-      - name: Capture verification with an independent watchdog
-        timeout-minutes: 5
-        shell: pwsh
-        run: node .github/scripts/installer-probe.cjs
-      - name: Save partial diagnostics before cleanup
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-installer-node-probe
-          path: ${{ runner.temp }}/installer-node-probe
-          if-no-files-found: error
-          retention-days: 3
-      - name: Report probe result
-        shell: pwsh
-        run: |
-          $result = Get-Content "$env:RUNNER_TEMP/installer-node-probe/result.json" | ConvertFrom-Json
-          if (!$result.exited) { throw 'Verification exceeded the diagnostic deadline; partial logs were saved' }
-          if ($result.exitCode -ne 0) { throw "Verification failed with $($result.exitCode); diagnostics were saved" }
-          if (!$result.verified) { throw 'Installer completion transcript was not produced' }
+        run: ./scripts/windows-installer/install-compiler.ps1 -Destination "$env:RUNNER_TEMP/InnoSetup"
+      - name: Build small native startup probes
+        run: bun .github/scripts/build-module-probes.ts
+      - name: Compare inherited PowerShell module handling
+        shell: node {0}
+        run: require(process.env.GITHUB_WORKSPACE + '/.github/scripts/test-module-probes.cjs')
