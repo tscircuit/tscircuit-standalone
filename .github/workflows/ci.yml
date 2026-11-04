@@ -7,66 +7,40 @@ permissions:
 jobs:
   probe:
     runs-on: windows-2025
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.4
       - uses: actions/download-artifact@v4
         with:
           name: tscircuit-standalone-bun-windows-x64
           run-id: 41846327286
           github-token: ${{ github.token }}
           path: windows-release
+      - uses: actions/download-artifact@v4
+        with:
+          name: diagnostic-unsigned-windows-installer
+          run-id: 41852278534
+          github-token: ${{ github.token }}
+          path: installer
       - name: Restore qualified executable
         shell: pwsh
         run: Expand-Archive windows-release/tscircuit-standalone-windows-x64.zip -DestinationPath dist
-      - name: Install pinned Inno Setup
-        shell: pwsh
-        run: ./scripts/windows-installer/install-compiler.ps1 -Destination "$env:RUNNER_TEMP/InnoSetup"
-      - name: Build the unchanged installer
+      - name: Verify the executable and warm its native cache
+        timeout-minutes: 3
         shell: pwsh
         run: |
           $version = & ./dist/tsci.exe --version
           if ($LASTEXITCODE -ne 0 -or $version -ne '0.0.3075') { throw 'Executable version check failed' }
-          bun scripts/build-windows-installer.ts dist/tsci.exe "$version" dist/release/installer.exe
-          if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed' }
-      - uses: actions/upload-artifact@v4
-        with:
-          name: diagnostic-unsigned-windows-installer
-          path: dist/release/installer.exe
-          retention-days: 3
-      - name: Observe installer verification for three minutes
+      - name: Capture verification with an independent watchdog
         timeout-minutes: 5
         shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $diagnostics = Join-Path $env:RUNNER_TEMP 'installer-probe'
-          New-Item -ItemType Directory -Path $diagnostics -Force | Out-Null
-          $arguments = @('-NoLogo', '-NoProfile', '-NonInteractive', '-File',
-            ('"' + (Join-Path $PWD 'scripts/windows-installer/smoke.ps1') + '"'),
-            '-Installer', ('"' + (Join-Path $PWD 'dist/release/installer.exe') + '"'),
-            '-Binary', ('"' + (Join-Path $PWD 'dist/tsci.exe') + '"'),
-            '-Version', '0.0.3075',
-            '-DiagnosticsDirectory', ('"' + $diagnostics + '"'))
-          $process = Start-Process -FilePath (Get-Process -Id $PID).Path -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $diagnostics 'stdout.txt') -RedirectStandardError (Join-Path $diagnostics 'stderr.txt')
-          $null = $process.Handle
-          "INSTALLER_PROBE_PID=$($process.Id)" >> $env:GITHUB_ENV
-          $deadline = [DateTime]::UtcNow.AddSeconds(180)
-          while (!$process.HasExited -and [DateTime]::UtcNow -lt $deadline) {
-            Start-Sleep -Seconds 10
-            Get-Content -LiteralPath (Join-Path $diagnostics 'stdout.txt') -Tail 12 -ErrorAction SilentlyContinue
-            $process.Refresh()
-          }
-          $code = if ($process.HasExited) { $process.ExitCode } else { $null }
-          @{ exited = $process.HasExited; exitCode = $code; pid = $process.Id; observedAt = [DateTime]::UtcNow.ToString('o') } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $diagnostics 'result.json')
+        run: node .github/scripts/installer-probe.cjs
       - name: Save partial diagnostics before cleanup
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: windows-installer-probe
-          path: ${{ runner.temp }}/installer-probe
+          name: windows-installer-node-probe
+          path: ${{ runner.temp }}/installer-node-probe
           if-no-files-found: error
           retention-days: 3
       - name: Clean up the diagnostic process
@@ -81,6 +55,6 @@ jobs:
       - name: Report probe result
         shell: pwsh
         run: |
-          $result = Get-Content "$env:RUNNER_TEMP/installer-probe/result.json" | ConvertFrom-Json
-          if (!$result.exited) { throw 'Installer verification exceeded the diagnostic deadline; partial logs were saved' }
-          if ($result.exitCode -ne 0) { throw "Installer verification failed with $($result.exitCode); diagnostics were saved" }
+          $result = Get-Content "$env:RUNNER_TEMP/installer-node-probe/result.json" | ConvertFrom-Json
+          if (!$result.exited) { throw 'Verification exceeded the diagnostic deadline; partial logs were saved' }
+          if ($result.exitCode -ne 0) { throw "Verification failed with $($result.exitCode); diagnostics were saved" }
