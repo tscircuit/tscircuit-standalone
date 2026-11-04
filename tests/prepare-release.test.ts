@@ -22,6 +22,10 @@ const npmMetadata = {
     "@tscircuit/props": "0.0.700",
     "@tscircuit/checks": "^0.0.247",
     "@tscircuit/circuit-json-util": "^0.0.121",
+    "@tscircuit/cli": "^0.1.2432",
+    "circuit-json": "^0.0.542",
+    "circuit-json-to-gltf": "^0.0.164",
+    react: "^19.1.0",
   },
 }
 
@@ -43,6 +47,9 @@ const fixture = async () => {
       "@tscircuit/eval": "0.0.1569",
       "@tscircuit/props": "0.0.697",
       "@tscircuit/footprinter": "0.0.437",
+      "@tscircuit/schematic-trace-solver": "0.0.208",
+      "circuit-json": "0.0.535",
+      "circuit-json-to-gltf": "0.0.152",
       react: "19.2.7",
     },
     devDependencies: { typescript: "5.9.3" },
@@ -73,7 +80,7 @@ const fixture = async () => {
   return { projectRoot, root, ui, files, assertUnchanged }
 }
 
-test("preparation installs the published npm package and preserves CLI and UI pins", async () => {
+test("preparation aligns native runtime dependencies and preserves CLI and UI pins", async () => {
   const { projectRoot, root, ui } = await fixture()
   let installed = false
   const release = await prepareRelease({
@@ -105,6 +112,11 @@ test("preparation installs the published npm package and preserves CLI and UI pi
     version: npmMetadata.version,
     dependencies: {
       ...root.dependencies,
+      "@tscircuit/core": "0.0.2132",
+      "@tscircuit/eval": "0.0.1596",
+      "@tscircuit/props": "0.0.700",
+      "circuit-json": "0.0.542",
+      "circuit-json-to-gltf": "0.0.164",
       tscircuit: npmMetadata.version,
     },
   })
@@ -170,6 +182,13 @@ test("invalid npm metadata and missing or unsupported dependency ranges fail bef
       dependencies: {
         ...npmMetadata.dependencies,
         "@tscircuit/core": ">=0.0.2132",
+      },
+    },
+    {
+      ...npmMetadata,
+      dependencies: {
+        ...npmMetadata.dependencies,
+        "circuit-json-to-gltf": "latest",
       },
     },
   ]) {
