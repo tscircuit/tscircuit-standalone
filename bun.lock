@@ -16,6 +16,7 @@
         "@tscircuit/krt-wasm": "0.1.9",
         "@tscircuit/math-utils": "0.0.38",
         "@tscircuit/props": "0.0.710",
+        "@tscircuit/schematic-trace-solver": "0.0.208",
         "circuit-json": "0.0.535",
         "circuit-to-svg": "0.0.453",
         "fflate": "0.8.3",
