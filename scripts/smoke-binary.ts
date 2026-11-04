@@ -221,6 +221,26 @@ try {
       datasheet.generated_tsx,
     )
   }
+
+  // Filesystem imports publish FILE_UPDATED only after their dependencies have
+  // finished uploading. Start the browser against that complete project state.
+  const importedPaths = ["imports/AM62L32.tsx", "imports/AM3358BZCZA100.tsx"]
+  let importsSynced = false
+  for (let attempt = 0; attempt < 600; attempt++) {
+    const { event_list } = await (await fetch(`${origin}/api/events/list`, {
+      signal: AbortSignal.timeout(5000),
+    })).json()
+    const updatedPaths = new Set(event_list
+      .filter((event: { event_type: string }) => event.event_type === "FILE_UPDATED")
+      .map((event: { file_path?: string }) => event.file_path?.replaceAll("\\", "/")))
+    if (importedPaths.every((path) => updatedPaths.has(path))) {
+      importsSynced = true
+      break
+    }
+    if (dev.exitCode !== null) throw new Error("tsci dev exited while synchronizing imports")
+    await Bun.sleep(100)
+  }
+  assert.ok(importsSynced, "Dev did not synchronize the imported parts")
   console.log(`Verified all ${inventory.datasheets.length} baked datasheets (${sourceCount} with TSX) and unchanged BGA imports.`)
   for (const file of files) {
     const response = await fetch(`${origin}/jscdn/${file}`, {
