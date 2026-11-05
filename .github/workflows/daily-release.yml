@@ -185,15 +185,10 @@ jobs:
             cmp "dist/$notice" "/usr/local/share/tscircuit-standalone/$notice"
           done
           codesign --verify --strict /usr/local/bin/tsci
-      - name: Verify the installed binary starts on its native architecture
+      - name: Verify the installed binary offline with a fresh home
         env:
           EXPECTED_VERSION: ${{ needs.prepare.outputs.version }}
-        run: |
-          test "$(env PATH=/usr/local/bin:/usr/bin:/bin tsci --version)" = "$EXPECTED_VERSION"
-          /usr/local/bin/tsci --help
-          # Exercise JavaScriptCore, the embedded worker and WASM rendering
-          # under the release signature's hardened-runtime entitlements.
-          /usr/local/bin/tsci build examples/led-resistor.circuit.tsx --ignore-errors --concurrency 2 --pcb-png
+        run: bash scripts/smoke-macos-signed.sh /usr/local/bin/tsci
       - name: Install GNU tar for deterministic archives
         run: |
           brew install gnu-tar
