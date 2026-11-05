@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test"
 import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises"
-import { tmpdir } from "node:os"
+import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { buildMacosInstaller } from "../scripts/build-macos-installer"
 
@@ -76,11 +76,39 @@ test.skipIf(process.platform !== "darwin")("native package preserves the executa
   expect(distribution).not.toContain('rootVolumeOnly="true"')
   expect(distribution).toContain('<domains enable_anywhere="false" enable_currentUserHome="true" enable_localSystem="false"/>')
   expect(distribution).toContain('customize="always"')
-  expect(distribution).toContain('customLocation="/.local"')
   const domains = Bun.spawnSync(["installer", "-dominfo", "-pkg", options.output], { stdout: "pipe", stderr: "pipe" })
   expect(domains.exitCode, domains.stderr.toString()).toBe(0)
   expect(domains.stdout.toString()).toContain("CurrentUserHomeDirectory")
   expect(domains.stdout.toString()).not.toContain("LocalSystem")
+  const readChoices = (...flags: string[]) => {
+    const result = Bun.spawnSync(["installer", "-pkg", options.output, "-target", "CurrentUserHomeDirectory", ...flags], {
+      stdout: "pipe", stderr: "pipe",
+    })
+    expect(result.exitCode, result.stdout.toString() + result.stderr.toString()).toBe(0)
+    const json = Bun.spawnSync(["plutil", "-convert", "json", "-o", "-", "-"], { stdin: result.stdout })
+    expect(json.exitCode, json.stderr.toString()).toBe(0)
+    const settings = JSON.parse(json.stdout.toString()) as Array<{
+      choiceIdentifier: string; choiceAttribute: string; attributeSetting: unknown
+    }>
+    return (choice: string, attribute: string) => settings.find((entry) =>
+      entry.choiceIdentifier === choice && entry.choiceAttribute === attribute)?.attributeSetting
+  }
+  const defaults = readChoices("-showChoiceChangesXML")
+  expect(defaults("tsci-default", "selected")).toBe(1)
+  expect(defaults("tsci-default", "customLocation")).toBeUndefined()
+  expect(defaults("tsci-custom", "selected")).toBe(0)
+
+  const choicesFile = join(root, "choices.plist")
+  await writeFile(choicesFile, JSON.stringify([
+    { choiceIdentifier: "tsci-custom", choiceAttribute: "selected", attributeSetting: 1 },
+    { choiceIdentifier: "tsci-custom", choiceAttribute: "customLocation", attributeSetting: homedir() },
+  ]))
+  const conversion = Bun.spawnSync(["plutil", "-convert", "xml1", choicesFile])
+  expect(conversion.exitCode, conversion.stderr.toString()).toBe(0)
+  const custom = readChoices("-showChoicesAfterApplyingChangesXML", choicesFile)
+  expect(custom("tsci-default", "selected")).toBe(0)
+  expect(custom("tsci-custom", "selected")).toBe(1)
+  expect(custom("tsci-custom", "customLocation")).toBe(homedir())
   expect(distribution).not.toMatch(/<(?:welcome|readme|license|conclusion)\b/)
   expect(await readdir(expanded)).not.toContain("Resources")
   expect((await readdir(root)).some((name) => name.startsWith(".installer-"))).toBe(false)

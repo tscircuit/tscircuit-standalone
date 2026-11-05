@@ -1,5 +1,5 @@
 import { createReadStream, createWriteStream } from "node:fs"
-import { chmod, lstat, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises"
+import { chmod, lstat, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { pipeline } from "node:stream/promises"
 
@@ -61,26 +61,29 @@ export async function buildMacosInstaller({
       await pipeline(createReadStream(source), createWriteStream(join(root, path)))
       await chmod(join(root, path), path === "bin/tsci" ? 0o755 : 0o644)
     }
-    await writeFile(join(stage, "requirements.plist"), `<?xml version="1.0" encoding="UTF-8"?>
-<plist version="1.0"><dict>
-<key>arch</key><array><string>${nativeArchitecture}</string></array>
-<key>os</key><array><string>${minimumVersions[0]}</string></array>
-</dict></plist>`)
     run(["pkgbuild", "--root", root, "--identifier", "com.tscircuit.tsci", "--version", packageVersion,
       "--install-location", "/.local", "--ownership", "recommended", join(stage, "component.pkg")])
     const distribution = join(stage, "Distribution.xml")
-    run(["productbuild", "--synthesize", "--product", join(stage, "requirements.plist"),
-      "--package", join(stage, "component.pkg"), distribution])
-    const xml = await readFile(distribution, "utf8")
-    if (!/<installer-gui-script\b[^>]*>/.test(xml)) throw new Error("Missing Installer distribution")
-    // Home-domain installs run as the current user. Never offer a system domain
-    // that could trigger an administrator prompt. The choice permits a custom
-    // prefix within the home directory through Installer's location picker.
-    await writeFile(distribution, xml
-      .replace(/<installer-gui-script\b[^>]*>/, `$&\n    <title>tscircuit ${version}</title>\n    <domains enable_anywhere="false" enable_currentUserHome="true" enable_localSystem="false"/>`)
-      .replace('customize="never"', 'customize="always"')
-      .replace('<choice id="com.tscircuit.tsci" visible="false">',
-        '<choice id="com.tscircuit.tsci" visible="true" title="tscircuit Standalone" customLocation="/.local" customLocationAllowAlternateVolumes="false">'))
+    // A custom location is volume-relative, whereas a component's normal
+    // install location is relative to its selected domain. Keep the default
+    // choice home-relative and enable the folder picker through an opt-in choice.
+    await writeFile(distribution, `<?xml version="1.0" encoding="UTF-8"?>
+<installer-gui-script minSpecVersion="2">
+  <title>tscircuit ${version}</title>
+  <options customize="always" require-scripts="true" hostArchitectures="${nativeArchitecture}"/>
+  <domains enable_anywhere="false" enable_currentUserHome="true" enable_localSystem="false"/>
+  <volume-check><allowed-os-versions><os-version min="${minimumVersions[0]}"/></allowed-os-versions></volume-check>
+  <choices-outline><line choice="tsci-default"/><line choice="tsci-custom"/></choices-outline>
+  <choice id="tsci-default" title="Install in ~/.local" enabled="false" selected="!choices['tsci-custom'].selected">
+    <pkg-ref id="com.tscircuit.tsci"/>
+  </choice>
+  <choice id="tsci-custom" title="Choose another folder" start_selected="false"
+    description="Select a folder in your home directory using Location &gt; Other…"
+    customLocation="/" customLocationAllowAlternateVolumes="false">
+    <pkg-ref id="com.tscircuit.tsci"/>
+  </choice>
+  <pkg-ref id="com.tscircuit.tsci" version="${packageVersion}">component.pkg</pkg-ref>
+</installer-gui-script>`)
     const temporaryOutput = join(stage, "unsigned.pkg")
     run(["productbuild", "--distribution", distribution, "--package-path", stage,
       temporaryOutput])
