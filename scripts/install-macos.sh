@@ -1,5 +1,5 @@
 #!/bin/sh
-# Install the signed macOS package, or extract an archive to an explicit directory.
+# Install the signed per-user macOS package, or extract to a chosen directory.
 set -eu
 
 fail() {
@@ -24,6 +24,25 @@ case "$(uname -m)" in
   x86_64) architecture=x64 ;;
   *) fail "Unsupported macOS architecture: $(uname -m)" ;;
 esac
+home_prefix=${HOME:?HOME is required}/.local
+destination=${2-}
+if [ -z "$destination" ] && [ -t 1 ] && [ "${TSCI_NONINTERACTIVE:-0}" != 1 ]; then
+  # stdin may be the downloaded script; an empty answer selects the user package.
+  if ( : <>/dev/tty ) 2>/dev/null; then
+    printf 'Portable destination (leave blank to install in %s/bin): ' "$home_prefix" >/dev/tty
+    IFS= read -r destination </dev/tty || fail 'Destination selection cancelled.'
+  fi
+fi
+if [ -n "$destination" ]; then
+  case "$destination" in /*) ;; *) destination=./$destination ;; esac
+  [ ! -e "$destination" ] && [ ! -L "$destination" ] || fail "Destination already exists: $destination"
+  writable=$(dirname "$destination")
+else
+  writable=$home_prefix
+fi
+while [ ! -e "$writable" ]; do writable=$(dirname "$writable"); done
+[ -d "$writable" ] && [ -w "$writable" ] && [ -x "$writable" ] ||
+  fail 'Choose a writable destination; this installer does not request administrator access.'
 for tool in curl shasum tar mktemp; do
   command -v "$tool" >/dev/null 2>&1 || fail "Required command not found: $tool"
 done
@@ -42,17 +61,11 @@ if [ "$release_tag" = latest ]; then
   validate_release_tag "$release_tag"
 fi
 
-destination=${2-}
 if [ -n "$destination" ]; then
   # An explicit directory retains the portable, unprivileged archive installation.
-  case "$destination" in
-    /*) ;;
-    *) destination=./$destination ;;
-  esac
-  [ ! -e "$destination" ] && [ ! -L "$destination" ] || fail "Destination already exists: $destination"
   archive=tscircuit-standalone-macos-$architecture.tar.gz
 else
-  for tool in pkgutil spctl sudo; do
+  for tool in pkgutil spctl installer; do
     command -v "$tool" >/dev/null 2>&1 || fail "Required command not found: $tool"
   done
   archive=tscircuit-standalone-macos-$architecture.pkg
@@ -74,9 +87,9 @@ if [ -z "$destination" ]; then
   printf '%s\n' "$signature" | grep -Fq 'Developer ID Installer: tscircuit Inc. (WUQ9WUY75Z)' ||
     fail "Unexpected installer signing identity."
   spctl --assess --type install "$staging/$archive" || fail "Apple Gatekeeper did not accept the installer."
-  printf 'Installing tsci to /usr/local/bin. Administrator approval may be required.\n'
-  sudo /usr/sbin/installer -pkg "$staging/$archive" -target /
-  printf 'Installed tsci. Run: tsci --version\n'
+  printf 'Installing tsci in %s/bin for the current user.\n' "$home_prefix"
+  installer -pkg "$staging/$archive" -target CurrentUserHomeDirectory
+  printf 'Installed tsci. Run: "%s/bin/tsci" --version\n' "$home_prefix"
   exit 0
 fi
 

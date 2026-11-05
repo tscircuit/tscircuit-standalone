@@ -178,17 +178,17 @@ jobs:
           retention-days: 7
       - name: Install and verify the notarized package
         run: |
-          sudo installer -pkg dist/tsci.pkg -target /
-          cmp dist/tsci /usr/local/bin/tsci
-          test "$(stat -f '%u:%g:%Lp' /usr/local/bin/tsci)" = "0:0:755"
+          installer -pkg dist/tsci.pkg -target CurrentUserHomeDirectory
+          cmp dist/tsci "$HOME/.local/bin/tsci"
+          test "$(stat -f '%u:%Lp' "$HOME/.local/bin/tsci")" = "$(id -u):755"
           for notice in LICENSE THIRD_PARTY_NOTICES licenses.json THIRD_PARTY_NOTICES.txt; do
-            cmp "dist/$notice" "/usr/local/share/tscircuit-standalone/$notice"
+            cmp "dist/$notice" "$HOME/.local/share/tscircuit-standalone/$notice"
           done
-          codesign --verify --strict /usr/local/bin/tsci
+          codesign --verify --strict "$HOME/.local/bin/tsci"
       - name: Verify the installed binary offline with a fresh home
         env:
           EXPECTED_VERSION: ${{ needs.prepare.outputs.version }}
-        run: bash scripts/smoke-macos-signed.sh /usr/local/bin/tsci
+        run: bash scripts/smoke-macos-signed.sh "$HOME/.local/bin/tsci"
       - name: Install GNU tar for deterministic archives
         run: |
           brew install gnu-tar
@@ -330,7 +330,8 @@ jobs:
           | Linux x64 | [Archive (.tar.gz)]($download_url/tscircuit-standalone-linux-x64.tar.gz) |
           | Linux arm64 | [Archive (.tar.gz)]($download_url/tscircuit-standalone-linux-arm64.tar.gz) |
 
-          - **macOS / Windows:** Run the installer, open a new terminal, then run \`tsci --version\`.
+          - **macOS:** Run the per-user installer, choose a folder in your home directory (default \`~/.local\`), then run \`~/.local/bin/tsci --version\` or add the chosen prefix's \`bin\` directory to PATH.
+          - **Windows:** Run the per-user installer, choose a writable destination, open a new terminal, then run \`tsci --version\`.
           - **Linux:** Extract the archive and run \`./tsci --version\`.
 
           ### Install latest

@@ -3,11 +3,16 @@
 param(
     [string]$Release = 'latest',
     [switch]$Silent,
-    [switch]$ReplaceExisting
+    [switch]$ReplaceExisting,
+    [string]$Destination
 )
 $ErrorActionPreference = 'Stop'
 if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw 'This installer is for Windows.' }
 if ($Release -ne 'latest' -and $Release -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]*$') { throw 'Invalid release tag' }
+if ($Destination) {
+    if ($Destination -match '["\x00-\x1f]') { throw 'Invalid destination path' }
+    $Destination = [IO.Path]::GetFullPath($Destination)
+}
 $repository = 'https://api.github.com/repos/tscircuit/tscircuit-standalone'
 if ($Release -eq 'latest') {
     # Development releases are prereleases and absent from GitHub's /latest endpoint.
@@ -42,7 +47,8 @@ try {
     if ($signature.SignerCertificate.GetNameInfo([Security.Cryptography.X509Certificates.X509NameType]::SimpleName, $false) -cne 'tscircuit Inc') {
         throw 'Unexpected installer signing identity'
     }
-    $arguments = @('/NORESTART')
+    $arguments = @('/NORESTART', '/CURRENTUSER')
+    if ($Destination) { $arguments += '/DIR="' + $Destination + '"' }
     if ($Silent) { $arguments += @('/VERYSILENT', '/SUPPRESSMSGBOXES') }
     if ($ReplaceExisting) { $arguments += '/TASKS=replacecommands' }
     $process = Start-Process -FilePath $installer -ArgumentList $arguments -Wait -PassThru

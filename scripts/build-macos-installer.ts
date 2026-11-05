@@ -1,5 +1,5 @@
 import { createReadStream, createWriteStream } from "node:fs"
-import { chmod, lstat, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises"
+import { chmod, lstat, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { pipeline } from "node:stream/promises"
 
@@ -32,10 +32,10 @@ export async function buildMacosInstaller({
   const packageVersion = match.slice(1, 4).join(".")
   const noticeNames = ["LICENSE", "THIRD_PARTY_NOTICES", "licenses.json", "THIRD_PARTY_NOTICES.txt"]
   const inputs = [
-    [resolve(binary), "usr/local/bin/tsci"],
+    [resolve(binary), "bin/tsci"],
     ...noticeNames.map((name) => [
       join(name === "LICENSE" || name === "THIRD_PARTY_NOTICES" ? projectRoot : dirname(resolve(binary)), name),
-      `usr/local/share/tscircuit-standalone/${name}`,
+      `share/tscircuit-standalone/${name}`,
     ]),
   ] as [string, string][]
   for (const [source] of inputs) {
@@ -51,7 +51,7 @@ export async function buildMacosInstaller({
   try {
     const root = join(stage, "root")
     // Explicit modes also work when the signing shell uses umask 077.
-    for (const path of ["usr", "usr/local", "usr/local/bin", "usr/local/share", "usr/local/share/tscircuit-standalone"]) {
+    for (const path of ["bin", "share", "share/tscircuit-standalone"]) {
       await mkdir(join(root, path), { recursive: true })
       await chmod(join(root, path), 0o755)
     }
@@ -59,24 +59,31 @@ export async function buildMacosInstaller({
       // Copy bytes into a fresh payload, without importing a source file's
       // download metadata or ACLs. The source and its quarantine stay intact.
       await pipeline(createReadStream(source), createWriteStream(join(root, path)))
-      await chmod(join(root, path), path === "usr/local/bin/tsci" ? 0o755 : 0o644)
+      await chmod(join(root, path), path === "bin/tsci" ? 0o755 : 0o644)
     }
-    await writeFile(join(stage, "requirements.plist"), `<?xml version="1.0" encoding="UTF-8"?>
-<plist version="1.0"><dict>
-<key>arch</key><array><string>${nativeArchitecture}</string></array>
-<key>os</key><array><string>${minimumVersions[0]}</string></array>
-</dict></plist>`)
     run(["pkgbuild", "--root", root, "--identifier", "com.tscircuit.tsci", "--version", packageVersion,
-      "--install-location", "/", "--ownership", "recommended", join(stage, "component.pkg")])
+      "--install-location", "/.local", "--ownership", "recommended", join(stage, "component.pkg")])
     const distribution = join(stage, "Distribution.xml")
-    run(["productbuild", "--synthesize", "--product", join(stage, "requirements.plist"),
-      "--package", join(stage, "component.pkg"), distribution])
-    const xml = await readFile(distribution, "utf8")
-    if (!/<installer-gui-script\b[^>]*>/.test(xml)) throw new Error("Missing Installer distribution")
-    // Explicit domains show a redundant destination page even with one option.
-    await writeFile(distribution, xml
-      .replace(/<installer-gui-script\b[^>]*>/, `$&\n    <title>tscircuit ${version}</title>`)
-      .replace(/<options\b/, '<options rootVolumeOnly="true"'))
+    // A custom location is volume-relative, whereas a component's normal
+    // install location is relative to its selected domain. Keep the default
+    // choice home-relative and enable the folder picker through an opt-in choice.
+    await writeFile(distribution, `<?xml version="1.0" encoding="UTF-8"?>
+<installer-gui-script minSpecVersion="2">
+  <title>tscircuit ${version}</title>
+  <options customize="always" require-scripts="true" hostArchitectures="${nativeArchitecture}"/>
+  <domains enable_anywhere="false" enable_currentUserHome="true" enable_localSystem="false"/>
+  <volume-check><allowed-os-versions><os-version min="${minimumVersions[0]}"/></allowed-os-versions></volume-check>
+  <choices-outline><line choice="tsci-default"/><line choice="tsci-custom"/></choices-outline>
+  <choice id="tsci-default" title="Install in ~/.local" enabled="false" selected="!choices['tsci-custom'].selected">
+    <pkg-ref id="com.tscircuit.tsci"/>
+  </choice>
+  <choice id="tsci-custom" title="Choose another folder" start_selected="false"
+    description="Select a folder in your home directory using Location &gt; Other…"
+    customLocation="/" customLocationAllowAlternateVolumes="false">
+    <pkg-ref id="com.tscircuit.tsci"/>
+  </choice>
+  <pkg-ref id="com.tscircuit.tsci" version="${packageVersion}">component.pkg</pkg-ref>
+</installer-gui-script>`)
     const temporaryOutput = join(stage, "unsigned.pkg")
     run(["productbuild", "--distribution", distribution, "--package-path", stage,
       temporaryOutput])

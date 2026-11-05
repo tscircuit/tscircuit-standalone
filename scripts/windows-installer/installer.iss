@@ -23,7 +23,7 @@ SetupArchitecture=x64
 WizardStyle=modern dynamic windows11
 DisableProgramGroupPage=yes
 DisableWelcomePage=no
-DisableDirPage=yes
+DisableDirPage=no
 OutputDir=.
 OutputBaseFilename=tscircuit-standalone-windows-x64-setup
 Compression=lzma2
@@ -88,13 +88,11 @@ begin
     Result := 'Existing tscircuit commands were found. Confirm that standalone should become the default, or cancel setup. For unattended installation, explicitly pass /TASKS=replacecommands.';
 end;
 
-procedure InitializeWizard;
+procedure DetectExistingCommands;
 var
   ExitCode: Integer;
   Args, DetectionFile: String;
 begin
-  CommandSetupOK := False;
-  ExtractTemporaryFile('setup.ps1');
   DetectionFile := ExpandConstant('{tmp}\detected.ini');
   Args := '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "' +
     ExpandConstant('{tmp}\setup.ps1') + '" -Mode Detect -InstallDir "' + WizardDirValue + '" -ResultFile "' + DetectionFile + '"';
@@ -104,6 +102,20 @@ begin
     RaiseException('Setup could not check the existing tsci command. No installation changes were made.');
   ExternalCommands := GetIniString('Detection', 'External', '0', DetectionFile) = '1';
   ExistingPaths := GetIniString('Detection', 'Paths', '', DetectionFile);
+end;
+
+procedure InitializeWizard;
+begin
+  CommandSetupOK := False;
+  ExtractTemporaryFile('setup.ps1');
+  DetectExistingCommands;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  // Folder selection can turn an existing managed command into a conflict.
+  if CurPageID = wpSelectDir then DetectExistingCommands;
+  Result := True;
 end;
 
 function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo,

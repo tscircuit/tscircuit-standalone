@@ -59,6 +59,7 @@ try {
     Reset-Fixture
     & $bootstrap | Out-Null
     Assert ($global:TsciFixturelaunched -contains '/NORESTART') 'GUI installer was not launched'
+    Assert ($global:TsciFixturelaunched -contains '/CURRENTUSER') 'Installer was not restricted to the current user'
     Assert ($global:TsciFixturelaunched -notcontains '/TASKS=replacecommands') 'GUI flow silently opted into takeover'
     Assert ($global:TsciFixturerequests[0].Contains('/releases?')) 'Latest did not search prereleases'
     Reset-Fixture
@@ -72,6 +73,13 @@ try {
     Assert ($global:TsciFixturelaunched -contains '/VERYSILENT') 'Silent flag was lost'
     Assert ($global:TsciFixturelaunched -contains '/TASKS=replacecommands') 'Explicit takeover consent was lost'
     Assert ($global:TsciFixturerequests[0].EndsWith('/releases/tags/daily-2026-10-27')) 'Exact release tag was ignored'
+    Reset-Fixture
+    $fixtureDestination = [IO.Path]::GetFullPath((Join-Path $env:TEMP 'custom tscircuit destination'))
+    & $bootstrap -Silent -Destination $fixtureDestination | Out-Null
+    Assert ($global:TsciFixturelaunched -contains ('/DIR="' + $fixtureDestination + '"')) ("Destination with spaces was not preserved: " + ($global:TsciFixturelaunched -join ' | '))
+    Assert ($global:TsciFixturelaunched -contains '/CURRENTUSER') 'Custom destination enabled elevation'
+    Reset-Fixture
+    Expect-Failure 'Invalid destination path' { & $bootstrap -Destination 'bad" /ALLUSERS' | Out-Null }
     Reset-Fixture
     $global:TsciFixturetamper = $true
     Expect-Failure 'checksum mismatch' { & $bootstrap | Out-Null }
