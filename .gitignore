@@ -10,3 +10,4 @@ imports/
 !examples/imports/C2040.tsx
 *.tgz
 lib/generated-bun-cache.ts
+lib/generated-runtime.ts

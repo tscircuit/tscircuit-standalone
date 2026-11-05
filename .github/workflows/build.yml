@@ -62,6 +62,9 @@ jobs:
             lib/generated-jscdn-assets.ts
             lib/generated-baked-assets.ts
             lib/generated-bun-cache.ts
+            lib/generated-runtime.ts
+            build/runtime.tar.gz
+            build/runtime.tar.gz.notices.json
             build/bun-cache.tar.gz
             build/bun-cache.tar.gz.notices.json
             build/bun-cache-locks

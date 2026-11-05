@@ -9,7 +9,7 @@ import {
 } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
-import { packBunCache } from "../scripts/build-bun-cache"
+import { packDirectory } from "../scripts/pack-directory"
 
 let root: string
 let binary: string
@@ -74,7 +74,7 @@ beforeAll(async () => {
   // Exercise the alias/canonical-path mismatch found in macOS temp directories
   // and Windows junctions, even when this test runs on Linux.
   await symlink(join(root, "warm-cache"), join(root, "cache-alias"), "junction")
-  await packBunCache(join(root, "cache-alias"), join(root, "cache.tar.gz"))
+  await packDirectory(join(root, "cache-alias"), join(root, "cache.tar.gz"))
   const metadata = JSON.parse(
     await readFile(join(root, "cache.tar.gz.notices.json"), "utf8"),
   )
@@ -185,7 +185,7 @@ test("cache links to a different directory are still rejected", async () => {
   await mkdir(cache)
   await symlink(join(root, "seed"), join(cache, "outside"), "junction")
   await expect(
-    packBunCache(cache, join(root, "escaping.tar.gz")),
+    packDirectory(cache, join(root, "escaping.tar.gz")),
   ).rejects.toThrow("Cache link escapes the cache")
 })
 

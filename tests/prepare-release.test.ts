@@ -80,7 +80,7 @@ const fixture = async () => {
   return { projectRoot, root, ui, files, assertUnchanged }
 }
 
-test("preparation aligns native runtime dependencies and preserves CLI and UI pins", async () => {
+test("preparation updates the selected package and preserves other dependency declarations", async () => {
   const { projectRoot, root, ui } = await fixture()
   let installed = false
   const release = await prepareRelease({
@@ -103,20 +103,12 @@ test("preparation aligns native runtime dependencies and preserves CLI and UI pi
   expect(installed).toBe(true)
   expect(release).toEqual({
     version: "0.0.2839",
-    coreVersion: "0.0.2132",
-    evalVersion: "0.0.1596",
-    propsVersion: "0.0.700",
   })
   expect(await Bun.file(join(projectRoot, "package.json")).json()).toEqual({
     ...root,
     version: npmMetadata.version,
     dependencies: {
       ...root.dependencies,
-      "@tscircuit/core": "0.0.2132",
-      "@tscircuit/eval": "0.0.1596",
-      "@tscircuit/props": "0.0.700",
-      "circuit-json": "0.0.542",
-      "circuit-json-to-gltf": "0.0.164",
       tscircuit: npmMetadata.version,
     },
   })
@@ -153,7 +145,7 @@ test("an exact requested npm version is used and must match the response", async
   ).toBe(fixtureData.files["bun.lock"])
 })
 
-test("invalid npm metadata and missing or unsupported dependency ranges fail before changing manifests", async () => {
+test("invalid npm package identity and version fail before changing manifests", async () => {
   for (const metadata of [
     null,
     [],
@@ -162,35 +154,6 @@ test("invalid npm metadata and missing or unsupported dependency ranges fail bef
     { ...npmMetadata, version: "0.0.2839-daily.01" },
     { ...npmMetadata, version: "0.0.2839-daily..1" },
     { ...npmMetadata, version: "latest" },
-    { ...npmMetadata, dependencies: undefined },
-    { ...npmMetadata, dependencies: [] },
-    ...["@tscircuit/core", "@tscircuit/eval", "@tscircuit/props"].map(
-      (name) => ({
-        ...npmMetadata,
-        dependencies: { ...npmMetadata.dependencies, [name]: undefined },
-      }),
-    ),
-    {
-      ...npmMetadata,
-      dependencies: {
-        ...npmMetadata.dependencies,
-        "@tscircuit/core": "latest",
-      },
-    },
-    {
-      ...npmMetadata,
-      dependencies: {
-        ...npmMetadata.dependencies,
-        "@tscircuit/core": ">=0.0.2132",
-      },
-    },
-    {
-      ...npmMetadata,
-      dependencies: {
-        ...npmMetadata.dependencies,
-        "circuit-json-to-gltf": "latest",
-      },
-    },
   ]) {
     const { projectRoot, assertUnchanged } = await fixture()
     await expect(
@@ -269,4 +232,14 @@ test("preparing the same dependency versions keeps the existing lockfile", async
       )
     },
   })
+})
+
+test("Bun owns transitive dependency ranges, including packages unknown to standalone", async () => {
+  const { projectRoot, root } = await fixture()
+  await prepareRelease({
+    projectRoot,
+    fetch: async () => Response.json({ ...npmMetadata, dependencies: { "new-runtime-package": ">=2.0.0", "@tscircuit/core": "latest" } }),
+    install: false,
+  })
+  expect((await Bun.file(join(projectRoot, "package.json")).json()).dependencies).toEqual({ ...root.dependencies, tscircuit: npmMetadata.version })
 })

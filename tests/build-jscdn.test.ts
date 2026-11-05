@@ -2,7 +2,7 @@ import { expect, test } from "bun:test"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { getDynamicImports, localizeAssetUrls } from "../scripts/build-jscdn"
+import { selectDynamicModules, localizeAssetUrls } from "../scripts/build-jscdn"
 import { createUiPackageAdapters, findUiPackageRoot } from "../scripts/ui-package-adapters"
 
 test("preserves another consumer's GLTF exports outside the STEP adapter", async () => {
@@ -30,24 +30,11 @@ test("preserves another consumer's GLTF exports outside the STEP adapter", async
   }
 })
 
-test("finds RunFrame's aliased dynamic imports, without unrelated calls", () => {
-  expect(
-    getDynamicImports(`
-    import importer from "@tscircuit/internal-dynamic-import"
-    importer("circuit-json-to-gltf")
-    importer("circuit-json-to-gltf")
-    importer("@tscircuit/circuit-json-schematic-placement-analysis@0.0.46")
-    other("not-a-package")
-  `),
-  ).toEqual([
-    "circuit-json-to-gltf",
-    "@tscircuit/circuit-json-schematic-placement-analysis@0.0.46",
-  ])
-  expect(() =>
-    getDynamicImports(
-      'import load from "@tscircuit/internal-dynamic-import"; load(packageName)',
-    ),
-  ).toThrow("literal package specifier")
+test("selects declared browser modules from the public importer catalog", () => {
+  expect(selectDynamicModules(
+    { "future-exporter": "1.0.0", "@example/analysis": "2.0.0", "unrelated-viewer": "3.0.0" },
+    ["@example/analysis", "future-exporter", "not-installed-exporter"],
+  )).toEqual(["@example/analysis", "future-exporter"])
 })
 
 test("resolves JS and WASM relative to the CDN module on nested sites", () => {

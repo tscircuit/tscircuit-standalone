@@ -1,5 +1,4 @@
 import { mkdir, stat, writeFile } from "node:fs/promises"
-import { cliPackageAdapters } from "./cli-package-adapters"
 import { binaryTargets, validateBinaryTarget } from "./binary-targets"
 
 /** Compile the shared CLI and prepared assets, without fetching packages. */
@@ -11,6 +10,9 @@ export async function compileBinary(): Promise<string> {
   validateBinaryTarget(target)
   for (const path of [
     "lib/generated-bun-cache.ts",
+    "lib/generated-runtime.ts",
+    "build/runtime.tar.gz",
+    "build/runtime.tar.gz.notices.json",
     "build/bun-cache.tar.gz",
     "build/bun-cache.tar.gz.notices.json",
     "lib/generated-jscdn-assets.ts",
@@ -28,11 +30,7 @@ export async function compileBinary(): Promise<string> {
   const windows = target?.includes("windows") ?? process.platform === "win32"
   const outfile = windows ? "dist/tsci.exe" : "dist/tsci"
   const result = await Bun.build({
-    entrypoints: [
-      "cli/standalone.ts",
-      "cli/build.worker.ts",
-      "cli/snapshot.worker.ts",
-    ],
+    entrypoints: ["cli/standalone.ts"],
     compile: {
       outfile,
       ...(target ? { target: target as (typeof binaryTargets)[number] } : {}),
@@ -40,7 +38,6 @@ export async function compileBinary(): Promise<string> {
     tsconfig: "tsconfig.json",
     minify: true,
     metafile: true,
-    plugins: [cliPackageAdapters],
   })
   if (!result.success)
     throw new AggregateError(result.logs, "Binary compilation failed")

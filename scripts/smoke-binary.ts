@@ -62,24 +62,14 @@ try {
   // Exercise the shared CLI's sequential and embedded worker paths.
   for (const concurrency of ["1", "2"])
     run(["build", "index.tsx", "--ignore-errors", "--concurrency", concurrency])
-  // `init` normally installs packages. The compiled CLI must still use its
-  // registered engine and React, rather than import those packages by file URL.
-  for (const name of ["tscircuit", "react"]) {
-    const directory = join(projectDir, "node_modules", name)
-    await mkdir(directory, { recursive: true })
-    await writeFile(
-      join(directory, "package.json"),
-      JSON.stringify({ name, type: "module", exports: { import: "./index.js" } }),
-    )
-    await writeFile(
-      join(directory, "index.js"),
-      `throw new Error("Standalone loaded project ${name} instead of its bundled runtime")`,
-    )
-  }
+  // Use the same installed project graph as the published CLI.
+  await writeFile(join(projectDir, "package.json"), JSON.stringify({
+    private: true, dependencies: { tscircuit: packageMetadata.dependencies.tscircuit },
+  }))
+  run(["install"])
   run(["build", "initialized/index.circuit.tsx"])
   for (const concurrency of ["1", "2"])
     run(["build", "index.tsx", "--ignore-errors", "--concurrency", concurrency])
-  await rm(join(projectDir, "node_modules"), { recursive: true })
   run(["build", "index.tsx", "--site", "--pcb-png", "--ignore-errors"])
   assert.equal(
     (await readFile(join(projectDir, "dist/index/pcb.png")))
@@ -231,6 +221,26 @@ try {
       datasheet.generated_tsx,
     )
   }
+
+  // Filesystem imports publish FILE_UPDATED only after their dependencies have
+  // finished uploading. Start the browser against that complete project state.
+  const importedPaths = ["imports/AM62L32.tsx", "imports/AM3358BZCZA100.tsx"]
+  let importsSynced = false
+  for (let attempt = 0; attempt < 600; attempt++) {
+    const { event_list } = await (await fetch(`${origin}/api/events/list`, {
+      signal: AbortSignal.timeout(5000),
+    })).json()
+    const updatedPaths = new Set(event_list
+      .filter((event: { event_type: string }) => event.event_type === "FILE_UPDATED")
+      .map((event: { file_path?: string }) => event.file_path?.replaceAll("\\", "/")))
+    if (importedPaths.every((path) => updatedPaths.has(path))) {
+      importsSynced = true
+      break
+    }
+    if (dev.exitCode !== null) throw new Error("tsci dev exited while synchronizing imports")
+    await Bun.sleep(100)
+  }
+  assert.ok(importsSynced, "Dev did not synchronize the imported parts")
   console.log(`Verified all ${inventory.datasheets.length} baked datasheets (${sourceCount} with TSX) and unchanged BGA imports.`)
   for (const file of files) {
     const response = await fetch(`${origin}/jscdn/${file}`, {

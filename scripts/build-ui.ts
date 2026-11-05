@@ -1,4 +1,4 @@
-import { mkdir, readFile, realpath, writeFile } from "node:fs/promises"
+import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { createRequire } from "node:module"
 import { join, relative, resolve, sep } from "node:path"
 import { createUiPackageAdapters, findUiPackageRoot as findPackageRoot } from "./ui-package-adapters"
@@ -11,8 +11,6 @@ const uiRoot = join(projectRoot, "ui")
 const outputRoot = join(projectRoot, "build/ui")
 const uiRequire = createRequire(join(uiRoot, "package.json"))
 
-// Runtime helpers can require schema exports newer than the pinned viewers.
-const circuitJsonRoot = await realpath(join(projectRoot, "node_modules/circuit-json"))
 const troikaRoot = await findPackageRoot("troika-three-text")
 const manifoldRoot = await findPackageRoot("manifold-3d")
 const threeRoot = await findPackageRoot("three")
@@ -25,13 +23,6 @@ for (const packageRoot of [reactRoot, reactDomRoot]) {
 }
 
 const packageAdapters = await createUiPackageAdapters({ findPackageRoot })
-
-const circuitJsonPlugin: Bun.BunPlugin = {
-  name: "standalone-circuit-json",
-  setup(builder) {
-    builder.onResolve({ filter: /^circuit-json$/ }, () => ({ path: join(circuitJsonRoot, "dist/index.mjs") }))
-  },
-}
 
 const bundledPlugin: Bun.BunPlugin = {
   name: "standalone-bundled-ui",
@@ -58,7 +49,7 @@ const result = await Bun.build({
   minify: true,
   metafile: true,
   define: { "process.env.NODE_ENV": '"production"' },
-  plugins: [packageAdapters.plugin, circuitJsonPlugin, bundledPlugin],
+  plugins: [packageAdapters.plugin, bundledPlugin],
   throw: false,
 })
 if (!result.success) throw new AggregateError(result.logs, "Bundled RunFrame UI build failed")
@@ -74,7 +65,6 @@ const workerResult = await Bun.build({
   minify: true,
   metafile: true,
   define: { "process.env.NODE_ENV": '"production"' },
-  plugins: [circuitJsonPlugin],
   throw: false,
 })
 if (!workerResult.success) throw new AggregateError(workerResult.logs, "Bundled evaluator build failed")
