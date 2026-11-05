@@ -111,7 +111,9 @@ jobs:
           sudo unshare --net env PATH="$PATH" TEST_USER="$(id -un)" sh -c 'ip link set lo up; exec runuser -u "$TEST_USER" -- env PATH="$PATH" bun scripts/smoke-offline-install.ts --trace'
       - name: Install the qualification browser
         if: matrix.target == 'bun-linux-x64'
-        run: bunx playwright install --with-deps chromium
+        # Hosted runners already provide Chromium's shared libraries. The
+        # viewer uses bundled fonts; avoid unrelated OS font downloads.
+        run: bunx playwright install chromium
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/build/playwright
       - name: Verify 3D STEP rendering, JS CDN modules and WASM with only loopback networking
