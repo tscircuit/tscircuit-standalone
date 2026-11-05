@@ -39,10 +39,8 @@ jobs:
         if: inputs.tscircuit_version != ''
         env:
           TSCIRCUIT_VERSION: ${{ inputs.tscircuit_version }}
-        run: bun scripts/prepare-release.ts "$TSCIRCUIT_VERSION"
-      - run: bun install --frozen-lockfile
-        env:
-          NODE_OPTIONS: --require="${{ github.workspace }}/scripts/ci-https-agent.cjs"
+        run: bash scripts/ci-install-dependencies.sh "$TSCIRCUIT_VERSION"
+      - run: bash scripts/ci-install-dependencies.sh
       - name: Record the selected version
         id: version
         run: |
@@ -99,9 +97,7 @@ jobs:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-1.4.4-${{ hashFiles('bun.lock') }}
           restore-keys: ${{ runner.os }}-bun-1.4.4-
-      - run: bun install --frozen-lockfile
-        env:
-          NODE_OPTIONS: --require="${{ github.workspace }}/scripts/ci-https-agent.cjs"
+      - run: bash scripts/ci-install-dependencies.sh
       - name: Compile the qualified inputs for this target
         run: bun scripts/compile-binary.ts
         env:
