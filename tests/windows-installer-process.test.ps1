@@ -10,6 +10,13 @@ $fixture = Join-Path $root 'child process.ps1'
 param([string]$Mode, [string]$Root)
 if ($Mode -eq 'child') { Start-Sleep -Seconds 60; exit 0 }
 if ($Mode -eq 'quick') { Write-Output 'captured output'; exit 7 }
+if ($Mode -eq 'console') {
+    Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class TsciConsoleFixture { [DllImport("kernel32.dll", SetLastError = true)] public static extern uint GetConsoleProcessList([Out] uint[] processList, uint processCount); }'
+    $consoleMembers = New-Object uint32[] 64
+    $count = [TsciConsoleFixture]::GetConsoleProcessList($consoleMembers, $consoleMembers.Length)
+    @{ processId = $PID; members = @($consoleMembers | Select-Object -First ([Math]::Min([int]$count, $consoleMembers.Length))) } | ConvertTo-Json -Compress
+    exit 0
+}
 $hostExecutable = (Get-Process -Id $PID).Path
 Set-Content -LiteralPath (Join-Path $Root "$Mode.parent.pid") -Value $PID
 $child = Start-Process -FilePath $hostExecutable -ArgumentList @('-NoProfile', '-NonInteractive', '-File', ('"' + $PSCommandPath + '"'), '-Mode', 'child') -PassThru
@@ -26,6 +33,12 @@ try {
     $quick = Run-Fixture 'quick'
     Assert ($quick.ExitCode -eq 7) 'The child exit code was lost'
     Assert ($quick.Stdout.Trim() -eq 'captured output') 'The child output was lost'
+
+    $console = Run-Fixture 'console'
+    Assert ($console.ExitCode -eq 0) 'The console fixture did not finish'
+    $consoleState = $console.Stdout | ConvertFrom-Json
+    Assert ($consoleState.members -contains $consoleState.processId) 'The child did not receive its own console'
+    Assert ($consoleState.members -notcontains $PID) 'The child shares the CI host console'
 
     $detached = Run-Fixture 'detached'
     Assert ($detached.ExitCode -eq 0) 'The parent did not finish'

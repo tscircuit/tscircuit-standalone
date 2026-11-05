@@ -44,7 +44,8 @@ function Invoke-SmokeProcess {
     $stdout = Join-Path $LogDirectory "$Name.stdout.txt"
     $stderr = Join-Path $LogDirectory "$Name.stderr.txt"
     Write-Host "[$([DateTime]::UtcNow.ToString('o'))] Starting $Name (limit ${TimeoutSeconds}s)"
-    $process = Start-Process -FilePath $FilePath -ArgumentList $ArgumentList -PassThru -NoNewWindow `
+    # Installer application-restart handling must not share the CI host's console.
+    $process = Start-Process -FilePath $FilePath -ArgumentList $ArgumentList -PassThru -WindowStyle Hidden `
         -RedirectStandardOutput $stdout -RedirectStandardError $stderr
     Write-Host "[$([DateTime]::UtcNow.ToString('o'))] Launched $Name (PID $($process.Id))"
     try {
