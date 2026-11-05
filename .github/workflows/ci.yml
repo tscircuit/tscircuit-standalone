@@ -40,8 +40,8 @@ jobs:
         if: inputs.tscircuit_version != ''
         env:
           TSCIRCUIT_VERSION: ${{ inputs.tscircuit_version }}
-        run: bun scripts/prepare-release.ts "$TSCIRCUIT_VERSION"
-      - run: bun install --frozen-lockfile
+        run: bash scripts/ci-install-dependencies.sh "$TSCIRCUIT_VERSION"
+      - run: bash scripts/ci-install-dependencies.sh
       - name: Build the prototype UI used by the regression tests
         run: bun run build:ui
       - run: bun run typecheck
@@ -70,7 +70,7 @@ jobs:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-1.4.4-${{ hashFiles('bun.lock') }}
           restore-keys: ${{ runner.os }}-bun-1.4.4-
-      - run: bun install --frozen-lockfile
+      - run: bash scripts/ci-install-dependencies.sh
       - name: Test native macOS packaging and installer regression cases
         run: bun run test tests/build-macos-installer.test.ts tests/install-macos.test.ts tests/native-bun.test.ts
       - uses: actions/download-artifact@v4

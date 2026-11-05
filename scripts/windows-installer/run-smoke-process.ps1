@@ -1,3 +1,37 @@
+function Wait-SmokeProcessExit {
+    param(
+        [Parameter(Mandatory = $true)][Diagnostics.Process]$Process,
+        [Parameter(Mandatory = $true)][int]$TimeoutSeconds,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    $lastProgress = 0
+    while ($true) {
+        $Process.Refresh()
+        if ($Process.HasExited) { return $true }
+        if ($timer.Elapsed.TotalSeconds -ge $TimeoutSeconds) { return $false }
+        if ($timer.Elapsed.TotalSeconds -ge ($lastProgress + 10)) {
+            $lastProgress = [int]$timer.Elapsed.TotalSeconds
+            Write-Host "[$([DateTime]::UtcNow.ToString('o'))] Waiting for $Name (PID $($Process.Id), ${lastProgress}s elapsed)"
+        }
+        # Yield to PowerShell so cancellation can interrupt a stalled installer.
+        # A synchronous native WaitForExit can prevent the host from responding.
+        Start-Sleep -Milliseconds 100
+    }
+}
+
+function Read-SmokeProcessOutput([string]$Path) {
+    # A detached descendant can retain the redirected writer after its parent
+    # exits. Read existing output without requiring that writer to close.
+    $stream = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read,
+        ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+    try {
+        $reader = [IO.StreamReader]::new($stream)
+        try { return $reader.ReadToEnd() }
+        finally { $reader.Dispose() }
+    } finally { $stream.Dispose() }
+}
+
 function Invoke-SmokeProcess {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
@@ -10,7 +44,8 @@ function Invoke-SmokeProcess {
     $stdout = Join-Path $LogDirectory "$Name.stdout.txt"
     $stderr = Join-Path $LogDirectory "$Name.stderr.txt"
     Write-Host "[$([DateTime]::UtcNow.ToString('o'))] Starting $Name (limit ${TimeoutSeconds}s)"
-    $process = Start-Process -FilePath $FilePath -ArgumentList $ArgumentList -PassThru -NoNewWindow `
+    # Installer application-restart handling must not share the CI host's console.
+    $process = Start-Process -FilePath $FilePath -ArgumentList $ArgumentList -PassThru -WindowStyle Hidden `
         -RedirectStandardOutput $stdout -RedirectStandardError $stderr
     Write-Host "[$([DateTime]::UtcNow.ToString('o'))] Launched $Name (PID $($process.Id))"
     try {
@@ -18,12 +53,12 @@ function Invoke-SmokeProcess {
         $null = $process.Handle
         # Start-Process -Wait waits for descendants as well. An unrelated
         # background child must not keep a completed installer check alive.
-        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+        if (-not (Wait-SmokeProcessExit -Process $process -TimeoutSeconds $TimeoutSeconds -Name $Name)) {
             Write-Host "$Name timed out; terminating process tree $($process.Id)"
             $kill = Start-Process -FilePath "$env:SystemRoot\System32\taskkill.exe" `
                 -ArgumentList @('/PID', [string]$process.Id, '/T', '/F') -PassThru -NoNewWindow
             try {
-                if (-not $kill.WaitForExit(10000)) {
+                if (-not (Wait-SmokeProcessExit -Process $kill -TimeoutSeconds 10 -Name "$Name process-tree termination")) {
                     Stop-Process -Id $kill.Id -Force -ErrorAction SilentlyContinue
                 }
             } finally { $kill.Dispose() }
@@ -34,7 +69,7 @@ function Invoke-SmokeProcess {
         Write-Host "[$([DateTime]::UtcNow.ToString('o'))] Finished $Name (exit $($process.ExitCode))"
         return [pscustomobject]@{
             ExitCode = $process.ExitCode
-            Stdout = [IO.File]::ReadAllText($stdout)
+            Stdout = Read-SmokeProcessOutput $stdout
         }
     } finally {
         foreach ($log in @($stdout, $stderr)) {
