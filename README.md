@@ -17,35 +17,20 @@ curl -fsSL https://raw.githubusercontent.com/tscircuit/tscircuit-standalone/main
 curl.exe -fsSL https://raw.githubusercontent.com/tscircuit/tscircuit-standalone/main/scripts/install-windows.ps1 | Out-String | iex
 ```
 
-These install the latest published release, including prereleases, without
-requesting administrator access. Windows opens its per-user setup wizard with
-a destination folder picker. The macOS/Linux command offers a destination choice
-when run in a terminal; press Enter to use the current user's `~/.local/bin`.
-On macOS, a custom destination receives a portable copy of `tsci` and its licenses;
-on Linux, a custom prefix receives `bin/tsci` and its managed license bundle.
-Linux needs `jq` or Python 3 to select the latest release.
-
-Run `"$HOME/.local/bin/tsci" --version` after a default Unix installation. To use
-`tsci` by name, add `~/.local/bin` to your shell's PATH. The installer prints the
-command to use for a custom destination. It never edits shell configuration.
-
-For unattended Unix installation, set `TSCI_NONINTERACTIVE=1` on the `sh` process.
-Linux also accepts `TSCI_INSTALL_PREFIX=/absolute/writable/path`. An explicit
-release tag and portable destination can be passed on either platform with
+These install the latest published release, including prereleases. Open a new
+terminal and run `tsci --version`. macOS/Linux install to `/usr/local/bin` and
+may request administrator approval; Windows opens its per-user setup wizard.
+Linux needs `jq` or Python 3 to select the latest release. An explicit release
+tag and portable destination can be passed to the Unix command with
 `sh -s -- TAG ./tsci` instead of `sh`; then run `./tsci/tsci`.
-On Windows, download the PowerShell script and run it with
-`-Silent -Destination 'C:\Users\me\Tools\tscircuit'` to choose a folder unattended.
-Unwritable destinations fail without requesting elevated permissions.
 
 ## Download and run on macOS
 
 Open the newest published [release](https://github.com/tscircuit/tscircuit-standalone/releases)
 and download the **Apple Silicon** or **Intel** `.pkg` installer. Double-click it,
-follow the prompts, and choose a folder in your home directory on the customization
-page. The default prefix is `~/.local`, with the command in `bin/tsci` and licenses
-in `share/tscircuit-standalone`. Run `"$HOME/.local/bin/tsci" --version`, or add the
-chosen prefix's `bin` directory to PATH. Installation uses only the current user's
-permissions; no Bun, Node.js or administrator access is needed.
+follow the prompts, then open Terminal and run `tsci --version`. The installer
+requires administrator approval and installs the command on PATH; no Bun, Node.js
+or manual permission changes are needed.
 
 macOS releases are signed with tscircuit Inc.'s Developer ID and notarized by
 Apple. See [macOS download verification](docs/releases.md#macos-download-quarantine).
@@ -54,7 +39,6 @@ Apple. See [macOS download verification](docs/releases.md#macos-download-quarant
 
 Download `tscircuit-standalone-windows-x64-setup.exe` from the newest published
 [release](https://github.com/tscircuit/tscircuit-standalone/releases). Run setup,
-choose a writable destination folder,
 then open a **new terminal** and use `tsci` or `tscircuit`. If an existing command
 is found, setup asks before making standalone the default. Existing npm packages
 stay installed. No Node.js, Bun or administrator access is needed.
