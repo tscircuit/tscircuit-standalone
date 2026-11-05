@@ -2,6 +2,7 @@ import { afterEach, expect, test } from "bun:test"
 import { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, readlink, rm, stat, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
+import { runInstallerInTerminal } from "./helpers/installer-terminal"
 
 const project = resolve(import.meta.dir, "..")
 const directories: string[] = []
@@ -57,8 +58,11 @@ else process.stdout.write(bytes)
 `)
   await chmod(join(bin, "uname"), 0o755)
   await chmod(join(bin, "curl"), 0o755)
+  await writeFile(join(bin, "sudo"), '#!/bin/sh\necho "Unexpected administrator request" >&2\nexit 99\n')
+  await chmod(join(bin, "sudo"), 0o755)
   const environment = (extra: Record<string, string> = {}) => ({
-    ...process.env, PATH: `${join(prefix, "bin")}:${bin}:/usr/bin:/bin`, TMPDIR: temporary,
+    ...process.env, HOME: root, TSCI_NONINTERACTIVE: "1",
+    PATH: `${join(prefix, "bin")}:${bin}:/usr/bin:/bin`, TMPDIR: temporary,
     TSCI_INSTALL_PREFIX: prefix, FIXTURE_CALLS: calls, FIXTURE_PROJECT: project,
     FIXTURE_RELEASE: release, FIXTURE_COMMAND: commandPath, FIXTURE_PATH_COMMAND: join(bin, "tsci"), ...extra,
   })
@@ -68,6 +72,45 @@ else process.stdout.write(bytes)
   const bundles = async () => readdir(join(prefix, "lib/tscircuit-standalone")).catch(() => [])
   return { root, bin, release, payload, temporary, prefix, calls, archive, commandPath, prepare, run, bundles, environment }
 }
+
+test("Linux defaults to a user-owned prefix without requesting administrator access", async () => {
+  const f = await fixture()
+  const result = f.run([], { TSCI_INSTALL_PREFIX: "" })
+  expect(result.exitCode, result.stderr.toString()).toBe(0)
+  const binary = join(f.root, ".local/bin/tsci")
+  expect(Bun.spawnSync([binary, "--version"]).stdout.toString()).toBe("fixture 1\n")
+  expect(result.stdout.toString()).toContain(binary)
+  expect(await Bun.file(f.commandPath).exists()).toBe(false)
+})
+
+test.skipIf(process.platform === "win32")("Linux curl pipeline accepts a destination with spaces from the terminal", async () => {
+  const f = await fixture()
+  const prefix = join(f.root, "selected prefix")
+  const result = await runInstallerInTerminal(
+    ["/bin/sh", "-c", "curl -fsSL https://raw.githubusercontent.com/tscircuit/tscircuit-standalone/main/scripts/install.sh | sh"],
+    f.root, f.environment({ TSCI_INSTALL_PREFIX: "", TSCI_NONINTERACTIVE: "0" }),
+    "Installation prefix [", prefix,
+  )
+  expect(result.answered, result.output).toBe(true)
+  expect(result.exitCode, result.output).toBe(0)
+  expect(Bun.spawnSync([join(prefix, "bin/tsci"), "--version"]).stdout.toString()).toBe("fixture 1\n")
+})
+
+test("Linux rejects an unwritable prefix before downloading, without trying to elevate", async () => {
+  const f = await fixture()
+  const blocked = join(f.root, "blocked")
+  await mkdir(blocked)
+  await chmod(blocked, 0o555)
+  try {
+    const result = f.run([], { TSCI_INSTALL_PREFIX: join(blocked, "new prefix") })
+    expect(result.exitCode).not.toBe(0)
+    expect(result.stderr.toString()).toContain("Choose a writable destination")
+    expect(result.stderr.toString()).not.toContain("Unexpected administrator request")
+    expect(await readFile(f.calls, "utf8")).toBe("")
+  } finally {
+    await chmod(blocked, 0o755)
+  }
+})
 
 for (const architecture of ["x86_64", "aarch64"]) {
   test(`Linux installer selects ${architecture}, installs on PATH and retains licenses`, async () => {

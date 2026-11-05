@@ -32,10 +32,10 @@ export async function buildMacosInstaller({
   const packageVersion = match.slice(1, 4).join(".")
   const noticeNames = ["LICENSE", "THIRD_PARTY_NOTICES", "licenses.json", "THIRD_PARTY_NOTICES.txt"]
   const inputs = [
-    [resolve(binary), "usr/local/bin/tsci"],
+    [resolve(binary), "bin/tsci"],
     ...noticeNames.map((name) => [
       join(name === "LICENSE" || name === "THIRD_PARTY_NOTICES" ? projectRoot : dirname(resolve(binary)), name),
-      `usr/local/share/tscircuit-standalone/${name}`,
+      `share/tscircuit-standalone/${name}`,
     ]),
   ] as [string, string][]
   for (const [source] of inputs) {
@@ -51,7 +51,7 @@ export async function buildMacosInstaller({
   try {
     const root = join(stage, "root")
     // Explicit modes also work when the signing shell uses umask 077.
-    for (const path of ["usr", "usr/local", "usr/local/bin", "usr/local/share", "usr/local/share/tscircuit-standalone"]) {
+    for (const path of ["bin", "share", "share/tscircuit-standalone"]) {
       await mkdir(join(root, path), { recursive: true })
       await chmod(join(root, path), 0o755)
     }
@@ -59,7 +59,7 @@ export async function buildMacosInstaller({
       // Copy bytes into a fresh payload, without importing a source file's
       // download metadata or ACLs. The source and its quarantine stay intact.
       await pipeline(createReadStream(source), createWriteStream(join(root, path)))
-      await chmod(join(root, path), path === "usr/local/bin/tsci" ? 0o755 : 0o644)
+      await chmod(join(root, path), path === "bin/tsci" ? 0o755 : 0o644)
     }
     await writeFile(join(stage, "requirements.plist"), `<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0"><dict>
@@ -67,16 +67,20 @@ export async function buildMacosInstaller({
 <key>os</key><array><string>${minimumVersions[0]}</string></array>
 </dict></plist>`)
     run(["pkgbuild", "--root", root, "--identifier", "com.tscircuit.tsci", "--version", packageVersion,
-      "--install-location", "/", "--ownership", "recommended", join(stage, "component.pkg")])
+      "--install-location", "/.local", "--ownership", "recommended", join(stage, "component.pkg")])
     const distribution = join(stage, "Distribution.xml")
     run(["productbuild", "--synthesize", "--product", join(stage, "requirements.plist"),
       "--package", join(stage, "component.pkg"), distribution])
     const xml = await readFile(distribution, "utf8")
     if (!/<installer-gui-script\b[^>]*>/.test(xml)) throw new Error("Missing Installer distribution")
-    // Explicit domains show a redundant destination page even with one option.
+    // Home-domain installs run as the current user. Never offer a system domain
+    // that could trigger an administrator prompt. The choice permits a custom
+    // prefix within the home directory through Installer's location picker.
     await writeFile(distribution, xml
-      .replace(/<installer-gui-script\b[^>]*>/, `$&\n    <title>tscircuit ${version}</title>`)
-      .replace(/<options\b/, '<options rootVolumeOnly="true"'))
+      .replace(/<installer-gui-script\b[^>]*>/, `$&\n    <title>tscircuit ${version}</title>\n    <domains enable_anywhere="false" enable_currentUserHome="true" enable_localSystem="false"/>`)
+      .replace('customize="never"', 'customize="always"')
+      .replace('<choice id="com.tscircuit.tsci" visible="false">',
+        '<choice id="com.tscircuit.tsci" visible="true" title="tscircuit Standalone" customLocation="/.local" customLocationAllowAlternateVolumes="false">'))
     const temporaryOutput = join(stage, "unsigned.pkg")
     run(["productbuild", "--distribution", distribution, "--package-path", stage,
       temporaryOutput])

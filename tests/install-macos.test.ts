@@ -2,6 +2,7 @@ import { afterEach, expect, test } from "bun:test"
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
+import { runInstallerInTerminal } from "./helpers/installer-terminal"
 
 const installer = resolve(import.meta.dir, "../scripts/install-macos.sh")
 const directories: string[] = []
@@ -68,7 +69,6 @@ copyFileSync(process.env.FIXTURE_RELEASE + "/" + url.split("/").at(-1), args[arg
     await writeFile(join(bin, name), `#!${process.execPath}\n` + String.raw`
 import { appendFileSync, readFileSync } from "node:fs"
 import { basename } from "node:path"
-import { spawnSync } from "node:child_process"
 const tool = basename(process.argv[1])
 const args = process.argv.slice(2)
 appendFileSync(process.env.FIXTURE_INSTALLER_CALLS, JSON.stringify({ tool, args }) + "\n")
@@ -77,12 +77,9 @@ if (tool === "pkgutil") {
   console.log("Status: signed by a certificate trusted by macOS\n1. " +
     (process.env.FIXTURE_SIGNER ?? "Developer ID Installer: tscircuit Inc. (WUQ9WUY75Z)"))
 }
-if (tool === "sudo") {
-  if (args[0] !== "/usr/sbin/installer") process.exit(1)
-  process.exit(spawnSync("installer", args.slice(1), { stdio: "inherit" }).status ?? 1)
-}
+if (tool === "sudo") process.exit(1)
 if (tool === "installer") {
-  if (args.length !== 4 || args[0] !== "-pkg" || args[2] !== "-target" || args[3] !== "/") process.exit(1)
+  if (args.length !== 4 || args[0] !== "-pkg" || args[2] !== "-target" || args[3] !== "CurrentUserHomeDirectory") process.exit(1)
   if (readFileSync(args[1], "utf8") !== "Fixture signed installer\n") process.exit(1)
 }
 `)
@@ -108,6 +105,8 @@ try {
       cwd: root,
       env: {
         ...process.env,
+        HOME: root,
+        TSCI_NONINTERACTIVE: "1",
         PATH: `${bin}:/usr/bin:/bin`,
         TMPDIR: temporary,
         FIXTURE_RELEASE: release,
@@ -123,7 +122,13 @@ try {
     runCommand(["/bin/sh", installer, ...args], env)
   const tools = async () => (await readFile(installerCalls, "utf8")).trim().split("\n").filter(Boolean)
     .map((line) => JSON.parse(line) as { tool: string; args: string[] })
-  return { root, release, archive, pkg, pkgHash, manifest, destination, files, run, runCommand, tools, calls, temporary }
+  const terminalEnvironment = {
+    ...process.env, HOME: root, PATH: `${bin}:/usr/bin:/bin`, TMPDIR: temporary,
+    TSCI_NONINTERACTIVE: "0", FIXTURE_RELEASE: release, FIXTURE_CALLS: calls,
+    FIXTURE_TAG: releaseTag, FIXTURE_INSTALLER: installer,
+    FIXTURE_ENTRY: resolve(import.meta.dir, "../scripts/install.sh"), FIXTURE_INSTALLER_CALLS: installerCalls,
+  }
+  return { root, release, archive, pkg, pkgHash, manifest, destination, files, run, runCommand, tools, calls, temporary, terminalEnvironment }
 }
 
 for (const architecture of ["arm64", "x86_64"]) {
@@ -142,12 +147,12 @@ for (const architecture of ["arm64", "x86_64"]) {
   })
 }
 
-test("a pinned release installs the signed package by default", async () => {
+test("a pinned release installs the signed package for the current user", async () => {
   const f = await fixture()
   const result = f.run(["daily-2026-10-15"])
   expect(result.exitCode).toBe(0)
-  expect(result.stdout.toString()).toContain("Run: tsci --version")
-  expect((await f.tools()).map(({ tool }) => tool)).toEqual(["pkgutil", "spctl", "sudo", "installer"])
+  expect(result.stdout.toString()).toContain(`Run: "${f.root}/.local/bin/tsci" --version`)
+  expect((await f.tools()).map(({ tool }) => tool)).toEqual(["pkgutil", "spctl", "installer"])
   expect(await readFile(f.calls, "utf8")).not.toContain("api.github.com")
 })
 
@@ -157,9 +162,9 @@ for (const architecture of ["arm64", "x86_64"]) {
     const f = await fixture(architecture, tag)
     const result = f.run([])
     expect(result.exitCode).toBe(0)
-    expect(result.stdout.toString()).toContain("Run: tsci --version")
-    expect((await f.tools()).map(({ tool }) => tool)).toEqual(["pkgutil", "spctl", "sudo", "installer"])
-    expect((await f.tools()).at(-1)?.args).toEqual(["-pkg", expect.stringContaining(f.pkg), "-target", "/"])
+    expect(result.stdout.toString()).toContain(`Run: "${f.root}/.local/bin/tsci" --version`)
+    expect((await f.tools()).map(({ tool }) => tool)).toEqual(["pkgutil", "spctl", "installer"])
+    expect((await f.tools()).at(-1)?.args).toEqual(["-pkg", expect.stringContaining(f.pkg), "-target", "CurrentUserHomeDirectory"])
     expect((await readFile(f.calls, "utf8")).trim().split("\n")).toEqual([
       "https://api.github.com/repos/tscircuit/tscircuit-standalone/releases?per_page=1",
       `https://github.com/tscircuit/tscircuit-standalone/releases/download/${tag}/${f.pkg}`,
@@ -186,7 +191,41 @@ test("latest accepts a custom destination", async () => {
   expect(await f.tools()).toEqual([])
 })
 
-test("system installation rejects a changed package before verification or administrator approval", async () => {
+for (const answer of ["custom", "default"]) {
+  test.skipIf(process.platform === "win32")(`macOS curl pipeline accepts the ${answer} destination from the terminal`, async () => {
+    const f = await fixture()
+    const result = await runInstallerInTerminal(
+      ["/bin/sh", "-c", "curl -fsSL https://raw.githubusercontent.com/tscircuit/tscircuit-standalone/main/scripts/install.sh | sh"],
+      f.root, f.terminalEnvironment, "Portable destination (", answer === "custom" ? f.destination : "",
+    )
+    expect(result.answered, result.output).toBe(true)
+    expect(result.exitCode, result.output).toBe(0)
+    if (answer === "custom") {
+      expect(await Bun.file(join(f.destination, "tsci")).exists()).toBe(true)
+      expect(await f.tools()).toEqual([])
+    } else {
+      expect((await f.tools()).map(({ tool }) => tool)).toEqual(["pkgutil", "spctl", "installer"])
+    }
+  })
+}
+
+test("macOS rejects an unwritable destination without downloading or requesting administrator access", async () => {
+  const f = await fixture()
+  const blocked = join(f.root, "blocked")
+  await mkdir(blocked)
+  await chmod(blocked, 0o555)
+  try {
+    const result = f.run(["latest", join(blocked, "custom destination")])
+    expect(result.exitCode).not.toBe(0)
+    expect(result.stderr.toString()).toContain("Choose a writable destination")
+    expect(await f.tools()).toEqual([])
+    expect(await readFile(f.calls, "utf8")).toBe("")
+  } finally {
+    await chmod(blocked, 0o755)
+  }
+})
+
+test("per-user installation rejects a changed package before verification or installation", async () => {
   const f = await fixture()
   await writeFile(join(f.release, f.pkg), "Changed installer")
   expect(f.run([]).exitCode).not.toBe(0)
@@ -194,21 +233,21 @@ test("system installation rejects a changed package before verification or admin
   expect(await Array.fromAsync(new Bun.Glob("*").scan(f.temporary))).toEqual([])
 })
 
-test("an unexpected installer signer cannot reach privileged installation", async () => {
+test("an unexpected installer signer cannot reach installation", async () => {
   const f = await fixture()
   expect(f.run([], { FIXTURE_SIGNER: "Developer ID Installer: Another Company (OTHERTEAM1)" }).exitCode).not.toBe(0)
   expect((await f.tools()).map(({ tool }) => tool)).toEqual(["pkgutil"])
 })
 
-test("signature, Gatekeeper, authorization and installation failures cannot report success", async () => {
-  for (const tool of ["pkgutil", "spctl", "sudo", "installer"]) {
+test("signature, Gatekeeper and installation failures cannot report success", async () => {
+  for (const tool of ["pkgutil", "spctl", "installer"]) {
     const f = await fixture()
     const result = f.run([], { FIXTURE_FAIL_TOOL: tool })
     expect(result.exitCode).not.toBe(0)
     expect(result.stdout.toString()).not.toContain("Installed tsci.")
     const tools = (await f.tools()).map(({ tool }) => tool)
     expect(tools.at(-1)).toBe(tool)
-    if (tool === "pkgutil" || tool === "spctl") expect(tools).not.toContain("sudo")
+    expect(tools).not.toContain("sudo")
     expect(await Array.fromAsync(new Bun.Glob("*").scan(f.temporary))).toEqual([])
   }
 })
@@ -236,7 +275,7 @@ test("latest leaves an existing destination untouched", async () => {
   await writeFile(join(f.destination, "tsci"), "existing binary")
   expect(f.run(["latest", f.destination]).exitCode).not.toBe(0)
   expect(await readFile(join(f.destination, "tsci"), "utf8")).toBe("existing binary")
-  expect((await readFile(f.calls, "utf8")).trim().split("\n")).toHaveLength(1)
+  expect(await readFile(f.calls, "utf8")).toBe("")
 })
 
 test("latest still rejects a checksum mismatch", async () => {

@@ -87,6 +87,19 @@ jobs:
           test "$(./dist/tsci --version)" = "$EXPECTED_VERSION"
           ./dist/tsci --help
           bun scripts/smoke-offline-install.ts
+      - name: Verify macOS installation without administrator access
+        env:
+          ARCH: ${{ matrix.arch }}
+          EXPECTED_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          bun scripts/build-macos-installer.ts dist/tsci "$EXPECTED_VERSION" "$ARCH" "$RUNNER_TEMP/tsci.pkg"
+          installer -pkg "$RUNNER_TEMP/tsci.pkg" -target CurrentUserHomeDirectory
+          cmp dist/tsci "$HOME/.local/bin/tsci"
+          test "$(stat -f '%u:%Lp' "$HOME/.local/bin/tsci")" = "$(id -u):755"
+          test "$("$HOME/.local/bin/tsci" --version)" = "$EXPECTED_VERSION"
+          for notice in LICENSE THIRD_PARTY_NOTICES licenses.json THIRD_PARTY_NOTICES.txt; do
+            cmp "dist/$notice" "$HOME/.local/share/tscircuit-standalone/$notice"
+          done
 
   windows-signing-checks:
     runs-on: windows-2025

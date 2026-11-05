@@ -746,7 +746,8 @@ test("release notes link both Mac installers and explain how to run the installe
   const notes = await readFile(join(release.root, "release-notes.md"), "utf8")
   for (const arch of ["arm64", "x64"])
     expect(notes).toContain(`/tscircuit-standalone-macos-${arch}.pkg)`)
-  expect(notes).toContain("Run the installer, open a new terminal")
+  expect(notes).toContain("Run the per-user installer, choose a folder in your home directory")
+  expect(notes).toContain("~/.local/bin/tsci --version")
   expect(notes).toContain("`tsci --version`")
 })
 

@@ -22,18 +22,25 @@ Both macOS binaries and installers are signed and notarized before publication. 
 published if a check, target build, signing, notarization or packaging step fails.
 
 For macOS, use `tscircuit-standalone-macos-arm64.pkg` (Apple Silicon) or
-`tscircuit-standalone-macos-x64.pkg` (Intel). Double-click the installer, approve
-installation, then run `tsci --version` in Terminal. It installs `/usr/local/bin/tsci`
-and licenses in `/usr/local/share/tscircuit-standalone`. An existing `tsci` at that
-path is replaced. Both architectures use the package identifier `com.tscircuit.tsci`
+`tscircuit-standalone-macos-x64.pkg` (Intel). Double-click the installer and choose
+a prefix in your home directory on the customization page. It defaults to
+`~/.local`, with `bin/tsci` and licenses in `share/tscircuit-standalone`. Add the
+chosen prefix's `bin` directory to PATH, or run the command by its full path.
+Only the current-user home installation domain is enabled, so installation
+does not request administrator access. The terminal installer verifies the signed
+package and installs it with `installer -target CurrentUserHomeDirectory`; choosing
+an explicit portable destination instead extracts the checksum-verified archive.
+Both architectures use the package identifier `com.tscircuit.tsci`
 for upgrades. Installer versions use the upstream version's three numeric components.
 
 ## Windows installer
 
 Use `tscircuit-standalone-windows-x64-setup.exe` on Windows x64. It uses Inno
 Setup's standard modern Windows 11 wizard and stock graphics, with automatic
-light/dark mode. Setup installs in `%LOCALAPPDATA%\Programs\tscircuit-standalone`
-for the current user, with no administrator access or runtime downloads.
+light/dark mode. Its destination page lets users choose a writable directory,
+defaulting to `%LOCALAPPDATA%\Programs\tscircuit-standalone`. Installation and
+uninstallation use only the current user's permissions, with no administrator
+access or runtime downloads.
 
 Use tscircuit standalone by running `tscircuit` or `tsci`. Setup exposes both
 names and prepends its directory to user PATH. When an existing command is
@@ -52,7 +59,9 @@ A future CLI change can warn when a later npm global installation is shadowed
 by standalone; that warning is outside this installer change.
 
 For unattended installation, run the setup executable with
-`/VERYSILENT /SUPPRESSMSGBOXES`. Existing-command takeover requires explicit
+`/VERYSILENT /SUPPRESSMSGBOXES /DIR="C:\Users\me\Tools\tscircuit"`. The PowerShell
+bootstrap accepts the same destination through `-Destination` and always requests
+current-user installation. Existing-command takeover requires explicit
 consent through `/TASKS=replacecommands`; without it, a conflicting unattended
 installation fails. Installation itself does not require network access.
 
@@ -90,6 +99,17 @@ Release signing rebuilds setup from the signed executable, signs the uninstaller
 through Inno Setup's SignTool hook, and repeats these checks before publishing the
 signed setup asset for both manual and daily releases. Local builds are unsigned
 unless `WINDOWS_INSTALLER_SIGN_COMMAND` supplies the Inno Setup signing command.
+
+## Linux installation
+
+The terminal installer defaults to `~/.local` and prompts for a writable prefix
+when attached to a terminal, including when launched through `curl | sh`.
+Use `TSCI_INSTALL_PREFIX=/absolute/writable/path` to choose the prefix unattended,
+or `TSCI_NONINTERACTIVE=1` to accept the default. It installs `bin/tsci` with a
+managed license bundle under `lib/tscircuit-standalone`, and safely replaces only
+its own previous installation. Add the chosen prefix's `bin` directory to PATH.
+An explicit second argument still selects a portable destination. Permission
+failures stop installation without invoking `sudo` or changing system PATH.
 
 ## Portable release assets
 

@@ -18,8 +18,23 @@ validate_tag() {
 release_tag=${1-latest}
 validate_tag "$release_tag"
 destination=${2-}
-prefix=${TSCI_INSTALL_PREFIX:-/usr/local}
+prefix=${TSCI_INSTALL_PREFIX:-${HOME:?HOME is required}/.local}
+if [ -z "$destination" ] && [ -z "${TSCI_INSTALL_PREFIX:-}" ] && [ -t 1 ] && [ "${TSCI_NONINTERACTIVE:-0}" != 1 ]; then
+  # Read from the terminal, since stdin may contain the curl | sh script.
+  if ( : <>/dev/tty ) 2>/dev/null; then
+    printf 'Installation prefix [%s]: ' "$prefix" >/dev/tty
+    IFS= read -r selected_prefix </dev/tty || fail 'Destination selection cancelled.'
+    prefix=${selected_prefix:-$prefix}
+  fi
+fi
 case "$prefix" in /*) ;; *) fail 'TSCI_INSTALL_PREFIX must be an absolute path' ;; esac
+prefix=${prefix%/}
+check_writable() {
+  writable=$1
+  while [ ! -e "$writable" ]; do writable=$(dirname "$writable"); done
+  [ -d "$writable" ] && [ -w "$writable" ] && [ -x "$writable" ] ||
+    fail "Cannot write to $1. Choose a writable destination; this installer does not request administrator access."
+}
 bundle_root=$prefix/lib/tscircuit-standalone
 command_path=$prefix/bin/tsci
 previous=
@@ -32,7 +47,10 @@ check_command_path() {
 if [ -n "$destination" ]; then
   case "$destination" in /*) ;; *) destination=./$destination ;; esac
   [ ! -e "$destination" ] && [ ! -L "$destination" ] || fail "Destination already exists: $destination"
+  check_writable "$(dirname "$destination")"
 else
+  check_writable "$bundle_root"
+  check_writable "$prefix/bin"
   check_command_path
   if [ -e "$command_path" ] || [ -L "$command_path" ]; then
     target=$(readlink "$command_path" 2>/dev/null || true)
@@ -50,15 +68,13 @@ done
 if command -v sha256sum >/dev/null 2>&1; then checksum=sha256sum
 elif command -v shasum >/dev/null 2>&1; then checksum=shasum
 else fail 'sha256sum or shasum is required'; fi
-admin=
-as_admin() { if [ "$admin" = sudo ]; then sudo "$@"; else "$@"; fi; }
 staging=$(mktemp -d "${TMPDIR:-/tmp}/tsci-install.XXXXXXXX")
 incoming=
 link_dir=
 cleanup() {
   rm -rf "$staging"
-  if [ -n "$incoming" ]; then as_admin rm -rf "$incoming"; fi
-  if [ -n "$link_dir" ]; then as_admin rm -rf "$link_dir"; fi
+  if [ -n "$incoming" ]; then rm -rf "$incoming"; fi
+  if [ -n "$link_dir" ]; then rm -rf "$link_dir"; fi
 }
 trap cleanup 0
 trap 'exit 1' HUP INT TERM
@@ -112,36 +128,26 @@ if [ -n "$destination" ]; then
   printf 'Installed %s. Run: "%s/tsci" --version\n' "$release_tag" "$destination"
   exit 0
 fi
-# Use the existing system PATH, without changing the user's shell configuration.
-if [ "$(id -u)" -ne 0 ]; then
-  writable=$bundle_root
-  while [ ! -e "$writable" ]; do writable=$(dirname "$writable"); done
-  bin_parent=$prefix/bin
-  while [ ! -e "$bin_parent" ]; do bin_parent=$(dirname "$bin_parent"); done
-  if [ ! -w "$writable" ] || [ ! -w "$bin_parent" ]; then
-    command -v sudo >/dev/null 2>&1 || fail 'Administrator access is required, or supply a portable destination.'
-    admin=sudo
-  fi
-fi
-as_admin mkdir -p "$bundle_root" "$prefix/bin"
-incoming=$(as_admin mktemp -d "$bundle_root/install.XXXXXXXX")
-as_admin cp "$staging/extracted/"* "$incoming/"
-as_admin chmod 755 "$incoming" "$incoming/tsci"
-as_admin chmod 644 "$incoming/LICENSE" "$incoming/THIRD_PARTY_NOTICES" "$incoming/licenses.json" "$incoming/THIRD_PARTY_NOTICES.txt"
+# Install using only the current user's permissions.
+mkdir -p "$bundle_root" "$prefix/bin"
+incoming=$(mktemp -d "$bundle_root/install.XXXXXXXX")
+cp "$staging/extracted/"* "$incoming/"
+chmod 755 "$incoming" "$incoming/tsci"
+chmod 644 "$incoming/LICENSE" "$incoming/THIRD_PARTY_NOTICES" "$incoming/licenses.json" "$incoming/THIRD_PARTY_NOTICES.txt"
 printf '%s\n' 'tscircuit-standalone' > "$staging/.tscircuit-installer"
-as_admin cp "$staging/.tscircuit-installer" "$incoming/"
-link_dir=$(as_admin mktemp -d "$prefix/bin/.tsci-link.XXXXXXXX")
-as_admin ln -s "$incoming/tsci" "$link_dir/tsci"
+cp "$staging/.tscircuit-installer" "$incoming/"
+link_dir=$(mktemp -d "$prefix/bin/.tsci-link.XXXXXXXX")
+ln -s "$incoming/tsci" "$link_dir/tsci"
 check_command_path
 if [ -n "$previous" ]; then
   [ -L "$command_path" ] && [ "$(readlink "$command_path")" = "$target" ] || fail 'The installed command changed while downloading.'
-  as_admin mv -f "$link_dir/tsci" "$command_path"
+  mv -f "$link_dir/tsci" "$command_path"
 else
   # Creating without --force also protects a command installed during the download.
-  as_admin ln -s "$incoming/tsci" "$command_path"
+  ln -s "$incoming/tsci" "$command_path"
 fi
 incoming=
-if [ -n "$previous" ]; then as_admin rm -rf "$previous"; fi
+if [ -n "$previous" ]; then rm -rf "$previous"; fi
 case ":$PATH:" in
   *":$prefix/bin:"*) printf 'Installed %s. Run: tsci --version\n' "$release_tag" ;;
   *) printf 'Installed %s. Run: "%s" --version\n' "$release_tag" "$command_path" ;;
