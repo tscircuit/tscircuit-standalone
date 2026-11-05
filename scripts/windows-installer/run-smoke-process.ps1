@@ -20,6 +20,18 @@ function Wait-SmokeProcessExit {
     }
 }
 
+function Read-SmokeProcessOutput([string]$Path) {
+    # A detached descendant can retain the redirected writer after its parent
+    # exits. Read existing output without requiring that writer to close.
+    $stream = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read,
+        ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+    try {
+        $reader = [IO.StreamReader]::new($stream)
+        try { return $reader.ReadToEnd() }
+        finally { $reader.Dispose() }
+    } finally { $stream.Dispose() }
+}
+
 function Invoke-SmokeProcess {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
@@ -56,7 +68,7 @@ function Invoke-SmokeProcess {
         Write-Host "[$([DateTime]::UtcNow.ToString('o'))] Finished $Name (exit $($process.ExitCode))"
         return [pscustomobject]@{
             ExitCode = $process.ExitCode
-            Stdout = [IO.File]::ReadAllText($stdout)
+            Stdout = Read-SmokeProcessOutput $stdout
         }
     } finally {
         foreach ($log in @($stdout, $stderr)) {

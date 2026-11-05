@@ -15,6 +15,7 @@ Set-Content -LiteralPath (Join-Path $Root "$Mode.parent.pid") -Value $PID
 $child = Start-Process -FilePath $hostExecutable -ArgumentList @('-NoProfile', '-NonInteractive', '-File', ('"' + $PSCommandPath + '"'), '-Mode', 'child') -PassThru
 Set-Content -LiteralPath (Join-Path $Root "$Mode.child.pid") -Value $child.Id
 if ($Mode -eq 'hang') { Start-Sleep -Seconds 60 }
+Write-Output 'parent completed while child stays alive'
 exit 0
 '@ | Set-Content -LiteralPath $fixture -Encoding utf8
 function Run-Fixture([string]$mode, [int]$timeout = 15) {
@@ -28,6 +29,7 @@ try {
 
     $detached = Run-Fixture 'detached'
     Assert ($detached.ExitCode -eq 0) 'The parent did not finish'
+    Assert ($detached.Stdout.Trim() -eq 'parent completed while child stays alive') 'Detached child output was not captured'
     $childId = [int](Get-Content -LiteralPath (Join-Path $root 'detached.child.pid'))
     Assert ([bool](Get-Process -Id $childId -ErrorAction SilentlyContinue)) 'The fixture did not leave a live descendant'
     Stop-Process -Id $childId -Force
