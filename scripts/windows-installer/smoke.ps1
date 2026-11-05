@@ -35,7 +35,10 @@ function Refresh-Path {
 }
 function Run-Setup([string]$task) {
     $name = if ($task) { 'install' } else { 'upgrade' }
-    $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', ('/DIR="' + $installed + '"'))
+    # No application is intentionally running during this upgrade test. Do not
+    # let silent setup's Restart Manager close or restart the CI host if it has
+    # inspected an installed executable. File replacement must still succeed.
+    $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOCLOSEAPPLICATIONS', '/NORESTARTAPPLICATIONS', ('/DIR="' + $installed + '"'))
     $arguments += '/LOG="' + (Join-Path $DiagnosticsDirectory "$name.inno.log") + '"'
     if ($task) { $arguments += '/TASKS=' + $task }
     $process = Invoke-SmokeProcess -Name $name -FilePath $Installer -ArgumentList $arguments -LogDirectory $DiagnosticsDirectory
