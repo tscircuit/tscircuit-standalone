@@ -74,9 +74,9 @@ try {
     Assert ($global:TsciFixturelaunched -contains '/TASKS=replacecommands') 'Explicit takeover consent was lost'
     Assert ($global:TsciFixturerequests[0].EndsWith('/releases/tags/daily-2026-10-27')) 'Exact release tag was ignored'
     Reset-Fixture
-    $destination = Join-Path $env:TEMP 'custom tscircuit destination'
-    & $bootstrap -Silent -Destination $destination | Out-Null
-    Assert ($global:TsciFixturelaunched -contains ('/DIR="' + $destination + '"')) 'Destination with spaces was not preserved'
+    $fixtureDestination = Join-Path $env:TEMP 'custom tscircuit destination'
+    & $bootstrap -Silent -Destination $fixtureDestination | Out-Null
+    Assert ($global:TsciFixturelaunched -contains ('/DIR="' + $fixtureDestination + '"')) 'Destination with spaces was not preserved'
     Assert ($global:TsciFixturelaunched -contains '/CURRENTUSER') 'Custom destination enabled elevation'
     Reset-Fixture
     Expect-Failure 'Invalid destination path' { & $bootstrap -Destination 'bad" /ALLUSERS' | Out-Null }
