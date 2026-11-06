@@ -39,5 +39,6 @@ export async function setupStandaloneEnvironment() {
     bakedAssets,
     "baked-asset-server",
   )
+  process.env.TSCIRCUIT_DEFAULT_SEARCH_SOURCES = "datasheets"
   return entrypoint
 }

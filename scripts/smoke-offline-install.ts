@@ -3,6 +3,7 @@ import { existsSync } from "node:fs"
 import { mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
+import { getNonLoopbackNetworkCalls } from "./network-trace"
 
 const binary = resolve(
   process.platform === "win32" ? "dist/tsci.exe" : "dist/tsci",
@@ -45,6 +46,7 @@ const run = async (args: string[], cwd = directory, success = true) => {
       HOME: directory,
       TSCIRCUIT_CACHE_DIR: join(directory, "cache"),
       TSCIRCUIT_CONFIG_DIR: join(directory, "config"),
+      TSCIRCUIT_DEFAULT_SEARCH_SOURCES: "ti,kicad,tscircuit",
     },
     stdout: "pipe",
     stderr: "pipe",
@@ -54,20 +56,8 @@ const run = async (args: string[], cwd = directory, success = true) => {
   assert.equal(result.exitCode === 0, success, `${args.join(" ")}: ${output}`)
   if (trace) {
     const calls = await readFile(tracePath, "utf8")
-    const outbound = calls
-      .split("\n")
-      .filter((line) =>
-        /^\d+\s+(?:connect|sendto|sendmsg|sendmmsg)\(/.test(line),
-      )
-    const unexpected = outbound.filter(
-      (line) =>
-        !/\b(?:sendto|sendmsg|sendmmsg)\(\d+<UNIX-STREAM/.test(line) &&
-        !/inet_addr\("127\.[0-9.]+"\)|inet_pton\(AF_INET6, "(?:::1|::ffff:127\.[0-9.]+)"/.test(
-          line,
-        ),
-    )
     assert.deepEqual(
-      unexpected,
+      getNonLoopbackNetworkCalls(calls),
       [],
       `${args.join(" ")} attempted non-loopback networking`,
     )
@@ -75,6 +65,37 @@ const run = async (args: string[], cwd = directory, success = true) => {
   return output
 }
 try {
+  const found = JSON.parse(await run(["search", "Rp2040", "--json"]))
+  assert.equal(found.query, "Rp2040")
+  assert.equal(found.results[0]?.chip_name, "RP2040")
+  assert.equal(found.results[0]?.source, "datasheets")
+  assert.ok(found.results[0]?.datasheet_id)
+  assert.match(await run(["search", "--datasheets", "rp204"]), /RP2040/)
+  const missing = "tsci-deliberately-unbundled-part"
+  assert.deepEqual(
+    JSON.parse(await run(["search", missing, "--json"])),
+    { query: missing, results: [] },
+  )
+  for (const source of ["ti", "kicad", "tscircuit"]) {
+    assert.match(
+      await run(["--", "search", "rp2040", `--${source}`], directory, false),
+      /isn't currently available/,
+    )
+  }
+  for (const source of ["digikey", "mouser", "jlcpcb", "lcsc"]) {
+    assert.match(
+      await run(["search", missing, `--${source}`], directory, false),
+      /isn't currently available/,
+    )
+  }
+  assert.match(
+    await run(["help", "search"]),
+    /TSCIRCUIT_DEFAULT_SEARCH_SOURCES/,
+  )
+  console.log(
+    `Compiled search passed${trace ? " using only loopback networking" : ""}.`,
+  )
+
   const initOutput = await run(["init", "project", "--yes"])
   const project = join(directory, "project")
   assert.ok(
