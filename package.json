@@ -19,7 +19,7 @@
     "typecheck:ui": "tsc --noEmit -p ui/tsconfig.json"
   },
   "dependencies": {
-    "@tscircuit/cli": "https://pkg.pr.new/@tscircuit/cli@69c429e",
+    "@tscircuit/cli": "https://pkg.pr.new/@tscircuit/cli@9f0bd17",
     "tscircuit": "0.0.3082"
   },
   "devDependencies": {

@@ -108,7 +108,7 @@ try {
         ...offlineSearch,
         success: false,
       }),
-      /Search sources unavailable offline/,
+      /Resource is not available from the configured platform source/,
     )
   }
   for (const source of ["digikey", "mouser", "jlcpcb", "lcsc"]) {
@@ -117,12 +117,12 @@ try {
         ...offlineSearch,
         success: false,
       }),
-      /isn't currently available/,
+      /Resource is not available from the configured platform source/,
     )
   }
   assert.match(
     await run(["help", "search"], offlineSearch),
-    /Baked searches use only local data/,
+    /TSCIRCUIT_DEFAULT_SEARCH_SOURCES/,
   )
   console.log(
     `Compiled search passed${trace ? " without opening any IP sockets" : ""}.`,
