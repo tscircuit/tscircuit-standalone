@@ -55,6 +55,14 @@ and run `./tsci --version`. Linux x64 and arm64 are available. The terminal
 installer retains the licenses, updates only its own installation, and refuses
 to replace an existing npm or manually installed `tsci` command.
 
+## Offline part search
+
+Run `tsci search <chip-name>` to search the embedded datasheet catalog, or add
+`--json` for machine-readable results. Search reads the catalog directly from
+the executable, including when a part is missing. Standalone search supports
+`--datasheets`. Remote provider flags are unavailable. Run `tsci` to see the
+available commands or `tsci search --help` for search options.
+
 ## Build from source
 
 ```sh

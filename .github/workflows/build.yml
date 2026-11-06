@@ -105,7 +105,7 @@ jobs:
       - name: Install network tracing for the offline install qualification
         if: matrix.target == 'bun-linux-x64'
         run: sudo apt-get update && sudo apt-get install -y strace
-      - name: Verify init/install and cache misses with no external networking
+      - name: Verify offline search, init/install and cache misses
         if: matrix.target == 'bun-linux-x64'
         run: |
           sudo unshare --net env PATH="$PATH" TEST_USER="$(id -un)" sh -c 'ip link set lo up; exec runuser -u "$TEST_USER" -- env PATH="$PATH" bun scripts/smoke-offline-install.ts --trace'
