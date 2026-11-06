@@ -58,10 +58,9 @@ to replace an existing npm or manually installed `tsci` command.
 ## Offline part search
 
 Run `tsci search <chip-name>` to search the embedded datasheet catalog, or add
-`--json` for machine-readable results. Search reads the catalog directly from
-the executable, including when a part is missing. Standalone search supports
-`--datasheets`. Remote provider flags are unavailable. Run `tsci` to see the
-available commands or `tsci search --help` for search options.
+`--json` for machine-readable results. Standalone passes its baked assets
+directory to the shared CLI, which reads the catalog from disk. Supplier
+searches require bundled responses. Run `tsci search --help` for options.
 
 ## Build from source
 
@@ -76,9 +75,7 @@ bun run build
 The build follows the pinned CLI's RunFrame dependency graph, bundles its dynamic
 imports from installed packages, and reuses the existing browser/WASM adapters.
 No CDN downloads or package installation happen when preparing the JS CDN at
-runtime. The shared CLI is pinned to a merged GitHub commit until its changes
-are available in an npm release; its locked build dependencies are installed
-during `bun run build`.
+runtime. The executable packages the pinned CLI and its runtime dependencies.
 
 At startup, the executable extracts its embedded JS CDN files into a temporary
 directory and sets `TSCIRCUIT_STANDALONE=1` and `TSCIRCUIT_JSCDN_DIR` before

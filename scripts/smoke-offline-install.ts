@@ -48,7 +48,7 @@ const run = async (
       HOME: directory,
       TSCIRCUIT_CACHE_DIR: join(directory, "cache"),
       TSCIRCUIT_CONFIG_DIR: join(directory, "config"),
-      TSCIRCUIT_DEFAULT_SEARCH_SOURCES: "ti,digikey,mouser,kicad,jlcpcb,tscircuit",
+      TSCIRCUIT_DEFAULT_SEARCH_SOURCES: "ti,kicad,tscircuit",
     },
     stdout: "pipe",
     stderr: "pipe",
@@ -102,18 +102,27 @@ try {
     JSON.parse(await run(["search", missing, "--json"], offlineSearch)),
     { query: missing, results: [] },
   )
-  for (const source of ["ti", "digikey", "mouser", "jlcpcb", "lcsc", "kicad", "tscircuit"]) {
+  for (const source of ["ti", "kicad", "tscircuit"]) {
     assert.match(
       await run(["--", "search", "rp2040", `--${source}`], {
         ...offlineSearch,
         success: false,
       }),
-      /Standalone search supports the embedded datasheet catalog/,
+      /Search sources unavailable offline/,
+    )
+  }
+  for (const source of ["digikey", "mouser", "jlcpcb", "lcsc"]) {
+    assert.match(
+      await run(["search", "tsci-deliberately-unbundled-part", `--${source}`], {
+        ...offlineSearch,
+        success: false,
+      }),
+      /isn't currently available/,
     )
   }
   assert.match(
     await run(["help", "search"], offlineSearch),
-    /All searches are offline/,
+    /Baked searches use only local data/,
   )
   console.log(
     `Compiled search passed${trace ? " without opening any IP sockets" : ""}.`,
