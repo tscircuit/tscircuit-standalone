@@ -10,10 +10,7 @@ const binary = resolve(
 const directory = await mkdtemp(join(tmpdir(), "tsci-offline-smoke-"))
 const trace = process.argv.includes("--trace")
 let sequence = 0
-const run = async (
-  args: string[],
-  { cwd = directory, success = true, allowLoopback = true } = {},
-) => {
+const run = async (args: string[], cwd = directory, success = true) => {
   const tracePath = join(directory, `network-${sequence++}.log`)
   const command = trace
     ? [
@@ -58,13 +55,6 @@ const run = async (
   assert.equal(result.exitCode === 0, success, `${args.join(" ")}: ${output}`)
   if (trace) {
     const calls = await readFile(tracePath, "utf8")
-    if (!allowLoopback) {
-      assert.doesNotMatch(
-        calls,
-        /^\d+\s+socket\(AF_INET6?,/m,
-        `${args.join(" ")} opened an IP socket`,
-      )
-    }
     const outbound = calls
       .split("\n")
       .filter((line) =>
@@ -73,59 +63,48 @@ const run = async (
     const unexpected = outbound.filter(
       (line) =>
         !/\b(?:sendto|sendmsg|sendmmsg)\(\d+<UNIX-STREAM/.test(line) &&
-        !(allowLoopback &&
-          /inet_addr\("127\.[0-9.]+"\)|inet_pton\(AF_INET6, "(?:::1|::ffff:127\.[0-9.]+)"/.test(line)),
+        !/inet_addr\("127\.[0-9.]+"\)|inet_pton\(AF_INET6, "(?:::1|::ffff:127\.[0-9.]+)"/.test(
+          line,
+        ),
     )
     assert.deepEqual(
       unexpected,
       [],
-      `${args.join(" ")} attempted ${allowLoopback ? "non-loopback " : ""}networking`,
+      `${args.join(" ")} attempted non-loopback networking`,
     )
   }
   return output
 }
 try {
-  const offlineSearch = { allowLoopback: false }
-  const found = JSON.parse(
-    await run(["search", "Rp2040", "--json"], offlineSearch),
-  )
+  const found = JSON.parse(await run(["search", "Rp2040", "--json"]))
   assert.equal(found.query, "Rp2040")
   assert.equal(found.results[0]?.chip_name, "RP2040")
   assert.equal(found.results[0]?.source, "datasheets")
   assert.ok(found.results[0]?.datasheet_id)
-  assert.match(
-    await run(["search", "--datasheets", "rp204"], offlineSearch),
-    /RP2040/,
-  )
+  assert.match(await run(["search", "--datasheets", "rp204"]), /RP2040/)
   const missing = "tsci-deliberately-unbundled-part"
   assert.deepEqual(
-    JSON.parse(await run(["search", missing, "--json"], offlineSearch)),
+    JSON.parse(await run(["search", missing, "--json"])),
     { query: missing, results: [] },
   )
   for (const source of ["ti", "kicad", "tscircuit"]) {
     assert.match(
-      await run(["--", "search", "rp2040", `--${source}`], {
-        ...offlineSearch,
-        success: false,
-      }),
-      /Resource is not available from the configured platform source/,
+      await run(["--", "search", "rp2040", `--${source}`], directory, false),
+      /isn't currently available/,
     )
   }
   for (const source of ["digikey", "mouser", "jlcpcb", "lcsc"]) {
     assert.match(
-      await run(["search", "tsci-deliberately-unbundled-part", `--${source}`], {
-        ...offlineSearch,
-        success: false,
-      }),
-      /Resource is not available from the configured platform source/,
+      await run(["search", missing, `--${source}`], directory, false),
+      /isn't currently available/,
     )
   }
   assert.match(
-    await run(["help", "search"], offlineSearch),
+    await run(["help", "search"]),
     /TSCIRCUIT_DEFAULT_SEARCH_SOURCES/,
   )
   console.log(
-    `Compiled search passed${trace ? " without opening any IP sockets" : ""}.`,
+    `Compiled search passed${trace ? " using only loopback networking" : ""}.`,
   )
 
   const initOutput = await run(["init", "project", "--yes"])
@@ -137,25 +116,26 @@ try {
     initOutput,
   )
   await rm(join(project, "node_modules"), { recursive: true })
-  await run(["install"], { cwd: project })
+  await run(["install"], project)
   assert.ok(
     await Bun.file(
       join(project, "node_modules/tscircuit/package.json"),
     ).exists(),
   )
-  await run(["install", "@types/react"], { cwd: project })
-  const failedInstall = { cwd: project, success: false }
+  await run(["install", "@types/react"], project)
   assert.match(
     await run(
       ["install", "tsci-deliberately-uncached-fixture"],
-      failedInstall,
+      project,
+      false,
     ),
     /--offline/,
   )
-  await run(["install", "https://example.invalid/uncached.tgz"], failedInstall)
+  await run(["install", "https://example.invalid/uncached.tgz"], project, false)
   await run(
     ["install", "git+https://example.invalid/uncached.git"],
-    failedInstall,
+    project,
+    false,
   )
   assert.equal(existsSync(join(directory, "cache", "launchers")), false)
   console.log(

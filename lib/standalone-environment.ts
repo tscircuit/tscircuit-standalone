@@ -2,7 +2,6 @@ import { mkdir, mkdtemp } from "node:fs/promises"
 import { rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
-import { pathToFileURL } from "node:url"
 import { jscdnAssets } from "./generated-jscdn-assets"
 import { bunCache } from "./generated-bun-cache"
 import { setupNativeBun } from "./native-bun"
@@ -36,11 +35,10 @@ export async function setupStandaloneEnvironment() {
   process.env.TSCI_SKIP_SKILL_SETUP = "true"
   process.env.TSCI_SKIP_ACCOUNT_FETCH = "true"
   process.env.TSCIRCUIT_JSCDN_DIR = await extractAssets(jscdnAssets, "jscdn")
-  const platformDirectory = await extractAssets(
+  process.env.TSCIRCUIT_BAKED_ASSET_SERVER_DIR = await extractAssets(
     bakedAssets,
     "baked-asset-server",
   )
-  process.env.TSCIRCUIT_PLATFORM_BASE_URL = pathToFileURL(platformDirectory).href
   process.env.TSCIRCUIT_DEFAULT_SEARCH_SOURCES = "datasheets"
   return entrypoint
 }

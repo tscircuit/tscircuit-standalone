@@ -58,12 +58,12 @@ to replace an existing npm or manually installed `tsci` command.
 ## Offline part search
 
 Run `tsci search <chip-name>` to search the embedded datasheet catalog, or add
-`--json` for machine-readable results. Standalone sets the shared CLI's
-`TSCIRCUIT_PLATFORM_BASE_URL` to a `file://` directory and
-`TSCIRCUIT_DEFAULT_SEARCH_SOURCES=datasheets`. Search uses the normal CLI
-command and reads through its file transport without opening network sockets.
-Other sources require bundled responses; missing responses fail locally.
-Run `tsci search --help` for options.
+`--json` for machine-readable results. Standalone sets the existing
+`TSCIRCUIT_BAKED_ASSET_SERVER_DIR` and defaults search to `datasheets` through
+`TSCIRCUIT_DEFAULT_SEARCH_SOURCES`. The local file server supplies the datasheet
+API URL; the normal CLI searches that server over loopback HTTP. Public catalog
+endpoints are not contacted. Other sources require bundled responses; missing
+responses fail locally. Run `tsci search --help` for options.
 
 ## Build from source
 
