@@ -43,7 +43,8 @@
     "@types/bun": "1.4.4",
     "playwright": "1.64.1",
     "@types/node": "26.6.5",
-    "@tscircuit/schematic-trace-solver": "0.0.208"
+    "@tscircuit/schematic-trace-solver": "0.0.208",
+    "zod": "3.25.76"
   },
   "workspaces": [
     "ui"

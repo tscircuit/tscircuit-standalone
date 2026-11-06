@@ -7,6 +7,7 @@ import { bunCache } from "./generated-bun-cache"
 import { setupNativeBun } from "./native-bun"
 import { restorePackagedRuntime } from "./packaged-runtime"
 import { packagedRuntime } from "./generated-runtime"
+import { startFakePartsServices } from "./fake-parts-services"
 import { bakedAssets } from "./generated-baked-assets"
 
 export async function setupStandaloneEnvironment() {
@@ -35,9 +36,10 @@ export async function setupStandaloneEnvironment() {
   process.env.TSCI_SKIP_SKILL_SETUP = "true"
   process.env.TSCI_SKIP_ACCOUNT_FETCH = "true"
   process.env.TSCIRCUIT_JSCDN_DIR = await extractAssets(jscdnAssets, "jscdn")
-  process.env.TSCIRCUIT_BAKED_ASSET_SERVER_DIR = await extractAssets(
-    bakedAssets,
-    "baked-asset-server",
-  )
-  return entrypoint
+  const assetDirectory = await extractAssets(bakedAssets, "baked-asset-server")
+  const services = await startFakePartsServices(assetDirectory)
+  Object.assign(process.env, services.env)
+  // The parent owns API and asset serving; the CLI must not start another server.
+  delete process.env.TSCIRCUIT_BAKED_ASSET_SERVER_DIR
+  return { ...entrypoint, stopServices: services.stop }
 }
