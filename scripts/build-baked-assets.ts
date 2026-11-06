@@ -4,6 +4,7 @@ import {
   buildDatasheetCatalog,
   type BuildDatasheetCatalogOptions,
 } from "./build-datasheets"
+import { copySearchCatalogs } from "./build-search-catalogs"
 import { normalizeChipName } from "../lib/datasheet-catalog"
 import { writeEmbeddedAssets } from "./write-embedded-assets"
 
@@ -60,6 +61,7 @@ export async function buildBakedAssets(
         }
       },
     })
+    await copySearchCatalogs(staging)
     await rm(directory, { recursive: true, force: true })
     await rename(staging, directory)
     await writeEmbeddedAssets(directory, modulePath, "bakedAssets")

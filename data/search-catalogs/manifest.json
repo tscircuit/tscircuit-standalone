@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-11-06T18:21:04.117Z",
+  "catalogs": {
+    "jlcsearch": {
+      "count": 18,
+      "gzip_bytes": 1332,
+      "sha256": "0e08618ab900545728334d330c1e77ab34f758a0a9fc2ad912f1f19e7841274d",
+      "urls": [
+        "https://jlcsearch.tscircuit.com/api/search?limit=10&q=C2040",
+        "https://jlcsearch.tscircuit.com/api/search?limit=10&q=C14663",
+        "https://jlcsearch.tscircuit.com/api/search?limit=10&q=C25804",
+        "https://jlcsearch.tscircuit.com/api/search?limit=10&q=C17414",
+        "https://jlcsearch.tscircuit.com/api/search?limit=10&q=C25744",
+        "https://jlcsearch.tscircuit.com/api/search?limit=10&q=C2286",
+        "https://jlcsearch.tscircuit.com/api/search?limit=10&q=C2290",
+        "https://jlcsearch.tscircuit.com/api/search?limit=10&q=C1525",
+        "https://jlcsearch.tscircuit.com/api/search?limit=10&q=C19702",
+        "https://jlcsearch.tscircuit.com/api/search?limit=10&q=C6186",
+        "https://jlcsearch.tscircuit.com/api/search?limit=10&q=C81598",
+        "https://jlcsearch.tscircuit.com/api/search?limit=10&q=C165948",
+        "https://jlcsearch.tscircuit.com/api/search?limit=10&q=C52923",
+        "https://jlcsearch.tscircuit.com/api/search?limit=10&q=C1815",
+        "https://jlcsearch.tscircuit.com/api/search?limit=10&q=C46749",
+        "https://jlcsearch.tscircuit.com/api/search?limit=10&q=C12367",
+        "https://jlcsearch.tscircuit.com/api/search?limit=10&q=C34743",
+        "https://jlcsearch.tscircuit.com/api/search?limit=10&q=C2128",
+        "https://jlcsearch.tscircuit.com/api/search?limit=10&q=C6188",
+        "https://jlcsearch.tscircuit.com/api/search?limit=10&q=C1817"
+      ]
+    },
+    "digikey": {
+      "count": 90,
+      "gzip_bytes": 6377,
+      "sha256": "207c3c328889f4668cd47a8cd839c6305d90868fdc1bd999d19469ade646dd55",
+      "urls": [
+        "https://digikeysearch.tscircuit.com/api/search?limit=10&q=NE555",
+        "https://digikeysearch.tscircuit.com/api/search?limit=10&q=LM358",
+        "https://digikeysearch.tscircuit.com/api/search?limit=10&q=RP2040",
+        "https://digikeysearch.tscircuit.com/api/search?limit=10&q=ESP32",
+        "https://digikeysearch.tscircuit.com/api/search?limit=10&q=STM32",
+        "https://digikeysearch.tscircuit.com/api/search?limit=10&q=ATMEGA328",
+        "https://digikeysearch.tscircuit.com/api/search?limit=10&q=AMS1117",
+        "https://digikeysearch.tscircuit.com/api/search?limit=10&q=CH340",
+        "https://digikeysearch.tscircuit.com/api/search?limit=10&q=TPS63001",
+        "https://digikeysearch.tscircuit.com/api/search?limit=10&q=MSPM0G3507"
+      ]
+    },
+    "mouser": {
+      "count": 82,
+      "gzip_bytes": 7676,
+      "sha256": "82ff534b1c37c633b82e846609f1867c76ffb0bc7019029ab27099db5729396a",
+      "urls": [
+        "https://mousersearch.tscircuit.com/api/search?limit=10&q=NE555",
+        "https://mousersearch.tscircuit.com/api/search?limit=10&q=LM358",
+        "https://mousersearch.tscircuit.com/api/search?limit=10&q=RP2040",
+        "https://mousersearch.tscircuit.com/api/search?limit=10&q=ESP32",
+        "https://mousersearch.tscircuit.com/api/search?limit=10&q=STM32",
+        "https://mousersearch.tscircuit.com/api/search?limit=10&q=ATMEGA328",
+        "https://mousersearch.tscircuit.com/api/search?limit=10&q=AMS1117",
+        "https://mousersearch.tscircuit.com/api/search?limit=10&q=CH340",
+        "https://mousersearch.tscircuit.com/api/search?limit=10&q=TPS63001",
+        "https://mousersearch.tscircuit.com/api/search?limit=10&q=MSPM0G3507"
+      ]
+    },
+    "ti": {
+      "count": 25,
+      "gzip_bytes": 1379,
+      "sha256": "aeab77c3beaa237185fc4a205defcf6eaacad23d3182b4585d0a072d03d852b1",
+      "urls": [
+        "https://tisearch.tscircuit.com/api/search?limit=10&q=NE555",
+        "https://tisearch.tscircuit.com/api/search?limit=10&q=LM358",
+        "https://tisearch.tscircuit.com/api/search?limit=10&q=RP2040",
+        "https://tisearch.tscircuit.com/api/search?limit=10&q=ESP32",
+        "https://tisearch.tscircuit.com/api/search?limit=10&q=STM32",
+        "https://tisearch.tscircuit.com/api/search?limit=10&q=ATMEGA328",
+        "https://tisearch.tscircuit.com/api/search?limit=10&q=AMS1117",
+        "https://tisearch.tscircuit.com/api/search?limit=10&q=CH340",
+        "https://tisearch.tscircuit.com/api/search?limit=10&q=TPS63001",
+        "https://tisearch.tscircuit.com/api/search?limit=10&q=MSPM0G3507"
+      ]
+    },
+    "kicad": {
+      "count": 15428,
+      "gzip_bytes": 89810,
+      "sha256": "546b8dc1433c606bdcff17086cb31c3e841e0c799fbf2de32883503b7eed9791",
+      "urls": [
+        "https://kicad-mod-cache.tscircuit.com/kicad_files.json"
+      ]
+    },
+    "tscircuit": {
+      "count": 78,
+      "gzip_bytes": 1556,
+      "sha256": "592ac34c05b5c970c4ffcf4b1c5789e4611b85cf93a17fac8b5b2afed48d0c1c",
+      "urls": [
+        "https://api.tscircuit.com/packages/search (query: NE555)",
+        "https://api.tscircuit.com/packages/search (query: LM358)",
+        "https://api.tscircuit.com/packages/search (query: RP2040)",
+        "https://api.tscircuit.com/packages/search (query: ESP32)",
+        "https://api.tscircuit.com/packages/search (query: STM32)",
+        "https://api.tscircuit.com/packages/search (query: ATMEGA328)",
+        "https://api.tscircuit.com/packages/search (query: AMS1117)",
+        "https://api.tscircuit.com/packages/search (query: CH340)",
+        "https://api.tscircuit.com/packages/search (query: TPS63001)",
+        "https://api.tscircuit.com/packages/search (query: MSPM0G3507)"
+      ]
+    }
+  }
+}
