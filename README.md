@@ -55,16 +55,6 @@ and run `./tsci --version`. Linux x64 and arm64 are available. The terminal
 installer retains the licenses, updates only its own installation, and refuses
 to replace an existing npm or manually installed `tsci` command.
 
-## Offline part search
-
-Run `tsci search <chip-name>` to search the embedded datasheet catalog, or add
-`--json` for machine-readable results. Standalone sets the existing
-`TSCIRCUIT_BAKED_ASSET_SERVER_DIR` and defaults search to `datasheets` through
-`TSCIRCUIT_DEFAULT_SEARCH_SOURCES`. The local file server supplies the datasheet
-API URL; the normal CLI searches that server over loopback HTTP. Public catalog
-endpoints are not contacted. Other sources require bundled responses; missing
-responses fail locally. Run `tsci search --help` for options.
-
 ## Build from source
 
 ```sh
@@ -78,7 +68,9 @@ bun run build
 The build follows the pinned CLI's RunFrame dependency graph, bundles its dynamic
 imports from installed packages, and reuses the existing browser/WASM adapters.
 No CDN downloads or package installation happen when preparing the JS CDN at
-runtime. The executable packages the pinned CLI and its runtime dependencies.
+runtime. The shared CLI is pinned to a merged GitHub commit until its changes
+are available in an npm release; its locked build dependencies are installed
+during `bun run build`.
 
 At startup, the executable extracts its embedded JS CDN files into a temporary
 directory and sets `TSCIRCUIT_STANDALONE=1` and `TSCIRCUIT_JSCDN_DIR` before
