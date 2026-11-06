@@ -3,6 +3,7 @@ import { existsSync } from "node:fs"
 import { mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
+import { getNonLoopbackNetworkCalls } from "./network-trace"
 
 const binary = resolve(
   process.platform === "win32" ? "dist/tsci.exe" : "dist/tsci",
@@ -55,20 +56,8 @@ const run = async (args: string[], cwd = directory, success = true) => {
   assert.equal(result.exitCode === 0, success, `${args.join(" ")}: ${output}`)
   if (trace) {
     const calls = await readFile(tracePath, "utf8")
-    const outbound = calls
-      .split("\n")
-      .filter((line) =>
-        /^\d+\s+(?:connect|sendto|sendmsg|sendmmsg)\(/.test(line),
-      )
-    const unexpected = outbound.filter(
-      (line) =>
-        !/\b(?:sendto|sendmsg|sendmmsg)\(\d+<UNIX-STREAM/.test(line) &&
-        !/inet_addr\("127\.[0-9.]+"\)|inet_pton\(AF_INET6, "(?:::1|::ffff:127\.[0-9.]+)"/.test(
-          line,
-        ),
-    )
     assert.deepEqual(
-      unexpected,
+      getNonLoopbackNetworkCalls(calls),
       [],
       `${args.join(" ")} attempted non-loopback networking`,
     )
