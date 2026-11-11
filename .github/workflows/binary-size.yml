@@ -37,18 +37,21 @@ jobs:
           def format_size(size):
               return f"{size / 2**20:.2f} MiB" if size is not None else "Unavailable"
 
+          platforms_by_size = {}
+          for target, platform in targets.items():
+              sizes = (read_size("base", target), read_size("pr", target))
+              platforms_by_size.setdefault(sizes, []).append(platform)
+
           base_sha = os.environ["BASE_SHA"][:7]
           merge_sha = os.environ["GITHUB_SHA"][:7]
           print("## Standalone binary size\n")
           print(f"Compiled executables from the base commit (`{base_sha}`) and PR merge commit (`{merge_sha}`).\n")
           print("| Platform | Base | PR | Change |")
           print("| --- | ---: | ---: | ---: |")
-          for target, platform in targets.items():
-              base = read_size("base", target)
-              pr = read_size("pr", target)
+          for (base, pr), platforms in platforms_by_size.items():
               change = "—"
               if base is not None and pr is not None:
                   delta = pr - base
                   change = f"{delta:+,} B ({delta / base:+.2%})" if delta else "0 B (0.00%)"
-              print(f"| {platform} | {format_size(base)} | {format_size(pr)} | {change} |")
+              print(f"| {', '.join(platforms)} | {format_size(base)} | {format_size(pr)} | {change} |")
           PY
