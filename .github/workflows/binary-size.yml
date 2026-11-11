@@ -1,0 +1,54 @@
+name: Standalone binary size
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: binary-size-*
+          path: sizes
+      - name: Compare executable sizes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python3 - >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import os
+          from pathlib import Path
+
+          targets = {
+              "bun-linux-x64": "Linux x64",
+              "bun-linux-arm64": "Linux arm64",
+              "bun-darwin-x64": "macOS Intel",
+              "bun-darwin-arm64": "macOS Apple Silicon",
+              "bun-windows-x64": "Windows x64",
+          }
+
+          def read_size(variant, target):
+              path = Path("sizes") / f"binary-size-{variant}-{target}" / "binary-size.txt"
+              return int(path.read_text()) if path.is_file() else None
+
+          def format_size(size):
+              return f"{size / 2**20:.2f} MiB" if size is not None else "Unavailable"
+
+          base_sha = os.environ["BASE_SHA"][:7]
+          merge_sha = os.environ["GITHUB_SHA"][:7]
+          print("## Standalone binary size\n")
+          print(f"Compiled executables from the base commit (`{base_sha}`) and PR merge commit (`{merge_sha}`).\n")
+          print("| Platform | Base | PR | Change |")
+          print("| --- | ---: | ---: | ---: |")
+          for target, platform in targets.items():
+              base = read_size("base", target)
+              pr = read_size("pr", target)
+              change = "—"
+              if base is not None and pr is not None:
+                  delta = pr - base
+                  change = f"{delta:+,} B ({delta / base:+.2%})" if delta else "0 B (0.00%)"
+              print(f"| {platform} | {format_size(base)} | {format_size(pr)} | {change} |")
+          PY

@@ -11,6 +11,10 @@ on:
         description: Build only the input for Windows signing qualification
         default: false
         type: boolean
+      size_baseline_ref:
+        description: Compile this source ref for binary size comparison only
+        type: string
+        default: ""
     outputs:
       version:
         description: The selected standalone version
@@ -19,6 +23,9 @@ on:
 permissions:
   contents: read
 
+env:
+  BUILD_INPUTS_ARTIFACT: standalone-build-inputs${{ inputs.size_baseline_ref && '-baseline' || '' }}
+
 jobs:
   prepare:
     runs-on: ubuntu-latest
@@ -26,6 +33,8 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.size_baseline_ref || github.sha }}
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.4
@@ -54,7 +63,7 @@ jobs:
       - name: Save the selected dependencies and prepared assets for all target builds
         uses: actions/upload-artifact@v4
         with:
-          name: standalone-build-inputs
+          name: ${{ env.BUILD_INPUTS_ARTIFACT }}
           path: |
             package.json
             ui/package.json
@@ -84,12 +93,14 @@ jobs:
         include: ${{ fromJSON(inputs.windows_only && '[]' || '[{"target":"bun-darwin-x64","runner":"macos-15-intel"},{"target":"bun-darwin-arm64","runner":"macos-15"}]') }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.size_baseline_ref || github.sha }}
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.4
       - uses: actions/download-artifact@v4
         with:
-          name: standalone-build-inputs
+          name: ${{ env.BUILD_INPUTS_ARTIFACT }}
           path: .
       - name: Cache Bun package downloads
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
@@ -102,41 +113,62 @@ jobs:
         run: bun scripts/compile-binary.ts
         env:
           BUN_BUILD_TARGET: ${{ matrix.target }}
+      - name: Measure the standalone executable
+        if: github.event_name == 'pull_request'
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          binary=dist/tsci
+          if [[ "$TARGET" == bun-windows-* ]]; then
+            binary=dist/tsci.exe
+          fi
+          test -s "$binary"
+          wc -c < "$binary" > dist/binary-size.txt
+      - name: Save the executable size
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-size-${{ inputs.size_baseline_ref && 'base' || 'pr' }}-${{ matrix.target }}
+          path: dist/binary-size.txt
+          if-no-files-found: error
+          retention-days: 3
       - name: Install network tracing for the offline install qualification
-        if: matrix.target == 'bun-linux-x64'
+        if: matrix.target == 'bun-linux-x64' && !inputs.size_baseline_ref
         run: sudo apt-get update && sudo apt-get install -y strace
       - name: Verify offline search, init/install and cache misses
-        if: matrix.target == 'bun-linux-x64'
+        if: matrix.target == 'bun-linux-x64' && !inputs.size_baseline_ref
         run: |
           sudo unshare --net env PATH="$PATH" TEST_USER="$(id -un)" sh -c 'ip link set lo up; exec runuser -u "$TEST_USER" -- env PATH="$PATH" bun scripts/smoke-offline-install.ts --trace'
       - name: Install the qualification browser
-        if: matrix.target == 'bun-linux-x64'
+        if: matrix.target == 'bun-linux-x64' && !inputs.size_baseline_ref
         # Hosted runners already provide Chromium's shared libraries. The
         # viewer uses bundled fonts; avoid unrelated OS font downloads.
         run: bunx playwright install chromium
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/build/playwright
       - name: Verify 3D STEP rendering, JS CDN modules and WASM with only loopback networking
-        if: matrix.target == 'bun-linux-x64'
+        if: matrix.target == 'bun-linux-x64' && !inputs.size_baseline_ref
         run: |
           sudo unshare --net env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" CI_BROWSER_USER="$(id -un)" sh -c 'ip link set lo up; exec runuser -u "$CI_BROWSER_USER" -- env PATH="$PATH" PLAYWRIGHT_BROWSERS_PATH="$PLAYWRIGHT_BROWSERS_PATH" bun scripts/smoke-binary.ts --browser'
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/build/playwright
       - name: Install GNU tar for deterministic macOS archives
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && !inputs.size_baseline_ref
         run: |
           brew install gnu-tar
           echo "$(brew --prefix gnu-tar)/libexec/gnubin" >> "$GITHUB_PATH"
       - name: Package the binary and redistribution notices
+        if: ${{ !inputs.size_baseline_ref }}
         run: bun scripts/package-release.ts
         env:
           BUN_BUILD_TARGET: ${{ matrix.target }}
       - name: Test the Linux installer with the qualified executable
-        if: matrix.target == 'bun-linux-x64'
+        if: matrix.target == 'bun-linux-x64' && !inputs.size_baseline_ref
         run: bun run test --test-name-pattern 'qualified Linux release' tests/install-linux.test.ts
         env:
           TSCI_TEST_LINUX_ARCHIVE: ${{ github.workspace }}/dist/release/tscircuit-standalone-linux-x64.tar.gz
       - uses: actions/upload-artifact@v4
+        if: ${{ !inputs.size_baseline_ref }}
         with:
           name: tscircuit-standalone-${{ matrix.target }}
           path: dist/release/*

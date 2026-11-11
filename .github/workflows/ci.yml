@@ -23,6 +23,17 @@ jobs:
       tscircuit_version: ${{ inputs.tscircuit_version || '' }}
       windows_only: ${{ inputs.windows_signing_test || false }}
 
+  build-size-baseline:
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/build.yml
+    with:
+      size_baseline_ref: ${{ github.event.pull_request.base.sha }}
+
+  binary-size:
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+    needs: [build, build-size-baseline]
+    uses: ./.github/workflows/binary-size.yml
+
   test:
     runs-on: ubuntu-latest
     steps:

@@ -332,7 +332,8 @@ test("publication waits for every signed platform and manual releases forward se
   expect(build.jobs["windows-signing-checks"]).toBeUndefined()
   expect(build.jobs["build-targets"].needs).toBe("prepare")
   expect(build.jobs["build-targets"].steps.some((step: any) =>
-    step.run?.includes("smoke-binary.ts --browser") && step.if === "matrix.target == 'bun-linux-x64'",
+    step.run?.includes("smoke-binary.ts --browser") &&
+    step.if === "matrix.target == 'bun-linux-x64' && !inputs.size_baseline_ref",
   )).toBe(true)
 })
 
