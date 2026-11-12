@@ -1,0 +1,85 @@
+name: Standalone binary size
+
+on:
+  workflow_call:
+    secrets:
+      TSCIRCUIT_BOT_GITHUB_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: standalone-binary-size-${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: binary-size-*
+          path: sizes
+      - name: Compare executable sizes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python3 - > binary-size.md <<'PY'
+          import os
+          from pathlib import Path
+
+          targets = {
+              "bun-linux-x64": "Linux x64",
+              "bun-linux-arm64": "Linux arm64",
+              "bun-darwin-x64": "macOS Intel",
+              "bun-darwin-arm64": "macOS Apple Silicon",
+              "bun-windows-x64": "Windows x64",
+          }
+
+          def read_size(variant, target):
+              path = Path("sizes") / f"binary-size-{variant}-{target}" / "binary-size.txt"
+              return int(path.read_text()) if path.is_file() else None
+
+          def format_size(size):
+              return f"{size / 2**20:.2f} MiB" if size is not None else "Unavailable"
+
+          platforms_by_size = {}
+          for target, platform in targets.items():
+              sizes = (read_size("base", target), read_size("pr", target))
+              platforms_by_size.setdefault(sizes, []).append(platform)
+
+          base_sha = os.environ["BASE_SHA"][:7]
+          merge_sha = os.environ["GITHUB_SHA"][:7]
+          print("## Standalone binary size\n")
+          print(f"Compiled executables from the base commit (`{base_sha}`) and PR merge commit (`{merge_sha}`).\n")
+          print("| Platform | Base | PR | Change |")
+          print("| --- | ---: | ---: | ---: |")
+          for (base, pr), platforms in platforms_by_size.items():
+              change = "—"
+              if base is not None and pr is not None:
+                  delta = pr - base
+                  change = f"{delta:+,} B ({delta / base:+.2%})" if delta else "0 B (0.00%)"
+              print(f"| {', '.join(platforms)} | {format_size(base)} | {format_size(pr)} | {change} |")
+          PY
+          cat binary-size.md >> "$GITHUB_STEP_SUMMARY"
+          printf '\n[CI run](%s/%s/actions/runs/%s)\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> binary-size.md
+      - name: Check the current PR head
+        id: pr
+        if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          current_head="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq 'select(.state == "open") | .head.sha')"
+          if [[ "$current_head" == "$HEAD_SHA" ]]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Update the PR size comment
+        if: steps.pr.outputs.current == 'true'
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          GITHUB_TOKEN: ${{ secrets.TSCIRCUIT_BOT_GITHUB_TOKEN || github.token }}
+          header: standalone-binary-size
+          path: binary-size.md
+          skip_unchanged: true
