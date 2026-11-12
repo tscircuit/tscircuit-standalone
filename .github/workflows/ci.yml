@@ -32,7 +32,12 @@ jobs:
   binary-size:
     if: ${{ !cancelled() && github.event_name == 'pull_request' }}
     needs: [build, build-size-baseline]
+    permissions:
+      contents: read
+      pull-requests: write
     uses: ./.github/workflows/binary-size.yml
+    secrets:
+      TSCIRCUIT_BOT_GITHUB_TOKEN: ${{ secrets.TSCIRCUIT_BOT_GITHUB_TOKEN }}
 
   test:
     runs-on: ubuntu-latest

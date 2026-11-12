@@ -2,13 +2,19 @@ name: Standalone binary size
 
 on:
   workflow_call:
+    secrets:
+      TSCIRCUIT_BOT_GITHUB_TOKEN:
+        required: false
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   report:
     runs-on: ubuntu-latest
+    concurrency:
+      group: standalone-binary-size-${{ github.event.pull_request.number }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -18,7 +24,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          python3 - >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          python3 - > binary-size.md <<'PY'
           import os
           from pathlib import Path
 
@@ -55,3 +61,25 @@ jobs:
                   change = f"{delta:+,} B ({delta / base:+.2%})" if delta else "0 B (0.00%)"
               print(f"| {', '.join(platforms)} | {format_size(base)} | {format_size(pr)} | {change} |")
           PY
+          cat binary-size.md >> "$GITHUB_STEP_SUMMARY"
+          printf '\n[CI run](%s/%s/actions/runs/%s)\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> binary-size.md
+      - name: Check the current PR head
+        id: pr
+        if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          current_head="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq 'select(.state == "open") | .head.sha')"
+          if [[ "$current_head" == "$HEAD_SHA" ]]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Update the PR size comment
+        if: steps.pr.outputs.current == 'true'
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          GITHUB_TOKEN: ${{ secrets.TSCIRCUIT_BOT_GITHUB_TOKEN || github.token }}
+          header: standalone-binary-size
+          path: binary-size.md
+          skip_unchanged: true

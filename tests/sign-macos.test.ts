@@ -320,7 +320,10 @@ test("publication waits for every signed platform and manual releases forward se
   const ci = await Bun.file(
     new URL("../.github/workflows/ci.yml", import.meta.url),
   ).text()
-  expect(ci).not.toContain("secrets.")
+  expect(ci).not.toContain("secrets: inherit")
+  expect(ci.match(/secrets\.[A-Z_]+/g)).toEqual([
+    "secrets.TSCIRCUIT_BOT_GITHUB_TOKEN",
+  ])
   const tests = Bun.YAML.parse(ci) as any
   expect(tests.on.workflow_call).toBeUndefined()
   expect(tests.jobs.test.steps.some((step: any) => step.run === "bun run test")).toBe(true)
