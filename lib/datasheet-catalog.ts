@@ -53,6 +53,15 @@ const selectorNamesFor = (names: readonly string[]): Map<string, string> => {
 const comparePhysicalPins = (left: string, right: string): number => {
   const leftCoordinate = left.match(/^([A-Z]+)([1-9]\d*)$/i)
   const rightCoordinate = right.match(/^([A-Z]+)([1-9]\d*)$/i)
+  // The comparator must be a total order. Mixing the coordinate comparison
+  // with locale ordering per pair is not transitive, which makes the sorted
+  // pin numbering depend on the datasheet's input ordering. Rank the pin
+  // styles first: plain ordinals, then row/column coordinates, then names.
+  const rank = (pin: string, coordinate: RegExpMatchArray | null) =>
+    /^\d+$/.test(pin) ? 0 : coordinate ? 1 : 2
+  const leftRank = rank(left, leftCoordinate)
+  const rightRank = rank(right, rightCoordinate)
+  if (leftRank !== rightRank) return leftRank - rightRank
   if (leftCoordinate && rightCoordinate) {
     const rowNumber = (letters: string) =>
       [...letters.toUpperCase()].reduce(
